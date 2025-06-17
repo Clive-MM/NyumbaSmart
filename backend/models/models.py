@@ -1,5 +1,7 @@
 from datetime import datetime
-from models import db
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
 
 class User(db.Model):
     __tablename__ = 'Users'
@@ -9,7 +11,7 @@ class User(db.Model):
     Email = db.Column(db.String(120), unique=True, nullable=False)
     Password = db.Column(db.String(200), nullable=False)
     Phone = db.Column(db.String(20))
-    IsAdmin = db.Column(db.Boolean, default=True)
+    IsAdmin = db.Column(db.Boolean, default=False)
     CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -17,7 +19,7 @@ class User(db.Model):
 
     def __repr__(self):
         return f"<User ID={self.UserID} Email={self.Email}>"
-    
+
 class Apartment(db.Model):
     __tablename__ = 'Apartments'
 
@@ -34,47 +36,50 @@ class Apartment(db.Model):
     def __repr__(self):
         return f"<Apartment {self.ApartmentName}>"
 
-class RentalUnitCategory(db.Model):
-    __tablename__ = 'RentalUnitCategories'
+class UnitCategory(db.Model):
+    __tablename__ = 'UnitCategories'
 
     CategoryID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    CategoryName = db.Column(db.String(50), nullable=False, unique=True)  # e.g., Bedsitter, 1 Bedroom, Mixed,  2 Bedroom, 3 Bedroom, Studio
-    Description = db.Column(db.String(200))
+    CategoryName = db.Column(db.String(50), unique=True, nullable=False)
+    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
-        return f"<RentalUnitCategory {self.CategoryName}>"
-    
+        return f"<UnitCategory {self.CategoryName}>"
+
 class RentalUnitStatus(db.Model):
-    __tablename__ = 'RentalUnitStatus'
+    __tablename__ = 'RentalUnitStatuses'
 
     StatusID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    StatusName = db.Column(db.String(30), nullable=False, unique=True)  # e.g., Vacant, Occupied, Reserved
-    Description = db.Column(db.String(200))
+    StatusName = db.Column(db.String(20), unique=True, nullable=False)
+    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<RentalUnitStatus {self.StatusName}>"
-    
+
 class RentalUnit(db.Model):
     __tablename__ = 'RentalUnits'
 
     UnitID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     ApartmentID = db.Column(db.Integer, db.ForeignKey('Apartments.ApartmentID'), nullable=False)
-    Label = db.Column(db.String(20), nullable=False)  
+
+    Label = db.Column(db.String(20), nullable=False)
     Description = db.Column(db.String(300))
     MonthlyRent = db.Column(db.Float, nullable=False)
     AdditionalBills = db.Column(db.Float, default=0.0)
-    StatusID = db.Column(db.Integer, db.ForeignKey('RentalUnitStatus.ID'))
-    CategoryID = db.Column(db.Integer, db.ForeignKey('UnitCategory.ID'))
-    CurrentTenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=True)
-    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Relationships
-    status = db.relationship('RentalUnitStatus', backref='rental_units')
-    category = db.relationship('UnitCategory', backref='rental_units')
-    tenant = db.relationship('Tenant', backref='rental_unit', foreign_keys=[CurrentTenantID])
+    StatusID = db.Column(db.Integer, db.ForeignKey('RentalUnitStatuses.StatusID'))
+    CategoryID = db.Column(db.Integer, db.ForeignKey('UnitCategories.CategoryID'))
+    CurrentTenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=True)
+
+    CreatedAt = db.Column(db.DateTime, default=lambda: datetime.utcnow())
+
+    status = db.relationship('RentalUnitStatus', backref='units')
+    category = db.relationship('UnitCategory', backref='units')
+    current_tenant = db.relationship('Tenant', backref='assigned_unit', foreign_keys=[CurrentTenantID])
 
     def __repr__(self):
-        return f"<Unit {self.Label} - Apt {self.ApartmentID}>"
+        return f"<RentalUnit {self.Label} | Apt {self.ApartmentID}>"
+
 
 class Tenant(db.Model):
     __tablename__ = 'Tenants'
@@ -87,7 +92,7 @@ class Tenant(db.Model):
     RentalUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'))
     MoveInDate = db.Column(db.Date, nullable=False)
     MoveOutDate = db.Column(db.Date)
-    Status = db.Column(db.String(50), default="Active") 
+    Status = db.Column(db.String(50), default="Active")
     CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationship
@@ -95,7 +100,7 @@ class Tenant(db.Model):
 
     def __repr__(self):
         return f"<Tenant {self.FullName}>"
-    
+
 class VacateNotice(db.Model):
     __tablename__ = 'VacateNotices'
 
@@ -105,7 +110,7 @@ class VacateNotice(db.Model):
     NoticeDate = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     ExpectedVacateDate = db.Column(db.Date, nullable=False)
     Reason = db.Column(db.String(300))
-    Status = db.Column(db.String(50), default="Pending") 
+    Status = db.Column(db.String(50), default="Pending")
     CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -114,7 +119,7 @@ class VacateNotice(db.Model):
 
     def __repr__(self):
         return f"<VacateNotice TenantID={self.TenantID} ExpectedVacateDate={self.ExpectedVacateDate}>"
-    
+
 class TenantBill(db.Model):
     __tablename__ = 'TenantBills'
 
@@ -122,7 +127,7 @@ class TenantBill(db.Model):
     TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=False)
     RentalUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=False)
 
-    BillingMonth = db.Column(db.String(20), nullable=False) 
+    BillingMonth = db.Column(db.String(20), nullable=False)
     RentAmount = db.Column(db.Float, nullable=False)
     WaterBill = db.Column(db.Float, default=0.0)
     ElectricityBill = db.Column(db.Float, default=0.0)
@@ -139,27 +144,76 @@ class TenantBill(db.Model):
 
     def __repr__(self):
         return f"<TenantBill {self.BillingMonth} | TenantID {self.TenantID}>"
-    
+
 class RentPayment(db.Model):
     __tablename__ = 'RentPayments'
 
     PaymentID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=False)
     RentalUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=False)
-    
-    BillingMonth = db.Column(db.String(20), nullable=False)  
-    BilledAmount = db.Column(db.Float, nullable=False)       
-    AmountPaid = db.Column(db.Float, nullable=False)        
-    Balance = db.Column(db.Float, default=0.0)               
-    
+
+    BillingMonth = db.Column(db.String(20), nullable=False)
+    BilledAmount = db.Column(db.Float, nullable=False)
+    AmountPaid = db.Column(db.Float, nullable=False)
+    Balance = db.Column(db.Float, default=0.0)
+
     PaymentDate = db.Column(db.DateTime, default=datetime.utcnow)
-    PaidViaMobile = db.Column(db.String(20), nullable=False)  
+    PaidViaMobile = db.Column(db.String(20), nullable=False)
 
     tenant = db.relationship('Tenant', backref='rent_payments')
     unit = db.relationship('RentalUnit', backref='rent_payments')
 
     def __repr__(self):
         return f"<RentPayment {self.BillingMonth} | TenantID {self.TenantID}>"
+
+
+class LandlordExpense(db.Model):
+    __tablename__ = 'LandlordExpenses'
+
+    ExpenseID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    ApartmentID = db.Column(db.Integer, db.ForeignKey('Apartments.ApartmentID'), nullable=False)
+
+    ExpenseType = db.Column(db.String(100), nullable=False)  # e.g., Water, Repairs, Electricity
+    Amount = db.Column(db.Float, nullable=False)
+    Description = db.Column(db.String(300))
+    ExpenseDate = db.Column(db.DateTime, default=lambda: datetime.utcnow())
+    CreatedAt = db.Column(db.DateTime, default=lambda: datetime.utcnow())
+
+    apartment = db.relationship('Apartment', backref='expenses')
+
+    def __repr__(self):
+        return f"<Expense {self.ExpenseType} | {self.Amount} | {self.ExpenseDate.strftime('%B %Y')}>"
+
     
+class NotificationTag(db.Model):
+    __tablename__ = 'NotificationTags'
+
+    TagID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    TagName = db.Column(db.String(100), unique=True, nullable=False)  # e.g., "Rent Reminder"
+    Description = db.Column(db.String(300))
+
+    def __repr__(self):
+        return f"<NotificationTag {self.TagName}>"
 
 
+
+class Notification(db.Model):
+    __tablename__ = 'Notifications'
+
+    NotificationID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=False)
+    RentalUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=True)
+    TagID = db.Column(db.Integer, db.ForeignKey('NotificationTags.TagID'), nullable=False)
+
+    Title = db.Column(db.String(100), nullable=False)
+    Message = db.Column(db.String(500), nullable=False)
+    SentBy = db.Column(db.String(100), default="System")
+    SentDate = db.Column(db.DateTime, default=lambda: datetime.utcnow())
+    IsRead = db.Column(db.Boolean, default=False)
+
+    tenant = db.relationship('Tenant', backref='notifications')
+    rental_unit = db.relationship('RentalUnit', backref='notifications')
+    tag = db.relationship('NotificationTag', backref='notifications')
+
+    def __repr__(self):
+        return f"<Notification '{self.Title}' to Tenant {self.TenantID}>"
