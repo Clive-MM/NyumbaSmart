@@ -1,31 +1,46 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager
 from sqlalchemy import text
-from models import db  # ✅ shared db instance
-from models import (   # ✅ all model classes imported
+from dotenv import load_dotenv
+import os
+
+from models import db
+from models import (
     User, Apartment, UnitCategory, RentalUnitStatus, RentalUnit, Tenant,
     VacateNotice, TenantBill, RentPayment, LandlordExpense,
     NotificationTag, Notification
 )
+from routes.routes import routes # ✅ Only import the blueprint
 
+# ✅ Load environment variables
+load_dotenv()
+
+# ✅ Initialize Flask app
 app = Flask(__name__)
+CORS(app)
 
-# ✅ Working connection string using IP + port
-app.config['SQLALCHEMY_DATABASE_URI'] = (
-    "mssql+pyodbc://sa:AZiza%402812@192.168.100.3:1433/NyumbaSmart?"
-    "driver=ODBC+Driver+17+for+SQL+Server&Encrypt=no&TrustServerCertificate=yes"
-)
+# ✅ Configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY")
 
-# ✅ Bind db to Flask app
+# ✅ Initialize extensions
 db.init_app(app)
+bcrypt = Bcrypt(app)     # ✅ directly used here
+jwt = JWTManager(app)    # ✅ directly used here
 
-# ✅ Test route
+# ✅ Register blueprint
+app.register_blueprint(routes)
+
+# ✅ Root health check
 @app.route('/')
 def home():
     return {'message': 'NyumbaSmart Backend Running Successfully'}
 
-# ✅ Run and create all tables
+# ✅ Run and create tables
 if __name__ == '__main__':
     with app.app_context():
         try:
