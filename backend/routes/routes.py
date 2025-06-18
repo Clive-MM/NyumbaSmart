@@ -69,6 +69,7 @@ login_attempts = {}
 MAX_ATTEMPTS = 5
 LOCKOUT_TIME = 60  # seconds
 
+#Landlord login
 @routes.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -120,3 +121,22 @@ def update_attempts(email):
     else:
         login_attempts[email][0] += 1
         login_attempts[email][1] = now
+
+#Landlord can view the profile
+@routes.route('/profile', methods=['GET'])
+@jwt_required()
+def view_profile():
+    user_id = get_jwt_identity()  # ✅ pulls from 'identity'
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    return jsonify({
+        'UserID': user.UserID,
+        'FullName': user.FullName,
+        'Email': user.Email,
+        'Phone': user.Phone,
+        'IsAdmin': user.IsAdmin,
+        'CreatedAt': user.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
+    }), 200
