@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_mail import Mail
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
@@ -13,7 +14,7 @@ from models import (
     VacateNotice, TenantBill, RentPayment, LandlordExpense,
     NotificationTag, Notification
 )
-from routes.routes import routes 
+from routes.routes import routes ,register_mail_instance
 
 # ✅ Load environment variables
 load_dotenv()
@@ -28,10 +29,23 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY")
 app.config['JWT_IDENTITY_CLAIM'] = 'identity'
 
+#Mail Configuration
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT'))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS') == 'True'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
+
+
 # ✅ Initialize extensions
 db.init_app(app)
+mail = Mail(app)
 bcrypt = Bcrypt(app)    
-jwt = JWTManager(app)    
+jwt = JWTManager(app)   
+
+# ✅ Register mail instance to routes
+register_mail_instance(mail)
 
 # ✅ Register blueprint
 app.register_blueprint(routes)
