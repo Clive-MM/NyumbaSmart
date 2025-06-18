@@ -13,7 +13,7 @@ from models import (
     VacateNotice, TenantBill, RentPayment, LandlordExpense,
     NotificationTag, Notification
 )
-from routes.routes import routes # ✅ Only import the blueprint
+from routes.routes import routes 
 
 # ✅ Load environment variables
 load_dotenv()
@@ -29,8 +29,8 @@ app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY")
 
 # ✅ Initialize extensions
 db.init_app(app)
-bcrypt = Bcrypt(app)     # ✅ directly used here
-jwt = JWTManager(app)    # ✅ directly used here
+bcrypt = Bcrypt(app)    
+jwt = JWTManager(app)    
 
 # ✅ Register blueprint
 app.register_blueprint(routes)
