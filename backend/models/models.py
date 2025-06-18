@@ -71,7 +71,7 @@ class RentalUnit(db.Model):
     CategoryID = db.Column(db.Integer, db.ForeignKey('UnitCategories.CategoryID'))
     CurrentTenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=True)
 
-    CreatedAt = db.Column(db.DateTime, default=lambda: datetime.utcnow())
+    CreatedAt = db.Column(db.DateTime,  default=datetime.utcnow)
 
     status = db.relationship('RentalUnitStatus', backref='units')
     category = db.relationship('UnitCategory', backref='units')
@@ -176,8 +176,8 @@ class LandlordExpense(db.Model):
     ExpenseType = db.Column(db.String(100), nullable=False)  # e.g., Water, Repairs, Electricity
     Amount = db.Column(db.Float, nullable=False)
     Description = db.Column(db.String(300))
-    ExpenseDate = db.Column(db.DateTime, default=lambda: datetime.utcnow())
-    CreatedAt = db.Column(db.DateTime, default=lambda: datetime.utcnow())
+    ExpenseDate = db.Column(db.DateTime,  default=datetime.utcnow)
+    CreatedAt = db.Column(db.DateTime,  default=datetime.utcnow)
 
     apartment = db.relationship('Apartment', backref='expenses')
 
@@ -208,7 +208,7 @@ class Notification(db.Model):
     Title = db.Column(db.String(100), nullable=False)
     Message = db.Column(db.String(500), nullable=False)
     SentBy = db.Column(db.String(100), default="System")
-    SentDate = db.Column(db.DateTime, default=lambda: datetime.utcnow())
+    SentDate = db.Column(db.DateTime, default=datetime.utcnow)
     IsRead = db.Column(db.Boolean, default=False)
 
     tenant = db.relationship('Tenant', backref='notifications')
