@@ -10,7 +10,7 @@ import time
 from flask_jwt_extended import (
     create_access_token, jwt_required, get_jwt_identity
 )
-from models.models import db, User  
+from models.models import db, User ,  Apartment ,  UnitCategory,  RentalUnitStatus, RentalUnit
 import re  # ✅ For password strength checking
 
 routes = Blueprint('routes', __name__)
@@ -339,3 +339,376 @@ def reset_password(token):
     db.session.commit()
 
     return jsonify({'message': '✅ Password reset successful! You can now log in.'}), 200
+
+#Route for creating an apartment
+@routes.route('/apartments/create', methods=['POST'])
+@jwt_required()
+def create_apartment():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    # Check if the user is an admin/landlord
+    if not user or not user.IsAdmin:
+        return jsonify({"message": "Unauthorized. Only landlords can create apartments."}), 403
+
+    data = request.get_json()
+    name = data.get('ApartmentName')
+    location = data.get('Location')
+    description = data.get('Description')
+
+    # Validate required fields
+    if not name or not location:
+        return jsonify({"message": "Apartment name and location are required."}), 400
+
+    # Create and save apartment
+    new_apartment = Apartment(
+        ApartmentName=name,
+        Location=location,
+        Description=description,
+        UserID=user.UserID
+    )
+
+    db.session.add(new_apartment)
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Apartment created successfully!",
+        "Apartment": {
+            "ApartmentID": new_apartment.ApartmentID,
+            "ApartmentName": new_apartment.ApartmentName,
+            "Location": new_apartment.Location,
+            "Description": new_apartment.Description,
+            "Owner": user.FullName
+        }
+    }), 201
+
+#Route for viewing for viewing all apartments by logged in landlord 
+@routes.route('/myapartments', methods=['GET'])
+@jwt_required()
+def get_my_apartments():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    # Ensure only landlords can access this route
+    if not user or not user.IsAdmin:
+        return jsonify({"message": "Unauthorized. Only landlords can view their apartments."}), 403
+
+    # Fetch apartments belonging to this landlord
+    apartments = Apartment.query.filter_by(UserID=user.UserID).all()
+
+    apartment_list = []
+    for apt in apartments:
+        apartment_list.append({
+            "ApartmentID": apt.ApartmentID,
+            "ApartmentName": apt.ApartmentName,
+            "Location": apt.Location,
+            "Description": apt.Description,
+            "CreatedAt": apt.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    return jsonify({
+        "message": f"✅ Found {len(apartment_list)} apartment(s) for landlord {user.FullName}.",
+        "Apartments": apartment_list
+    }), 200
+
+#route for updating the details of an apartment 
+@routes.route('/apartments/update/<int:apartment_id>', methods=['PUT'])
+@jwt_required()
+def update_apartment(apartment_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.IsAdmin:
+        return jsonify({"message": "Unauthorized. Only landlords can update apartments."}), 403
+
+    apartment = Apartment.query.get(apartment_id)
+
+    if not apartment:
+        return jsonify({"message": "Apartment not found."}), 404
+
+    if apartment.UserID != user.UserID:
+        return jsonify({"message": "You can only update your own apartments."}), 403
+
+    data = request.get_json()
+    name = data.get('ApartmentName')
+    location = data.get('Location')
+    description = data.get('Description')
+
+    # Update only if values are provided
+    if name:
+        apartment.ApartmentName = name
+    if location:
+        apartment.Location = location
+    if description:
+        apartment.Description = description
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Apartment updated successfully.",
+        "Apartment": {
+            "ApartmentID": apartment.ApartmentID,
+            "ApartmentName": apartment.ApartmentName,
+            "Location": apartment.Location,
+            "Description": apartment.Description
+        }
+    }), 200
+
+#Viewing aparticular apartment
+@routes.route('/apartments/<int:apartment_id>', methods=['GET'])
+@jwt_required()
+def view_apartment(apartment_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.IsAdmin:
+        return jsonify({"message": "Unauthorized. Only landlords can view apartment details."}), 403
+
+    apartment = Apartment.query.get(apartment_id)
+
+    if not apartment:
+        return jsonify({"message": "Apartment not found."}), 404
+
+    if apartment.UserID != user.UserID:
+        return jsonify({"message": "Access denied. You can only view your own apartments."}), 403
+
+    # Fetch associated rental units
+    unit_list = []
+    for unit in apartment.rental_units:
+        unit_list.append({
+            "UnitID": unit.UnitID,
+            "Label": unit.Label,
+            "Description": unit.Description,
+            "MonthlyRent": unit.MonthlyRent,
+            "AdditionalBills": unit.AdditionalBills,
+            "Status": unit.status.StatusName if unit.status else None,
+            "Category": unit.category.CategoryName if unit.category else None,
+            "CreatedAt": unit.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    return jsonify({
+        "ApartmentID": apartment.ApartmentID,
+        "ApartmentName": apartment.ApartmentName,
+        "Location": apartment.Location,
+        "Description": apartment.Description,
+        "CreatedAt": apartment.CreatedAt.strftime('%Y-%m-%d %H:%M:%S'),
+        "RentalUnits": unit_list
+    }), 200
+
+#Create a Unit Category 
+@routes.route('/unit-categories/create', methods=['POST'])
+@jwt_required()
+def create_unit_category():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    # Only allow admins (landlords)
+    if not user or not user.IsAdmin:
+        return jsonify({"message": "Unauthorized. Only admins can create unit categories."}), 403
+
+    data = request.get_json()
+    category_name = data.get('CategoryName')
+
+    if not category_name:
+        return jsonify({"message": "Category name is required."}), 400
+
+    # Check for duplicate
+    existing = UnitCategory.query.filter_by(CategoryName=category_name.strip()).first()
+    if existing:
+        return jsonify({"message": f"'{category_name}' category already exists."}), 409
+
+    # Create and save new category
+    new_category = UnitCategory(CategoryName=category_name.strip())
+    db.session.add(new_category)
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Unit category created successfully.",
+        "UnitCategory": {
+            "CategoryID": new_category.CategoryID,
+            "CategoryName": new_category.CategoryName,
+            "CreatedAt": new_category.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
+        }
+    }), 201
+
+#Fetching the rental units
+@routes.route('/unit-categories', methods=['GET'])
+@jwt_required()
+def get_unit_categories():
+    categories = UnitCategory.query.order_by(UnitCategory.CategoryName).all()
+
+    results = [
+        {
+            "CategoryID": cat.CategoryID,
+            "CategoryName": cat.CategoryName,
+            "CreatedAt": cat.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        for cat in categories
+    ]
+
+    return jsonify({
+        "message": f"✅ Found {len(results)} unit category(ies).",
+        "UnitCategories": results
+    }), 200
+
+
+#route for creating a rental unit status
+@routes.route('/rental-unit-statuses/create', methods=['POST'])
+@jwt_required()
+def create_rental_unit_status():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    # Ensure only admin/landlord can access
+    if not user or not user.IsAdmin:
+        return jsonify({"message": "Unauthorized. Only admins can create rental unit statuses."}), 403
+
+    data = request.get_json()
+    status_name = data.get('StatusName')
+
+    if not status_name:
+        return jsonify({"message": "Status name is required."}), 400
+
+    # Check for duplicate
+    existing_status = RentalUnitStatus.query.filter_by(StatusName=status_name.strip()).first()
+    if existing_status:
+        return jsonify({"message": f"'{status_name}' status already exists."}), 409
+
+    # Create and save the new status
+    new_status = RentalUnitStatus(StatusName=status_name.strip())
+    db.session.add(new_status)
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Rental unit status created successfully.",
+        "RentalUnitStatus": {
+            "StatusID": new_status.StatusID,
+            "StatusName": new_status.StatusName,
+            "CreatedAt": new_status.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
+        }
+    }), 201
+
+#Fetching rental unit status 
+@routes.route('/rental-unit-statuses', methods=['GET'])
+@jwt_required()
+def get_rental_unit_statuses():
+    statuses = RentalUnitStatus.query.order_by(RentalUnitStatus.StatusName).all()
+
+    results = [
+        {
+            "StatusID": status.StatusID,
+            "StatusName": status.StatusName,
+            "CreatedAt": status.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        for status in statuses
+    ]
+
+    return jsonify({
+        "message": f"✅ Found {len(results)} rental unit status(es).",
+        "RentalUnitStatuses": results
+    }), 200
+
+#Create a Rental Unit
+@routes.route('/rental-units/create', methods=['POST'])
+@jwt_required()
+def create_rental_unit():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    # Ensure user is an admin/landlord
+    if not user or not user.IsAdmin:
+        return jsonify({"message": "Unauthorized. Only landlords can create rental units."}), 403
+
+    data = request.get_json()
+    apartment_id = data.get('ApartmentID')
+    label = data.get('Label')
+    description = data.get('Description')
+    monthly_rent = data.get('MonthlyRent')
+    additional_bills = data.get('AdditionalBills', 0.0)
+    status_id = data.get('StatusID')  # Typically Vacant by default
+    category_id = data.get('CategoryID')
+
+    # ✅ Validate required fields
+    if not all([apartment_id, label, monthly_rent, category_id, status_id]):
+        return jsonify({"message": "Missing required fields (ApartmentID, Label, MonthlyRent, CategoryID, StatusID)."}), 400
+
+    # ✅ Ensure the apartment belongs to this landlord
+    apartment = Apartment.query.get(apartment_id)
+    if not apartment or apartment.UserID != user.UserID:
+        return jsonify({"message": "You can only add units to your own apartments."}), 403
+
+    # ✅ Create and save the new rental unit
+    rental_unit = RentalUnit(
+        ApartmentID=apartment_id,
+        Label=label,
+        Description=description,
+        MonthlyRent=monthly_rent,
+        AdditionalBills=additional_bills,
+        StatusID=status_id,
+        CategoryID=category_id
+    )
+
+    db.session.add(rental_unit)
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Rental unit created successfully.",
+        "RentalUnit": {
+            "UnitID": rental_unit.UnitID,
+            "Label": rental_unit.Label,
+            "MonthlyRent": rental_unit.MonthlyRent,
+            "AdditionalBills": rental_unit.AdditionalBills,
+            "CategoryID": rental_unit.CategoryID,
+            "StatusID": rental_unit.StatusID,
+            "ApartmentID": rental_unit.ApartmentID,
+            "CreatedAt": rental_unit.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
+        }
+    }), 201
+
+
+#Update a Rental Unit 
+@routes.route('/rental-units/update/<int:unit_id>', methods=['PUT'])
+@jwt_required()
+def update_rental_unit(unit_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.IsAdmin:
+        return jsonify({"message": "Unauthorized. Only landlords can update rental units."}), 403
+
+    unit = RentalUnit.query.get(unit_id)
+
+    if not unit:
+        return jsonify({"message": "Rental unit not found."}), 404
+
+    # Ensure the unit belongs to an apartment owned by this user
+    apartment = Apartment.query.get(unit.ApartmentID)
+    if not apartment or apartment.UserID != user.UserID:
+        return jsonify({"message": "You can only update units in your own apartments."}), 403
+
+    data = request.get_json()
+
+    # Update provided fields only
+    unit.Label = data.get('Label', unit.Label)
+    unit.Description = data.get('Description', unit.Description)
+    unit.MonthlyRent = data.get('MonthlyRent', unit.MonthlyRent)
+    unit.AdditionalBills = data.get('AdditionalBills', unit.AdditionalBills)
+    unit.StatusID = data.get('StatusID', unit.StatusID)
+    unit.CategoryID = data.get('CategoryID', unit.CategoryID)
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Rental unit updated successfully.",
+        "RentalUnit": {
+            "UnitID": unit.UnitID,
+            "Label": unit.Label,
+            "Description": unit.Description,
+            "MonthlyRent": unit.MonthlyRent,
+            "AdditionalBills": unit.AdditionalBills,
+            "StatusID": unit.StatusID,
+            "CategoryID": unit.CategoryID,
+            "ApartmentID": unit.ApartmentID,
+            "UpdatedAt": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        }
+    }), 200
