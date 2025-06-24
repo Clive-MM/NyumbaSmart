@@ -12,7 +12,7 @@ from models import db
 from models import (
     User, Apartment, UnitCategory, RentalUnitStatus, RentalUnit, Tenant,
     VacateNotice, TenantBill, RentPayment, LandlordExpense,
-    NotificationTag, Notification
+    NotificationTag, Notification,VacateLog,TransferLog
 )
 from routes.routes import routes ,register_mail_instance
 

@@ -217,3 +217,38 @@ class Notification(db.Model):
 
     def __repr__(self):
         return f"<Notification '{self.Title}' to Tenant {self.TenantID}>"
+class VacateLog(db.Model):
+    __tablename__ = 'VacateLogs'
+
+    LogID = db.Column(db.Integer, primary_key=True)
+    TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=False)
+    UnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=False)
+    ApartmentID = db.Column(db.Integer, db.ForeignKey('Apartments.ApartmentID'), nullable=False)
+    VacatedBy = db.Column(db.Integer, db.ForeignKey('Users.UserID'), nullable=False)
+    VacateDate = db.Column(db.DateTime, default=datetime.utcnow)
+    Reason = db.Column(db.String(255))
+    Notes = db.Column(db.Text)
+
+    # Optional relationships
+    tenant = db.relationship('Tenant')
+    unit = db.relationship('RentalUnit')
+    apartment = db.relationship('Apartment')
+    user = db.relationship('User')
+
+class TransferLog(db.Model):
+    __tablename__ = 'TransferLogs'
+
+    LogID = db.Column(db.Integer, primary_key=True)
+    TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=False)
+    OldUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=False)
+    NewUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=False)
+    TransferredBy = db.Column(db.Integer, db.ForeignKey('Users.UserID'), nullable=False)
+    TransferDate = db.Column(db.DateTime, default=datetime.utcnow)
+    Reason = db.Column(db.String(255))
+
+    tenant = db.relationship('Tenant')
+    old_unit = db.relationship('RentalUnit', foreign_keys=[OldUnitID])
+    new_unit = db.relationship('RentalUnit', foreign_keys=[NewUnitID])
+    user = db.relationship('User')
+
+

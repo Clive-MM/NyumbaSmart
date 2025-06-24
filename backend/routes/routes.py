@@ -7,10 +7,11 @@ from flask_mail import Message
 from flask_mail import Mail
 from datetime import datetime, timedelta
 import time
+# from utils import send_sms  # Placeholder for SMS function
 from flask_jwt_extended import (
     create_access_token, jwt_required, get_jwt_identity
 )
-from models.models import db, User ,  Apartment ,  UnitCategory,  RentalUnitStatus, RentalUnit
+from models.models import db, User ,  Apartment ,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog,TransferLog
 import re  # ✅ For password strength checking
 
 routes = Blueprint('routes', __name__)
@@ -495,7 +496,7 @@ def view_apartment(apartment_id):
         "RentalUnits": unit_list
     }), 200
 
-#Create a Unit Category 
+#Create a Rental Unit Category 
 @routes.route('/unit-categories/create', methods=['POST'])
 @jwt_required()
 def create_unit_category():
@@ -531,7 +532,7 @@ def create_unit_category():
         }
     }), 201
 
-#Fetching the rental units
+#Fetching the rental units categories 
 @routes.route('/unit-categories', methods=['GET'])
 @jwt_required()
 def get_unit_categories():
@@ -710,5 +711,403 @@ def update_rental_unit(unit_id):
             "CategoryID": unit.CategoryID,
             "ApartmentID": unit.ApartmentID,
             "UpdatedAt": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        }
+    }), 200
+
+#Fetch rental units for a specific apartment
+@routes.route('/apartments/<int:apartment_id>/units', methods=['GET'])
+@jwt_required()
+def get_units_by_apartment(apartment_id):
+    user_id = get_jwt_identity()
+    # Confirm landlord owns the apartment
+    apartment = Apartment.query.filter_by(ApartmentID=apartment_id, UserID=user_id).first()
+
+    if not apartment:
+        return jsonify({"message": "Apartment not found or not owned by you."}), 404
+
+    # Get all rental units under this apartment
+    units = RentalUnit.query.filter_by(ApartmentID=apartment_id).all()
+
+    result = []
+    for unit in units:
+        result.append({
+            "UnitID": unit.UnitID,
+            "Label": unit.Label,
+            "Description": unit.Description,
+            "RentAmount": unit.MonthlyRent,
+            "StatusID": unit.StatusID,
+            "CategoryID": unit.CategoryID
+        })
+
+    return jsonify(result), 200
+
+
+
+@routes.route('/tenants/add', methods=['POST'])
+@jwt_required()
+def add_tenant():
+    user_id = get_jwt_identity()
+    data = request.get_json()
+
+    full_name = data.get('FullName')
+    phone = data.get('Phone')
+    email = data.get('Email')
+    id_number = data.get('IDNumber')
+    rental_unit_id = data.get('RentalUnitID')
+    move_in_date = data.get('MoveInDate')
+
+    # Validate required fields
+    if not all([full_name, phone, id_number, rental_unit_id, move_in_date]):
+        return jsonify({"message": "All required fields must be filled."}), 400
+
+    # Validate phone format
+    if not re.fullmatch(r'2547\d{8}', phone):
+        return jsonify({"message": "Invalid phone number. It must start with '2547' and be 12 digits long."}), 400
+
+    # Parse move-in date
+    try:
+        move_in = datetime.strptime(move_in_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"message": "Invalid date format. Use YYYY-MM-DD."}), 400
+
+    # Fetch unit
+    unit = RentalUnit.query.get(rental_unit_id)
+    if not unit:
+        return jsonify({"message": "Rental unit not found."}), 404
+
+    # Verify landlord owns the apartment
+    apartment = Apartment.query.get(unit.ApartmentID)
+    if not apartment or apartment.UserID != user_id:
+        return jsonify({"message": "Unauthorized: You do not own the apartment for this unit."}), 403
+
+    # Check if unit is vacant
+    if unit.StatusID != 1:  # 1 = Vacant
+        return jsonify({"message": "This unit is not available. Only vacant units can be assigned."}), 400
+
+    # ✅ Check for returning inactive tenant
+    existing_tenant = Tenant.query.filter_by(Phone=phone, IDNumber=id_number).first()
+    if existing_tenant:
+        if existing_tenant.Status == 'Inactive':
+            # Reactivate and assign new unit
+            existing_tenant.RentalUnitID = rental_unit_id
+            existing_tenant.MoveInDate = move_in
+            existing_tenant.MoveOutDate = None
+            existing_tenant.Status = 'Active'
+
+            unit.StatusID = 2
+            unit.CurrentTenantID = existing_tenant.TenantID
+
+            # ✅ Log this as a returning tenant move
+            log = TransferLog(
+                TenantID=existing_tenant.TenantID,
+                OldUnitID=None,
+                NewUnitID=rental_unit_id,
+                TransferredBy=user_id,
+                Reason="Returning tenant"
+            )
+            db.session.add(log)
+            db.session.commit()
+
+            return jsonify({
+                "message": f"🔁 Returning tenant {existing_tenant.FullName} successfully reassigned to {unit.Label}.",
+                "tenant": {
+                    "TenantID": existing_tenant.TenantID,
+                    "FullName": existing_tenant.FullName,
+                    "RentalUnit": unit.Label,
+                    "MoveInDate": existing_tenant.MoveInDate.strftime('%Y-%m-%d')
+                }
+            }), 200
+        else:
+            return jsonify({"message": "A tenant with this phone number is already active."}), 400
+
+    # ✅ New tenant logic
+    tenant = Tenant(
+        FullName=full_name,
+        Phone=phone,
+        Email=email,
+        IDNumber=id_number,
+        RentalUnitID=rental_unit_id,
+        MoveInDate=move_in,
+        Status="Active"
+    )
+    db.session.add(tenant)
+    db.session.flush()
+
+    unit.StatusID = 2
+    unit.CurrentTenantID = tenant.TenantID
+
+    # Optional: trigger SMS
+    # sms_message = f"Dear {tenant.FullName}, you have been successfully allocated to unit {unit.Label}."
+    # send_sms(tenant.Phone, sms_message)
+
+    db.session.commit()
+
+    return jsonify({
+        "message": f"✅ Tenant {tenant.FullName} successfully assigned to {unit.Label}.",
+        "tenant": {
+            "TenantID": tenant.TenantID,
+            "FullName": tenant.FullName,
+            "Phone": tenant.Phone,
+            "Email": tenant.Email,
+            "IDNumber": tenant.IDNumber,
+            "RentalUnit": unit.Label,
+            "MoveInDate": tenant.MoveInDate.strftime('%Y-%m-%d')
+        }
+    }), 201
+
+#route for vacating tenant
+@routes.route('/tenants/vacate/<int:tenant_id>', methods=['PUT'])
+@jwt_required()
+def vacate_unit(tenant_id):
+    user_id = get_jwt_identity()
+    data = request.get_json() or {}
+
+    reason = data.get("Reason")
+    notes = data.get("Notes")
+
+    tenant = Tenant.query.get(tenant_id)
+    if not tenant:
+        return jsonify({"message": "Tenant not found."}), 404
+
+    if tenant.Status != "Active":
+        return jsonify({"message": "This tenant is already inactive."}), 400
+
+    unit = RentalUnit.query.get(tenant.RentalUnitID)
+    if not unit:
+        return jsonify({"message": "Rental unit not found."}), 404
+
+    if unit.StatusID == 1:
+        return jsonify({"message": "This unit is already vacant."}), 400
+
+    apartment = Apartment.query.get(unit.ApartmentID)
+    if not apartment or apartment.UserID != user_id:
+        return jsonify({"message": "Unauthorized: You do not own the apartment for this unit."}), 403
+
+    # Update tenant status and move-out time
+    tenant.Status = "Inactive"
+    tenant.MoveOutDate = datetime.utcnow()
+
+    # Update rental unit status
+    unit.StatusID = 1  # Vacant
+    unit.CurrentTenantID = None
+
+    # Log vacate action
+    vacate_log = VacateLog(
+        TenantID=tenant.TenantID,
+        UnitID=unit.UnitID,
+        ApartmentID=apartment.ApartmentID,
+        VacatedBy=user_id,
+        VacateDate=datetime.utcnow(),
+        Reason=reason,
+        Notes=notes
+    )
+    db.session.add(vacate_log)
+
+    # --- Optional: send SMS to tenant (commented out for now) ---
+    # if tenant.Phone:
+    #     message = f"Dear {tenant.FullName}, your move-out from unit {unit.Label} has been successfully recorded. Thank you."
+    #     send_sms(phone_number=tenant.Phone, message=message)
+
+    db.session.commit()
+
+    return jsonify({
+        "message": f"✅ Tenant {tenant.FullName} has been vacated from unit {unit.Label}.",
+        "vacate_log": {
+            "TenantID": tenant.TenantID,
+            "UnitID": unit.UnitID,
+            "ApartmentID": apartment.ApartmentID,
+            "VacatedBy": user_id,
+            "Reason": reason,
+            "Notes": notes,
+            "VacateDate": vacate_log.VacateDate.strftime('%Y-%m-%d %H:%M:%S')
+        }
+    }), 200
+
+#Transfering a tenant from apartment to another apartment
+@routes.route('/tenants/transfer/<int:tenant_id>', methods=['PUT'])
+@jwt_required()
+def transfer_tenant(tenant_id):
+    user_id = get_jwt_identity()
+    data = request.get_json()
+
+    new_unit_id = data.get('NewRentalUnitID')
+    move_in_date = data.get('MoveInDate')
+
+    if not new_unit_id or not move_in_date:
+        return jsonify({"message": "NewRentalUnitID and MoveInDate are required."}), 400
+
+    try:
+        new_move_in = datetime.strptime(move_in_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"message": "Invalid date format. Use YYYY-MM-DD."}), 400
+
+    tenant = Tenant.query.get(tenant_id)
+    if not tenant:
+        return jsonify({"message": "Tenant not found."}), 404
+
+    old_unit = RentalUnit.query.get(tenant.RentalUnitID)
+    if not old_unit:
+        return jsonify({"message": "Current rental unit not found."}), 404
+
+    new_unit = RentalUnit.query.get(new_unit_id)
+    if not new_unit:
+        return jsonify({"message": "New rental unit not found."}), 404
+
+    old_apartment = Apartment.query.get(old_unit.ApartmentID)
+    new_apartment = Apartment.query.get(new_unit.ApartmentID)
+
+    if not old_apartment or not new_apartment or old_apartment.UserID != user_id or new_apartment.UserID != user_id:
+        return jsonify({"message": "Unauthorized: You can only transfer between your own units."}), 403
+
+    if new_unit.StatusID != 1:
+        return jsonify({"message": "New unit is not available. Only vacant units can be assigned."}), 400
+
+    # Vacate old unit
+    old_unit.StatusID = 1
+    old_unit.CurrentTenantID = None
+
+    # Assign tenant to new unit
+    tenant.RentalUnitID = new_unit_id
+    tenant.MoveInDate = new_move_in
+    tenant.MoveOutDate = None
+    tenant.Status = "Active"
+
+    new_unit.StatusID = 2
+    new_unit.CurrentTenantID = tenant.TenantID
+
+    db.session.commit()
+
+    # --- Optional Notifications ---
+    # sms_message = (
+    #     f"Dear {tenant.FullName}, you have been successfully transferred from unit {old_unit.Label} in "
+    #     f"{old_apartment.ApartmentName} to unit {new_unit.Label} in {new_apartment.ApartmentName}. "
+    #     f"Your new move-in date is {tenant.MoveInDate.strftime('%Y-%m-%d')}."
+    # )
+    # send_sms(tenant.Phone, sms_message)  # Implement send_sms() in utils.py
+
+    # email_subject = "NyumbaSmart - Tenant Transfer Notification"
+    # email_body = (
+    #     f"Hello {tenant.FullName},\n\n"
+    #     f"This is to confirm that you have been successfully transferred from:\n"
+    #     f" - Unit: {old_unit.Label}, Apartment: {old_apartment.ApartmentName}\n"
+    #     f"to:\n"
+    #     f" - Unit: {new_unit.Label}, Apartment: {new_apartment.ApartmentName}\n\n"
+    #     f"Effective Move-In Date: {tenant.MoveInDate.strftime('%Y-%m-%d')}\n\n"
+    #     f"Thank you for staying with us.\n\n"
+    #     f"NyumbaSmart Team"
+    # )
+    # send_email(to=tenant.Email, subject=email_subject, body=email_body)  # Implement send_email()
+
+    return jsonify({
+        "message": f"✅ Tenant {tenant.FullName} successfully transferred from unit {old_unit.Label} in apartment '{old_apartment.ApartmentName}' "
+                   f"to unit {new_unit.Label} in apartment '{new_apartment.ApartmentName}'.",
+        "from_unit": old_unit.Label,
+        "from_apartment": old_apartment.ApartmentName,
+        "to_unit": new_unit.Label,
+        "to_apartment": new_apartment.ApartmentName,
+        "MoveInDate": tenant.MoveInDate.strftime('%Y-%m-%d')
+    }), 200
+
+# Route for allocating a tenant a different rental unit in the same apartment
+@routes.route('/tenants/transfer/<int:id>', methods=['PUT'])
+@jwt_required()
+def transfer_tenant_by_id(id):
+    user_id = get_jwt_identity()
+    data = request.get_json()
+
+    new_unit_id = data.get('NewRentalUnitID')
+    move_in_date = data.get('MoveInDate')
+    reason = data.get('Reason')  # Optional
+
+    if not new_unit_id or not move_in_date:
+        return jsonify({"message": "NewRentalUnitID and MoveInDate are required."}), 400
+
+    try:
+        new_move_in = datetime.strptime(move_in_date, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"message": "Invalid date format. Use YYYY-MM-DD."}), 400
+
+    # Get tenant
+    tenant = Tenant.query.get(id)
+    if not tenant:
+        return jsonify({"message": "Tenant not found."}), 404
+
+    # Get old and new units
+    old_unit = RentalUnit.query.get(tenant.RentalUnitID)
+    new_unit = RentalUnit.query.get(new_unit_id)
+    if not old_unit or not new_unit:
+        return jsonify({"message": "Rental unit not found."}), 404
+
+    # Validate ownership
+    old_apartment = Apartment.query.get(old_unit.ApartmentID)
+    new_apartment = Apartment.query.get(new_unit.ApartmentID)
+    if not old_apartment or not new_apartment or old_apartment.UserID != user_id or new_apartment.UserID != user_id:
+        return jsonify({"message": "Unauthorized: You can only transfer between your own apartments."}), 403
+
+    # Check that the new unit is vacant
+    if new_unit.StatusID != 1:
+        return jsonify({"message": "New unit is not vacant."}), 400
+
+    # 1. Vacate old unit
+    old_unit.StatusID = 1
+    old_unit.CurrentTenantID = None
+
+    # 2. Update tenant
+    tenant.RentalUnitID = new_unit_id
+    tenant.MoveInDate = new_move_in
+    tenant.MoveOutDate = None
+    tenant.Status = 'Active'
+
+    # 3. Occupy new unit
+    new_unit.StatusID = 2
+    new_unit.CurrentTenantID = tenant.TenantID
+
+    # 4. Log transfer
+    log = TransferLog(
+        TenantID=tenant.TenantID,
+        OldUnitID=old_unit.UnitID,
+        NewUnitID=new_unit.UnitID,
+        TransferredBy=user_id,
+        Reason=reason
+    )
+    db.session.add(log)
+    db.session.flush()  # ✅ Ensures log.TransferDate and ID are populated before access
+
+    # 5. Commit all changes
+    db.session.commit()
+
+    # 6. Optional: Send SMS notification to the tenant (commented out)
+    """
+    try:
+        message = (
+            f"Hello {tenant.FullName}, your rental unit has been updated.\n"
+            f"You've been transferred from unit {old_unit.Label} to unit {new_unit.Label} "
+            f"effective {move_in_date}. Welcome to your new space!"
+        )
+        tenant_phone = tenant.Phone
+
+        # Example using requests to send SMS via API (replace with actual provider)
+        import requests
+        sms_payload = {
+            'to': tenant_phone,
+            'message': message
+        }
+        response = requests.post('https://api.smsprovider.com/send', json=sms_payload)
+        
+        # Optional: log or handle response status
+        if response.status_code != 200:
+            print(f"Failed to send SMS: {response.text}")
+    except Exception as e:
+        print(f"SMS sending failed: {str(e)}")
+    """
+
+    return jsonify({
+        "message": f"✅ Tenant {tenant.FullName} has been transferred to unit {new_unit.Label}.",
+        "log": {
+            "TenantID": tenant.TenantID,
+            "FromUnit": old_unit.Label,
+            "ToUnit": new_unit.Label,
+            "Reason": reason,
+            "TransferDate": log.TransferDate.strftime('%Y-%m-%d %H:%M:%S')
         }
     }), 200
