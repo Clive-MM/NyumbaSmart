@@ -11,7 +11,7 @@ import time
 from flask_jwt_extended import (
     create_access_token, jwt_required, get_jwt_identity
 )
-from models.models import db, User ,  Apartment ,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog,TransferLog
+from models.models import db, User ,  Apartment ,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog,TransferLog, VacateNotice
 import re  # ✅ For password strength checking
 
 routes = Blueprint('routes', __name__)
@@ -1184,3 +1184,170 @@ def get_all_tenants():
     }), 200
 
 
+#Route for creating and sending a vacation notice to a tenant 
+@routes.route('/vacate-notice/<int:tenant_id>', methods=['POST'])
+@jwt_required()
+def create_vacate_notice(tenant_id):
+    user_id = get_jwt_identity()
+    data = request.get_json()
+
+    expected_vacate_date = data.get('ExpectedVacateDate')
+    reason = data.get('Reason')
+    inspection_date = data.get('InspectionDate')
+
+    if not expected_vacate_date:
+        return jsonify({"message": "ExpectedVacateDate is required."}), 400
+
+    try:
+        vacate_date = datetime.strptime(expected_vacate_date, '%Y-%m-%d').date()
+        inspection = datetime.strptime(inspection_date, '%Y-%m-%d').date() if inspection_date else None
+    except ValueError:
+        return jsonify({"message": "Invalid date format. Use YYYY-MM-DD."}), 400
+
+    tenant = Tenant.query.get(tenant_id)
+    if not tenant:
+        return jsonify({"message": "Tenant not found."}), 404
+
+    unit = RentalUnit.query.get(tenant.RentalUnitID)
+    apartment = Apartment.query.get(unit.ApartmentID) if unit else None
+
+    if not apartment or apartment.UserID != user_id:
+        return jsonify({"message": "Unauthorized. You do not own this apartment."}), 403
+
+    existing_notice = VacateNotice.query.filter_by(
+        TenantID=tenant_id,
+        Status='Pending'
+    ).first()
+    if existing_notice:
+        return jsonify({"message": "A pending vacate notice already exists for this tenant."}), 400
+
+    notice = VacateNotice(
+        TenantID=tenant.TenantID,
+        RentalUnitID=tenant.RentalUnitID,
+        ExpectedVacateDate=vacate_date,
+        Reason=reason,
+        InspectionDate=inspection
+    )
+
+    db.session.add(notice)
+    db.session.commit()
+
+    # ✅ OPTIONAL: Send SMS Notification (Commented out)
+    """
+    try:
+        message = (
+            f"Hello {tenant.FullName},\n"
+            f"Your vacating notice has been received.\n"
+            f"Inspection is scheduled for: {inspection.strftime('%Y-%m-%d') if inspection else 'Not Scheduled'}\n"
+            f"Expected move-out date: {vacate_date.strftime('%Y-%m-%d')}.\n"
+            f"Thank you for staying with us."
+        )
+        tenant_phone = tenant.Phone
+
+        # Replace this block with actual SMS API integration
+        import requests
+        sms_payload = {
+            'to': tenant_phone,
+            'message': message
+        }
+        # Example: requests.post('https://api.smsprovider.com/send', json=sms_payload)
+
+    except Exception as e:
+        print(f"❌ Failed to send SMS: {str(e)}")
+    """
+
+    return jsonify({
+        "message": "✅ Vacate notice created successfully.",
+        "Tenant": tenant.FullName,
+        "Apartment": apartment.ApartmentName,
+        "RentalUnit": unit.Label,
+        "ExpectedVacateDate": vacate_date.strftime('%Y-%m-%d'),
+        "InspectionDate": inspection.strftime('%Y-%m-%d') if inspection else "Not Scheduled"
+    }), 201
+
+#View All Transfers for a Landlord
+@routes.route('/transfer-logs', methods=['GET'])
+@jwt_required()
+def view_transfer_logs():
+    user_id = get_jwt_identity()
+
+    # Step 1: Get all apartments owned by this landlord
+    apartments = Apartment.query.filter_by(UserID=user_id).all()
+    apartment_ids = [apt.ApartmentID for apt in apartments]
+
+    # Step 2: Get all units in those apartments
+    units = RentalUnit.query.filter(RentalUnit.ApartmentID.in_(apartment_ids)).all()
+    unit_ids = [unit.UnitID for unit in units]
+    unit_dict = {unit.UnitID: unit for unit in units}
+
+    # Step 3: Fetch relevant transfer logs where the tenant moved to or from a unit in the landlord’s apartments
+    transfer_logs = TransferLog.query.filter(
+        (TransferLog.OldUnitID.in_(unit_ids)) | (TransferLog.NewUnitID.in_(unit_ids))
+    ).order_by(TransferLog.TransferDate.desc()).all()
+
+    result = []
+    for log in transfer_logs:
+        tenant = Tenant.query.get(log.TenantID)
+        old_unit = unit_dict.get(log.OldUnitID)
+        new_unit = unit_dict.get(log.NewUnitID)
+
+        old_apartment = Apartment.query.get(old_unit.ApartmentID) if old_unit else None
+        new_apartment = Apartment.query.get(new_unit.ApartmentID) if new_unit else None
+
+        result.append({
+            "TenantID": tenant.TenantID,
+            "TenantName": tenant.FullName,
+            "FromUnit": old_unit.Label if old_unit else "N/A",
+            "FromApartment": old_apartment.ApartmentName if old_apartment else "N/A",
+            "ToUnit": new_unit.Label if new_unit else "N/A",
+            "ToApartment": new_apartment.ApartmentName if new_apartment else "N/A",
+            "TransferredByUserID": log.TransferredBy,
+            "TransferDate": log.TransferDate.strftime('%Y-%m-%d %H:%M:%S'),
+            "Reason": log.Reason
+        })
+
+    return jsonify({
+        "total_transfers": len(result),
+        "transfer_logs": result
+    }), 200
+
+#View Tenant Vacating History for Landlord
+@routes.route('/vacate-logs', methods=['GET'])
+@jwt_required()
+def view_vacate_logs():
+    user_id = get_jwt_identity()
+
+    # Step 1: Get landlord's apartments
+    apartments = Apartment.query.filter_by(UserID=user_id).all()
+    apartment_ids = [a.ApartmentID for a in apartments]
+
+    # Step 2: Get units in those apartments
+    units = RentalUnit.query.filter(RentalUnit.ApartmentID.in_(apartment_ids)).all()
+    unit_dict = {unit.UnitID: unit for unit in units}
+
+    # Step 3: Query vacate logs for those units/apartments
+    vacate_logs = VacateLog.query.filter(
+        VacateLog.ApartmentID.in_(apartment_ids)
+    ).order_by(VacateLog.VacateDate.desc()).all()
+
+    result = []
+    for log in vacate_logs:
+        tenant = Tenant.query.get(log.TenantID)
+        unit = unit_dict.get(log.UnitID)
+        apartment = Apartment.query.get(log.ApartmentID)
+
+        result.append({
+            "TenantID": tenant.TenantID if tenant else None,
+            "TenantName": tenant.FullName if tenant else "Unknown",
+            "Apartment": apartment.ApartmentName if apartment else "N/A",
+            "Unit": unit.Label if unit else "N/A",
+            "VacateDate": log.VacateDate.strftime('%Y-%m-%d %H:%M:%S') if log.VacateDate else "N/A",
+            "Reason": log.Reason or "Not Provided",
+            "Notes": log.Notes or "None",
+            "VacatedByUserID": log.VacatedBy
+        })
+
+    return jsonify({
+        "total_vacate_logs": len(result),
+        "vacate_logs": result
+    }), 200

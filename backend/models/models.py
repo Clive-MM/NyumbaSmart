@@ -110,6 +110,7 @@ class VacateNotice(db.Model):
     NoticeDate = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     ExpectedVacateDate = db.Column(db.Date, nullable=False)
     Reason = db.Column(db.String(300))
+    InspectionDate = db.Column(db.Date) 
     Status = db.Column(db.String(50), default="Pending")
     CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
 
