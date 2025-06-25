@@ -1182,3 +1182,5 @@ def get_all_tenants():
         "filtered_status": status_filter or "All",
         "tenants": tenant_list
     }), 200
+
+
