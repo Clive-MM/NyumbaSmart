@@ -741,8 +741,7 @@ def get_units_by_apartment(apartment_id):
 
     return jsonify(result), 200
 
-
-
+#Route for assigning tenants to rental units
 @routes.route('/tenants/add', methods=['POST'])
 @jwt_required()
 def add_tenant():
@@ -923,6 +922,8 @@ def vacate_unit(tenant_id):
         }
     }), 200
 
+
+
 #Transfering a tenant from apartment to another apartment
 @routes.route('/tenants/transfer/<int:tenant_id>', methods=['PUT'])
 @jwt_required()
@@ -932,6 +933,7 @@ def transfer_tenant(tenant_id):
 
     new_unit_id = data.get('NewRentalUnitID')
     move_in_date = data.get('MoveInDate')
+    reason = data.get('Reason', 'Unit-to-unit transfer')
 
     if not new_unit_id or not move_in_date:
         return jsonify({"message": "NewRentalUnitID and MoveInDate are required."}), 400
@@ -975,6 +977,16 @@ def transfer_tenant(tenant_id):
     new_unit.StatusID = 2
     new_unit.CurrentTenantID = tenant.TenantID
 
+    # ✅ Log the transfer
+    transfer_log = TransferLog(
+        TenantID=tenant.TenantID,
+        OldUnitID=old_unit.UnitID,
+        NewUnitID=new_unit.UnitID,
+        TransferredBy=user_id,
+        Reason=reason
+    )
+    db.session.add(transfer_log)
+
     db.session.commit()
 
     # --- Optional Notifications ---
@@ -1008,7 +1020,9 @@ def transfer_tenant(tenant_id):
         "MoveInDate": tenant.MoveInDate.strftime('%Y-%m-%d')
     }), 200
 
-# Route for allocating a tenant a different rental unit in the same apartment
+
+
+#Route for allocating a tenant to a different rental unit in the same apartment
 @routes.route('/tenants/transfer/<int:id>', methods=['PUT'])
 @jwt_required()
 def transfer_tenant_by_id(id):
@@ -1110,4 +1124,61 @@ def transfer_tenant_by_id(id):
             "Reason": reason,
             "TransferDate": log.TransferDate.strftime('%Y-%m-%d %H:%M:%S')
         }
+    }), 200
+
+# ✅ Route to view all active tenants for the logged-in landlord
+@routes.route('/tenants', methods=['GET'])
+@jwt_required()
+def get_all_tenants():
+    user_id = get_jwt_identity()
+
+    # Optional filters
+    apartment_filter = request.args.get('apartment_id')
+    status_filter = request.args.get('status')  # 'Active', 'Inactive', or None for all
+    sort_by = request.args.get('sort', 'Apartment')
+
+    # Step 1: Get apartments owned by this landlord
+    apartments = Apartment.query.filter_by(UserID=user_id).all()
+    apartment_ids = [apt.ApartmentID for apt in apartments]
+
+    # Step 2: Get rental units in those apartments (optionally filter by apartment_id)
+    units_query = RentalUnit.query.filter(RentalUnit.ApartmentID.in_(apartment_ids))
+    if apartment_filter:
+        units_query = units_query.filter_by(ApartmentID=int(apartment_filter))
+    units = units_query.all()
+    unit_dict = {unit.UnitID: unit for unit in units}
+
+    # Step 3: Get all tenants in those units (optionally filter by status)
+    tenants_query = Tenant.query.filter(Tenant.RentalUnitID.in_(unit_dict.keys()))
+    if status_filter:
+        tenants_query = tenants_query.filter_by(Status=status_filter)
+    tenants = tenants_query.all()
+
+    # Step 4: Build response list
+    tenant_list = []
+    for t in tenants:
+        unit = unit_dict.get(t.RentalUnitID)
+        apartment = Apartment.query.get(unit.ApartmentID) if unit else None
+
+        tenant_list.append({
+            "TenantID": t.TenantID,
+            "FullName": t.FullName,
+            "Email": t.Email,
+            "Phone": t.Phone,
+            "IDNumber": t.IDNumber,
+            "RentalUnit": unit.Label if unit else "N/A",
+            "Apartment": apartment.ApartmentName if apartment else "N/A",
+            "MoveInDate": t.MoveInDate.strftime('%Y-%m-%d') if t.MoveInDate else None,
+            "MoveOutDate": t.MoveOutDate.strftime('%Y-%m-%d') if t.Status == "Inactive" and t.MoveOutDate else None,
+            "Status": t.Status
+        })
+
+    # Step 5: Sort by apartment name
+    if sort_by.lower() == "apartment":
+        tenant_list.sort(key=lambda x: x['Apartment'])
+
+    return jsonify({
+        "total_tenants": len(tenant_list),
+        "filtered_status": status_filter or "All",
+        "tenants": tenant_list
     }), 200
