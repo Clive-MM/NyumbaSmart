@@ -252,4 +252,29 @@ class TransferLog(db.Model):
     new_unit = db.relationship('RentalUnit', foreign_keys=[NewUnitID])
     user = db.relationship('User')
 
+    
+class SMSUsageLog(db.Model):
+    __tablename__ = 'SMSUsageLogs'
 
+    SMSLogID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+
+    LandlordID = db.Column(db.Integer, db.ForeignKey('Users.UserID'), nullable=False)
+    TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=True)
+    BillID = db.Column(db.Integer, db.ForeignKey('TenantBills.BillID'), nullable=True)
+
+    PhoneNumber = db.Column(db.String(20), nullable=False)
+    Message = db.Column(db.Text, nullable=False)
+    SentAt = db.Column(db.DateTime, default=datetime.utcnow)
+    CostPerSMS = db.Column(db.Float, default=1.0)
+
+    # Relationships
+    landlord = db.relationship('User', backref='sms_logs')
+    tenant = db.relationship('Tenant', backref='sms_logs')
+    bill = db.relationship('TenantBill', backref='sms_logs')  # ✅ allows bill.sms_logs
+
+    def __repr__(self):
+        return (
+            f"<SMSUsageLog LandlordID={self.LandlordID} "
+            f"TenantID={self.TenantID} BillID={self.BillID} "
+            f"Phone={self.PhoneNumber} SentAt={self.SentAt}>"
+        )

@@ -6,12 +6,13 @@ import jwt
 from flask_mail import Message
 from flask_mail import Mail
 from datetime import datetime, timedelta
+from utils.sms_helper import send_sms
 import time
 # from utils import send_sms  # Placeholder for SMS function
 from flask_jwt_extended import (
     create_access_token, jwt_required, get_jwt_identity
 )
-from models.models import db, User ,  Apartment ,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog,TransferLog, VacateNotice
+from models.models import db, User ,  Apartment ,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog,TransferLog, VacateNotice, SMSUsageLog, TenantBill
 import re  # ✅ For password strength checking
 
 routes = Blueprint('routes', __name__)
@@ -1351,3 +1352,54 @@ def view_vacate_logs():
         "total_vacate_logs": len(result),
         "vacate_logs": result
     }), 200
+
+#Route for sendign a tenant bill notification sms
+@routes.route('/send-bill-notification/<int:bill_id>', methods=['POST'])
+@jwt_required()
+def send_bill_notification(bill_id):
+    user_id = get_jwt_identity()
+    landlord = User.query.get(user_id)
+
+    if not landlord or not landlord.IsAdmin:
+        return jsonify({"message": "Unauthorized. Only landlords can send notifications."}), 403
+
+    bill = TenantBill.query.get(bill_id)
+    if not bill:
+        return jsonify({"message": "Bill not found"}), 404
+
+    tenant = Tenant.query.get(bill.TenantID)
+    if not tenant or not tenant.Phone:
+        return jsonify({"message": "Tenant or phone number not found"}), 404
+
+    # Format the SMS content
+    sms_message = (
+        f"Dear {tenant.FullName}, your {bill.BillingMonth} bill is KES {bill.TotalAmountDue:.2f}. "
+        f"Due by {bill.DueDate.strftime('%d-%b-%Y')}. "
+        f"Rent: {bill.RentAmount}, Water: {bill.WaterBill}, "
+        f"Electricity: {bill.ElectricityBill}, Internet: {bill.Internet}."
+    )
+
+    sms_result = send_sms(tenant.Phone, sms_message)
+
+    if sms_result['success']:
+        # Log the SMS sent
+        sms_log = SMSUsageLog(
+            LandlordID=landlord.UserID,
+            TenantID=tenant.TenantID,
+            BillID=bill.BillID,
+            PhoneNumber=tenant.Phone,
+            Message=sms_message,
+            CostPerSMS=1.0  # Assume KES 1.0 for now, adjust as needed
+        )
+        db.session.add(sms_log)
+        db.session.commit()
+
+        return jsonify({
+            "message": "✅ Bill notification sent successfully.",
+            "log": sms_result['response']
+        }), 200
+    else:
+        return jsonify({
+            "message": "❌ Failed to send SMS.",
+            "error": sms_result['error']
+        }), 500
