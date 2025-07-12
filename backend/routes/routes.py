@@ -12,7 +12,7 @@ import time
 from flask_jwt_extended import (
     create_access_token, jwt_required, get_jwt_identity
 )
-from models.models import db, User ,  Apartment ,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog,TransferLog, VacateNotice, SMSUsageLog, TenantBill
+from models.models import db, User,  Apartment,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog, TransferLog, VacateNotice, SMSUsageLog, TenantBill, RentPayment
 import re  # ✅ For password strength checking
 
 routes = Blueprint('routes', __name__)
@@ -26,11 +26,15 @@ mail = None
 mail = None
 
 # ✅ Register mail instance
+
+
 def register_mail_instance(mail_instance):
     global mail
     mail = mail_instance
 
 # ✅ Landlord registration route with full validation
+
+
 @routes.route('/register', methods=['POST'])
 def register_landlord():
     data = request.get_json()
@@ -80,12 +84,15 @@ def register_landlord():
 
     return jsonify({'message': '✅ Landlord account created successfully!'}), 201
 
+
 # Track failed login attempts
 login_attempts = {}
 MAX_ATTEMPTS = 5
 LOCKOUT_TIME = 60  # seconds
 
-#Landlord login
+# Landlord login
+
+
 @routes.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -116,7 +123,8 @@ def login():
     # Successful login → reset failed attempts
     login_attempts.pop(email, None)
 
-    token = create_access_token(identity=user.UserID, expires_delta=timedelta(days=1))
+    token = create_access_token(
+        identity=user.UserID, expires_delta=timedelta(days=1))
     return jsonify({
         'message': 'Login successful!',
         'token': token,
@@ -130,6 +138,8 @@ def login():
     }), 200
 
 # Helper to track login failures
+
+
 def update_attempts(email):
     now = time.time()
     if email not in login_attempts:
@@ -138,7 +148,9 @@ def update_attempts(email):
         login_attempts[email][0] += 1
         login_attempts[email][1] = now
 
-#Landlord can view the profile
+# Landlord can view the profile
+
+
 @routes.route('/profile', methods=['GET'])
 @jwt_required()
 def view_profile():
@@ -158,7 +170,7 @@ def view_profile():
     }), 200
 
 
-#Editing and Updating profile
+# Editing and Updating profile
 @routes.route('/update_profile', methods=['PATCH'])
 @jwt_required()
 def update_profile():
@@ -198,7 +210,9 @@ def update_profile():
         }
     }), 200
 
-# ✅ Change password route
+# ✅ Route for changing the password
+
+
 @routes.route('/password_change', methods=['PATCH'])
 @jwt_required()
 def change_password():
@@ -240,7 +254,9 @@ def change_password():
 
     return jsonify({'message': '✅ Password changed successfully!'}), 200
 
-#Forgot password
+# Route for enabling forgot password
+
+
 @routes.route('/forgot-password', methods=['POST'])
 def forgot_password():
     data = request.get_json()
@@ -293,7 +309,9 @@ NyumbaSmart Support
     except Exception as e:
         return jsonify({'message': '❌ Failed to send email.', 'error': str(e)}), 500
 
-#Reset Password Link Route from Forgotten Password
+# Reset Password Link Route from Forgotten Password
+
+
 @routes.route('/reset-password/<token>', methods=['POST'])
 def reset_password(token):
     data = request.get_json()
@@ -320,7 +338,8 @@ def reset_password(token):
 
     # Decode token
     try:
-        payload = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+        payload = jwt.decode(
+            token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
         user_id = payload.get('user_id')
     except jwt.ExpiredSignatureError:
         return jsonify({'message': 'Reset link has expired.'}), 400
@@ -342,7 +361,9 @@ def reset_password(token):
 
     return jsonify({'message': '✅ Password reset successful! You can now log in.'}), 200
 
-#Route for creating an apartment
+# Route for creating an apartment
+
+
 @routes.route('/apartments/create', methods=['POST'])
 @jwt_required()
 def create_apartment():
@@ -384,7 +405,9 @@ def create_apartment():
         }
     }), 201
 
-#Route for viewing for viewing all apartments by logged in landlord 
+# Route for viewing for viewing all apartments by logged in landlord
+
+
 @routes.route('/myapartments', methods=['GET'])
 @jwt_required()
 def get_my_apartments():
@@ -413,7 +436,9 @@ def get_my_apartments():
         "Apartments": apartment_list
     }), 200
 
-#route for updating the details of an apartment 
+# route for updating the details of an apartment
+
+
 @routes.route('/apartments/update/<int:apartment_id>', methods=['PUT'])
 @jwt_required()
 def update_apartment(apartment_id):
@@ -456,7 +481,9 @@ def update_apartment(apartment_id):
         }
     }), 200
 
-#Viewing aparticular apartment
+# Viewing aparticular apartment
+
+
 @routes.route('/apartments/<int:apartment_id>', methods=['GET'])
 @jwt_required()
 def view_apartment(apartment_id):
@@ -497,7 +524,9 @@ def view_apartment(apartment_id):
         "RentalUnits": unit_list
     }), 200
 
-#Create a Rental Unit Category 
+# Create a Rental Unit Category
+
+
 @routes.route('/unit-categories/create', methods=['POST'])
 @jwt_required()
 def create_unit_category():
@@ -515,7 +544,8 @@ def create_unit_category():
         return jsonify({"message": "Category name is required."}), 400
 
     # Check for duplicate
-    existing = UnitCategory.query.filter_by(CategoryName=category_name.strip()).first()
+    existing = UnitCategory.query.filter_by(
+        CategoryName=category_name.strip()).first()
     if existing:
         return jsonify({"message": f"'{category_name}' category already exists."}), 409
 
@@ -533,7 +563,9 @@ def create_unit_category():
         }
     }), 201
 
-#Fetching the rental units categories 
+# Fetching the rental units categories
+
+
 @routes.route('/unit-categories', methods=['GET'])
 @jwt_required()
 def get_unit_categories():
@@ -554,7 +586,7 @@ def get_unit_categories():
     }), 200
 
 
-#route for creating a rental unit status
+# route for creating a rental unit status
 @routes.route('/rental-unit-statuses/create', methods=['POST'])
 @jwt_required()
 def create_rental_unit_status():
@@ -572,7 +604,8 @@ def create_rental_unit_status():
         return jsonify({"message": "Status name is required."}), 400
 
     # Check for duplicate
-    existing_status = RentalUnitStatus.query.filter_by(StatusName=status_name.strip()).first()
+    existing_status = RentalUnitStatus.query.filter_by(
+        StatusName=status_name.strip()).first()
     if existing_status:
         return jsonify({"message": f"'{status_name}' status already exists."}), 409
 
@@ -590,11 +623,14 @@ def create_rental_unit_status():
         }
     }), 201
 
-#Fetching rental unit status 
+# Fetching rental unit status
+
+
 @routes.route('/rental-unit-statuses', methods=['GET'])
 @jwt_required()
 def get_rental_unit_statuses():
-    statuses = RentalUnitStatus.query.order_by(RentalUnitStatus.StatusName).all()
+    statuses = RentalUnitStatus.query.order_by(
+        RentalUnitStatus.StatusName).all()
 
     results = [
         {
@@ -610,7 +646,9 @@ def get_rental_unit_statuses():
         "RentalUnitStatuses": results
     }), 200
 
-#Create a Rental Unit
+# Create a Rental Unit
+
+
 @routes.route('/rental-units/create', methods=['POST'])
 @jwt_required()
 def create_rental_unit():
@@ -668,7 +706,7 @@ def create_rental_unit():
     }), 201
 
 
-#Update a Rental Unit 
+# Update a Rental Unit
 @routes.route('/rental-units/update/<int:unit_id>', methods=['PUT'])
 @jwt_required()
 def update_rental_unit(unit_id):
@@ -715,13 +753,16 @@ def update_rental_unit(unit_id):
         }
     }), 200
 
-#Fetch rental units for a specific apartment
+# Fetch rental units for a specific apartment
+
+
 @routes.route('/apartments/<int:apartment_id>/units', methods=['GET'])
 @jwt_required()
 def get_units_by_apartment(apartment_id):
     user_id = get_jwt_identity()
     # Confirm landlord owns the apartment
-    apartment = Apartment.query.filter_by(ApartmentID=apartment_id, UserID=user_id).first()
+    apartment = Apartment.query.filter_by(
+        ApartmentID=apartment_id, UserID=user_id).first()
 
     if not apartment:
         return jsonify({"message": "Apartment not found or not owned by you."}), 404
@@ -742,7 +783,9 @@ def get_units_by_apartment(apartment_id):
 
     return jsonify(result), 200
 
-#Route for assigning tenants to rental units
+# Route for assigning tenants to rental units
+
+
 @routes.route('/tenants/add', methods=['POST'])
 @jwt_required()
 def add_tenant():
@@ -785,7 +828,8 @@ def add_tenant():
         return jsonify({"message": "This unit is not available. Only vacant units can be assigned."}), 400
 
     # ✅ Check for returning inactive tenant
-    existing_tenant = Tenant.query.filter_by(Phone=phone, IDNumber=id_number).first()
+    existing_tenant = Tenant.query.filter_by(
+        Phone=phone, IDNumber=id_number).first()
     if existing_tenant:
         if existing_tenant.Status == 'Inactive':
             # Reactivate and assign new unit
@@ -855,7 +899,9 @@ def add_tenant():
         }
     }), 201
 
-#route for vacating tenant
+# route for vacating tenant
+
+
 @routes.route('/tenants/vacate/<int:tenant_id>', methods=['PUT'])
 @jwt_required()
 def vacate_unit(tenant_id):
@@ -924,8 +970,7 @@ def vacate_unit(tenant_id):
     }), 200
 
 
-
-#Transfering a tenant from apartment to another apartment
+# Transfering a tenant from apartment to another apartment
 @routes.route('/tenants/transfer/<int:tenant_id>', methods=['PUT'])
 @jwt_required()
 def transfer_tenant(tenant_id):
@@ -1022,8 +1067,7 @@ def transfer_tenant(tenant_id):
     }), 200
 
 
-
-#Route for allocating a tenant to a different rental unit in the same apartment
+# Route for allocating a tenant to a different rental unit in the same apartment
 @routes.route('/tenants/transfer/<int:id>', methods=['PUT'])
 @jwt_required()
 def transfer_tenant_by_id(id):
@@ -1128,6 +1172,8 @@ def transfer_tenant_by_id(id):
     }), 200
 
 # ✅ Route to view all active tenants for the logged-in landlord
+
+
 @routes.route('/tenants', methods=['GET'])
 @jwt_required()
 def get_all_tenants():
@@ -1135,7 +1181,8 @@ def get_all_tenants():
 
     # Optional filters
     apartment_filter = request.args.get('apartment_id')
-    status_filter = request.args.get('status')  # 'Active', 'Inactive', or None for all
+    # 'Active', 'Inactive', or None for all
+    status_filter = request.args.get('status')
     sort_by = request.args.get('sort', 'Apartment')
 
     # Step 1: Get apartments owned by this landlord
@@ -1143,14 +1190,16 @@ def get_all_tenants():
     apartment_ids = [apt.ApartmentID for apt in apartments]
 
     # Step 2: Get rental units in those apartments (optionally filter by apartment_id)
-    units_query = RentalUnit.query.filter(RentalUnit.ApartmentID.in_(apartment_ids))
+    units_query = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids))
     if apartment_filter:
         units_query = units_query.filter_by(ApartmentID=int(apartment_filter))
     units = units_query.all()
     unit_dict = {unit.UnitID: unit for unit in units}
 
     # Step 3: Get all tenants in those units (optionally filter by status)
-    tenants_query = Tenant.query.filter(Tenant.RentalUnitID.in_(unit_dict.keys()))
+    tenants_query = Tenant.query.filter(
+        Tenant.RentalUnitID.in_(unit_dict.keys()))
     if status_filter:
         tenants_query = tenants_query.filter_by(Status=status_filter)
     tenants = tenants_query.all()
@@ -1185,7 +1234,7 @@ def get_all_tenants():
     }), 200
 
 
-#Route for creating and sending a vacation notice to a tenant 
+# Route for creating and sending a vacation notice to a tenant
 @routes.route('/vacate-notice/<int:tenant_id>', methods=['POST'])
 @jwt_required()
 def create_vacate_notice(tenant_id):
@@ -1200,8 +1249,10 @@ def create_vacate_notice(tenant_id):
         return jsonify({"message": "ExpectedVacateDate is required."}), 400
 
     try:
-        vacate_date = datetime.strptime(expected_vacate_date, '%Y-%m-%d').date()
-        inspection = datetime.strptime(inspection_date, '%Y-%m-%d').date() if inspection_date else None
+        vacate_date = datetime.strptime(
+            expected_vacate_date, '%Y-%m-%d').date()
+        inspection = datetime.strptime(
+            inspection_date, '%Y-%m-%d').date() if inspection_date else None
     except ValueError:
         return jsonify({"message": "Invalid date format. Use YYYY-MM-DD."}), 400
 
@@ -1266,7 +1317,9 @@ def create_vacate_notice(tenant_id):
         "InspectionDate": inspection.strftime('%Y-%m-%d') if inspection else "Not Scheduled"
     }), 201
 
-#View All Transfers for a Landlord
+# View All Transfers for a Landlord
+
+
 @routes.route('/transfer-logs', methods=['GET'])
 @jwt_required()
 def view_transfer_logs():
@@ -1277,13 +1330,15 @@ def view_transfer_logs():
     apartment_ids = [apt.ApartmentID for apt in apartments]
 
     # Step 2: Get all units in those apartments
-    units = RentalUnit.query.filter(RentalUnit.ApartmentID.in_(apartment_ids)).all()
+    units = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids)).all()
     unit_ids = [unit.UnitID for unit in units]
     unit_dict = {unit.UnitID: unit for unit in units}
 
     # Step 3: Fetch relevant transfer logs where the tenant moved to or from a unit in the landlord’s apartments
     transfer_logs = TransferLog.query.filter(
-        (TransferLog.OldUnitID.in_(unit_ids)) | (TransferLog.NewUnitID.in_(unit_ids))
+        (TransferLog.OldUnitID.in_(unit_ids)) | (
+            TransferLog.NewUnitID.in_(unit_ids))
     ).order_by(TransferLog.TransferDate.desc()).all()
 
     result = []
@@ -1292,8 +1347,10 @@ def view_transfer_logs():
         old_unit = unit_dict.get(log.OldUnitID)
         new_unit = unit_dict.get(log.NewUnitID)
 
-        old_apartment = Apartment.query.get(old_unit.ApartmentID) if old_unit else None
-        new_apartment = Apartment.query.get(new_unit.ApartmentID) if new_unit else None
+        old_apartment = Apartment.query.get(
+            old_unit.ApartmentID) if old_unit else None
+        new_apartment = Apartment.query.get(
+            new_unit.ApartmentID) if new_unit else None
 
         result.append({
             "TenantID": tenant.TenantID,
@@ -1312,7 +1369,9 @@ def view_transfer_logs():
         "transfer_logs": result
     }), 200
 
-#View Tenant Vacating History for Landlord
+# View Tenant Vacating History for Landlord
+
+
 @routes.route('/vacate-logs', methods=['GET'])
 @jwt_required()
 def view_vacate_logs():
@@ -1323,7 +1382,8 @@ def view_vacate_logs():
     apartment_ids = [a.ApartmentID for a in apartments]
 
     # Step 2: Get units in those apartments
-    units = RentalUnit.query.filter(RentalUnit.ApartmentID.in_(apartment_ids)).all()
+    units = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids)).all()
     unit_dict = {unit.UnitID: unit for unit in units}
 
     # Step 3: Query vacate logs for those units/apartments
@@ -1353,53 +1413,243 @@ def view_vacate_logs():
         "vacate_logs": result
     }), 200
 
-#Route for sendign a tenant bill notification sms
-@routes.route('/send-bill-notification/<int:bill_id>', methods=['POST'])
+# Route for creating tenant bill
+
+
+@routes.route('/tenant-bills/create', methods=['POST'])
 @jwt_required()
-def send_bill_notification(bill_id):
+def create_tenant_bill():
     user_id = get_jwt_identity()
     landlord = User.query.get(user_id)
 
     if not landlord or not landlord.IsAdmin:
-        return jsonify({"message": "Unauthorized. Only landlords can send notifications."}), 403
+        return jsonify({"message": "Unauthorized. Only landlords can issue bills."}), 403
 
-    bill = TenantBill.query.get(bill_id)
-    if not bill:
-        return jsonify({"message": "Bill not found"}), 404
+    data = request.get_json()
 
-    tenant = Tenant.query.get(bill.TenantID)
-    if not tenant or not tenant.Phone:
-        return jsonify({"message": "Tenant or phone number not found"}), 404
+    tenant_id = data.get('TenantID')
+    billing_month = data.get('BillingMonth')
+    due_date_str = data.get('DueDate')
 
-    # Format the SMS content
-    sms_message = (
-        f"Dear {tenant.FullName}, your {bill.BillingMonth} bill is KES {bill.TotalAmountDue:.2f}. "
-        f"Due by {bill.DueDate.strftime('%d-%b-%Y')}. "
-        f"Rent: {bill.RentAmount}, Water: {bill.WaterBill}, "
-        f"Electricity: {bill.ElectricityBill}, Internet: {bill.Internet}."
+    if tenant_id is None:
+        return jsonify({"message": "❌ TenantID is required."}), 400
+    if not billing_month:
+        return jsonify({"message": "❌ BillingMonth is required."}), 400
+    if not due_date_str:
+        return jsonify({"message": "❌ DueDate is required."}), 400
+
+    try:
+        due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"message": "❌ DueDate must be in YYYY-MM-DD format."}), 400
+
+    tenant = Tenant.query.get(tenant_id)
+    if not tenant:
+        return jsonify({"message": "❌ Tenant not found."}), 404
+
+    unit = RentalUnit.query.get(tenant.RentalUnitID)
+    apartment = Apartment.query.get(unit.ApartmentID) if unit else None
+    if not apartment or apartment.UserID != user_id:
+        return jsonify({"message": "❌ Unauthorized: You do not manage this tenant."}), 403
+
+    # ✅ Fetch rent and additional bills automatically
+    rent = float(unit.MonthlyRent or 0.0)
+    included_bills = float(unit.AdditionalBills or 0.0)
+
+    # ✅ Optional amenities
+    water = float(data.get('WaterBill') or 0.0)
+    electricity = float(data.get('ElectricityBill') or 0.0)
+    garbage = float(data.get('Garbage') or 0.0)
+    internet = float(data.get('Internet') or 0.0)
+
+    # ✅ Get all previous bills and payments (excluding current month)
+    previous_bills = (
+        TenantBill.query.filter_by(TenantID=tenant_id)
+        .filter(TenantBill.BillingMonth != billing_month)
+        .all()
     )
 
-    sms_result = send_sms(tenant.Phone, sms_message)
+    total_billed = sum(b.TotalAmountDue for b in previous_bills)
 
-    if sms_result['success']:
-        # Log the SMS sent
-        sms_log = SMSUsageLog(
-            LandlordID=landlord.UserID,
-            TenantID=tenant.TenantID,
-            BillID=bill.BillID,
-            PhoneNumber=tenant.Phone,
-            Message=sms_message,
-            CostPerSMS=1.0  # Assume KES 1.0 for now, adjust as needed
-        )
-        db.session.add(sms_log)
-        db.session.commit()
+    total_paid = (
+        db.session.query(db.func.coalesce(
+            db.func.sum(RentPayment.AmountPaid), 0.0))
+        .filter(RentPayment.TenantID == tenant_id)
+        .filter(RentPayment.BillingMonth != billing_month)
+        .scalar()
+    )
 
-        return jsonify({
-            "message": "✅ Bill notification sent successfully.",
-            "log": sms_result['response']
-        }), 200
-    else:
-        return jsonify({
-            "message": "❌ Failed to send SMS.",
-            "error": sms_result['error']
-        }), 500
+    # ✅ Can be negative (overpaid) or positive (underpaid)
+    previous_balance = total_billed - total_paid
+
+    # ✅ Total bill for current month
+    current_charges = rent + water + electricity + \
+        garbage + internet + included_bills
+    total_due = current_charges + previous_balance
+
+    bill = TenantBill(
+        TenantID=tenant_id,
+        RentalUnitID=tenant.RentalUnitID,
+        BillingMonth=billing_month,
+        RentAmount=rent,
+        WaterBill=water,
+        ElectricityBill=electricity,
+        Garbage=garbage,
+        Internet=internet,
+        TotalAmountDue=total_due,
+        DueDate=due_date
+    )
+
+    db.session.add(bill)
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Tenant bill created successfully.",
+        "Bill": {
+            "BillID": bill.BillID,
+            "Tenant": tenant.FullName,
+            "Unit": unit.Label,
+            "BillingMonth": bill.BillingMonth,
+            "Rent": rent,
+            "WaterBill": water,
+            "ElectricityBill": electricity,
+            "Garbage": garbage,
+            "Internet": internet,
+            "AdditionalCharges": included_bills,
+            "PreviousBalance": round(previous_balance, 2),
+            "TotalAmountDue": round(total_due, 2),
+            "DueDate": bill.DueDate.strftime('%Y-%m-%d'),
+            "IssuedDate": bill.IssuedDate.strftime('%Y-%m-%d %H:%M:%S'),
+            "IsPaid": bill.IsPaid
+        }
+    }), 201
+
+
+# Route for recording the tenant bill payment
+
+
+@routes.route('/rent-payments/create', methods=['POST'])
+@jwt_required()
+def record_rent_payment():
+    landlord_id = get_jwt_identity()
+    landlord = User.query.get(landlord_id)
+    if not landlord or not landlord.IsAdmin:
+        return jsonify({"message": "Unauthorized."}), 403
+
+    data = request.get_json()
+    bill_id = data.get("BillID")
+    amount_paid = data.get("AmountPaid")
+    paid_via = data.get("PaidViaMobile", "Unknown")
+
+    # --- Basic validation ---------------------------------------------------
+    if bill_id is None:
+        return jsonify({"message": "BillID is required."}), 400
+    if amount_paid is None or amount_paid <= 0:
+        return jsonify({"message": "AmountPaid must be > 0."}), 400
+
+    # --- Fetch & ownership check -------------------------------------------
+    bill = TenantBill.query.get(bill_id)
+    if not bill:
+        return jsonify({"message": "Bill not found."}), 404
+
+    unit = RentalUnit.query.get(bill.RentalUnitID)
+    apartment = Apartment.query.get(unit.ApartmentID) if unit else None
+    if not apartment or apartment.UserID != landlord_id:
+        return jsonify({"message": "Unauthorized: Not your tenant."}), 403
+
+    # --- Sum previous payments for this bill -------------------------------
+    previous_paid = (
+        db.session.query(db.func.coalesce(
+            db.func.sum(RentPayment.AmountPaid), 0.0))
+        .filter(RentPayment.BilledAmount == bill.TotalAmountDue)
+        .filter(RentPayment.BillingMonth == bill.BillingMonth)
+        .filter(RentPayment.TenantID == bill.TenantID)
+        .scalar()
+    )
+
+    balance_before = bill.TotalAmountDue - previous_paid
+    # can be negative (over-payment)
+    balance_after = balance_before - amount_paid
+
+    # --- Create RentPayment record -----------------------------------------
+    payment = RentPayment(
+        TenantID=bill.TenantID,
+        RentalUnitID=bill.RentalUnitID,
+        BillingMonth=bill.BillingMonth,
+        BilledAmount=bill.TotalAmountDue,
+        AmountPaid=amount_paid,
+        Balance=balance_after,          # ▶ may be negative if over-paid
+        PaidViaMobile=paid_via
+    )
+    db.session.add(payment)
+
+    # --- Update bill status -------------------------------------------------
+    bill.IsPaid = balance_after <= 0.01          # treat small rounding as paid
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Payment recorded.",
+        "Payment": {
+            "PaymentID": payment.PaymentID,
+            "TenantID": payment.TenantID,
+            "BillingMonth": payment.BillingMonth,
+            "AmountPaid": amount_paid,
+            # negative → credit
+            "BalanceAfterPayment": round(balance_after, 2),
+            "IsBillPaid": bill.IsPaid,
+            "PaymentDate": payment.PaymentDate.strftime("%Y-%m-%d %H:%M:%S")
+        }
+    }), 201
+
+
+# # Route for sending a tenant bill notification sms
+# @routes.route('/send-bill-notification/<int:bill_id>', methods=['POST'])
+# @jwt_required()
+# def send_bill_notification(bill_id):
+#     user_id = get_jwt_identity()
+#     landlord = User.query.get(user_id)
+
+#     if not landlord or not landlord.IsAdmin:
+#         return jsonify({"message": "Unauthorized. Only landlords can send notifications."}), 403
+
+#     bill = TenantBill.query.get(bill_id)
+#     if not bill:
+#         return jsonify({"message": "Bill not found"}), 404
+
+#     tenant = Tenant.query.get(bill.TenantID)
+#     if not tenant or not tenant.Phone:
+#         return jsonify({"message": "Tenant or phone number not found"}), 404
+
+#     # Format the SMS content
+#     sms_message = (
+#         f"Dear {tenant.FullName}, your {bill.BillingMonth} bill is KES {bill.TotalAmountDue:.2f}. "
+#         f"Due by {bill.DueDate.strftime('%d-%b-%Y')}. "
+#         f"Rent: {bill.RentAmount}, Water: {bill.WaterBill}, "
+#         f"Electricity: {bill.ElectricityBill}, Internet: {bill.Internet}."
+#     )
+
+#     sms_result = send_sms(tenant.Phone, sms_message)
+
+#     if sms_result['success']:
+#         # Log the SMS sent
+#         sms_log = SMSUsageLog(
+#             LandlordID=landlord.UserID,
+#             TenantID=tenant.TenantID,
+#             BillID=bill.BillID,
+#             PhoneNumber=tenant.Phone,
+#             Message=sms_message,
+#             CostPerSMS=1.0  # Assume KES 1.0 for now, adjust as needed
+#         )
+#         db.session.add(sms_log)
+#         db.session.commit()
+
+#         return jsonify({
+#             "message": "✅ Bill notification sent successfully.",
+#             "log": sms_result['response']
+#         }), 200
+#     else:
+#         return jsonify({
+#             "message": "❌ Failed to send SMS.",
+#             "error": sms_result['error']
+#         }), 500
