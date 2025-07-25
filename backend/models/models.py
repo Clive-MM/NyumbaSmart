@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 
+
 class User(db.Model):
     __tablename__ = 'Users'
 
@@ -20,6 +21,7 @@ class User(db.Model):
     def __repr__(self):
         return f"<User ID={self.UserID} Email={self.Email}>"
 
+
 class Apartment(db.Model):
     __tablename__ = 'Apartments'
 
@@ -31,10 +33,12 @@ class Apartment(db.Model):
     CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationship
-    rental_units = db.relationship('RentalUnit', backref='apartment', lazy=True)
+    rental_units = db.relationship(
+        'RentalUnit', backref='apartment', lazy=True)
 
     def __repr__(self):
         return f"<Apartment {self.ApartmentName}>"
+
 
 class UnitCategory(db.Model):
     __tablename__ = 'UnitCategories'
@@ -46,6 +50,7 @@ class UnitCategory(db.Model):
     def __repr__(self):
         return f"<UnitCategory {self.CategoryName}>"
 
+
 class RentalUnitStatus(db.Model):
     __tablename__ = 'RentalUnitStatuses'
 
@@ -56,26 +61,32 @@ class RentalUnitStatus(db.Model):
     def __repr__(self):
         return f"<RentalUnitStatus {self.StatusName}>"
 
+
 class RentalUnit(db.Model):
     __tablename__ = 'RentalUnits'
 
     UnitID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    ApartmentID = db.Column(db.Integer, db.ForeignKey('Apartments.ApartmentID'), nullable=False)
+    ApartmentID = db.Column(db.Integer, db.ForeignKey(
+        'Apartments.ApartmentID'), nullable=False)
 
     Label = db.Column(db.String(20), nullable=False)
     Description = db.Column(db.String(300))
     MonthlyRent = db.Column(db.Float, nullable=False)
     AdditionalBills = db.Column(db.Float, default=0.0)
 
-    StatusID = db.Column(db.Integer, db.ForeignKey('RentalUnitStatuses.StatusID'))
-    CategoryID = db.Column(db.Integer, db.ForeignKey('UnitCategories.CategoryID'))
-    CurrentTenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=True)
+    StatusID = db.Column(db.Integer, db.ForeignKey(
+        'RentalUnitStatuses.StatusID'))
+    CategoryID = db.Column(
+        db.Integer, db.ForeignKey('UnitCategories.CategoryID'))
+    CurrentTenantID = db.Column(db.Integer, db.ForeignKey(
+        'Tenants.TenantID'), nullable=True)
 
     CreatedAt = db.Column(db.DateTime,  default=datetime.utcnow)
 
     status = db.relationship('RentalUnitStatus', backref='units')
     category = db.relationship('UnitCategory', backref='units')
-    current_tenant = db.relationship('Tenant', backref='assigned_unit', foreign_keys=[CurrentTenantID])
+    current_tenant = db.relationship(
+        'Tenant', backref='assigned_unit', foreign_keys=[CurrentTenantID])
 
     def __repr__(self):
         return f"<RentalUnit {self.Label} | Apt {self.ApartmentID}>"
@@ -96,21 +107,25 @@ class Tenant(db.Model):
     CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationship
-    rental_unit = db.relationship('RentalUnit', backref='tenants', foreign_keys=[RentalUnitID])
+    rental_unit = db.relationship(
+        'RentalUnit', backref='tenants', foreign_keys=[RentalUnitID])
 
     def __repr__(self):
         return f"<Tenant {self.FullName}>"
+
 
 class VacateNotice(db.Model):
     __tablename__ = 'VacateNotices'
 
     NoticeID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=False)
-    RentalUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=False)
+    TenantID = db.Column(db.Integer, db.ForeignKey(
+        'Tenants.TenantID'), nullable=False)
+    RentalUnitID = db.Column(db.Integer, db.ForeignKey(
+        'RentalUnits.UnitID'), nullable=False)
     NoticeDate = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     ExpectedVacateDate = db.Column(db.Date, nullable=False)
     Reason = db.Column(db.String(300))
-    InspectionDate = db.Column(db.Date) 
+    InspectionDate = db.Column(db.Date)
     Status = db.Column(db.String(50), default="Pending")
     CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -121,12 +136,15 @@ class VacateNotice(db.Model):
     def __repr__(self):
         return f"<VacateNotice TenantID={self.TenantID} ExpectedVacateDate={self.ExpectedVacateDate}>"
 
+
 class TenantBill(db.Model):
     __tablename__ = 'TenantBills'
 
     BillID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=False)
-    RentalUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=False)
+    TenantID = db.Column(db.Integer, db.ForeignKey(
+        'Tenants.TenantID'), nullable=False)
+    RentalUnitID = db.Column(db.Integer, db.ForeignKey(
+        'RentalUnits.UnitID'), nullable=False)
 
     BillingMonth = db.Column(db.String(20), nullable=False)
     RentAmount = db.Column(db.Float, nullable=False)
@@ -134,24 +152,30 @@ class TenantBill(db.Model):
     ElectricityBill = db.Column(db.Float, default=0.0)
     Garbage = db.Column(db.Float, default=0.0)
     Internet = db.Column(db.Float, default=0.0)
+    CarriedForwardBalance = db.Column(db.Float, default=0.0)
 
     TotalAmountDue = db.Column(db.Float, nullable=False)
     DueDate = db.Column(db.Date, nullable=False)
     IssuedDate = db.Column(db.DateTime, default=datetime.utcnow)
-    IsPaid = db.Column(db.Boolean, default=False)
+
+   # Options: Paid, Partially Paid, Overpaid, Unpaid
+    BillStatus = db.Column(db.String(20), default="Unpaid")
 
     tenant = db.relationship('Tenant', backref='bills')
     unit = db.relationship('RentalUnit', backref='bills')
 
     def __repr__(self):
-        return f"<TenantBill {self.BillingMonth} | TenantID {self.TenantID}>"
+        return f"<TenantBill {self.BillingMonth} | TenantID {self.TenantID} | Status {self.BillStatus}>"
+
 
 class RentPayment(db.Model):
     __tablename__ = 'RentPayments'
 
     PaymentID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=False)
-    RentalUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=False)
+    TenantID = db.Column(db.Integer, db.ForeignKey(
+        'Tenants.TenantID'), nullable=False)
+    RentalUnitID = db.Column(db.Integer, db.ForeignKey(
+        'RentalUnits.UnitID'), nullable=False)
 
     BillingMonth = db.Column(db.String(20), nullable=False)
     BilledAmount = db.Column(db.Float, nullable=False)
@@ -172,9 +196,11 @@ class LandlordExpense(db.Model):
     __tablename__ = 'LandlordExpenses'
 
     ExpenseID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    ApartmentID = db.Column(db.Integer, db.ForeignKey('Apartments.ApartmentID'), nullable=False)
+    ApartmentID = db.Column(db.Integer, db.ForeignKey(
+        'Apartments.ApartmentID'), nullable=False)
 
-    ExpenseType = db.Column(db.String(100), nullable=False)  # e.g., Water, Repairs, Electricity
+    # e.g., Water, Repairs, Electricity
+    ExpenseType = db.Column(db.String(100), nullable=False)
     Amount = db.Column(db.Float, nullable=False)
     Description = db.Column(db.String(300))
     ExpenseDate = db.Column(db.DateTime,  default=datetime.utcnow)
@@ -185,26 +211,30 @@ class LandlordExpense(db.Model):
     def __repr__(self):
         return f"<Expense {self.ExpenseType} | {self.Amount} | {self.ExpenseDate.strftime('%B %Y')}>"
 
-    
+
 class NotificationTag(db.Model):
     __tablename__ = 'NotificationTags'
 
     TagID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    TagName = db.Column(db.String(100), unique=True, nullable=False)  # e.g., "Rent Reminder"
+    TagName = db.Column(db.String(100), unique=True,
+                        nullable=False)  # e.g., "Rent Reminder"
     Description = db.Column(db.String(300))
 
     def __repr__(self):
         return f"<NotificationTag {self.TagName}>"
 
 
-
 class Notification(db.Model):
     __tablename__ = 'Notifications'
 
-    NotificationID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=False)
-    RentalUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=True)
-    TagID = db.Column(db.Integer, db.ForeignKey('NotificationTags.TagID'), nullable=False)
+    NotificationID = db.Column(
+        db.Integer, primary_key=True, autoincrement=True)
+    TenantID = db.Column(db.Integer, db.ForeignKey(
+        'Tenants.TenantID'), nullable=False)
+    RentalUnitID = db.Column(db.Integer, db.ForeignKey(
+        'RentalUnits.UnitID'), nullable=True)
+    TagID = db.Column(db.Integer, db.ForeignKey(
+        'NotificationTags.TagID'), nullable=False)
 
     Title = db.Column(db.String(100), nullable=False)
     Message = db.Column(db.String(500), nullable=False)
@@ -218,14 +248,20 @@ class Notification(db.Model):
 
     def __repr__(self):
         return f"<Notification '{self.Title}' to Tenant {self.TenantID}>"
+
+
 class VacateLog(db.Model):
     __tablename__ = 'VacateLogs'
 
     LogID = db.Column(db.Integer, primary_key=True)
-    TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=False)
-    UnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=False)
-    ApartmentID = db.Column(db.Integer, db.ForeignKey('Apartments.ApartmentID'), nullable=False)
-    VacatedBy = db.Column(db.Integer, db.ForeignKey('Users.UserID'), nullable=False)
+    TenantID = db.Column(db.Integer, db.ForeignKey(
+        'Tenants.TenantID'), nullable=False)
+    UnitID = db.Column(db.Integer, db.ForeignKey(
+        'RentalUnits.UnitID'), nullable=False)
+    ApartmentID = db.Column(db.Integer, db.ForeignKey(
+        'Apartments.ApartmentID'), nullable=False)
+    VacatedBy = db.Column(db.Integer, db.ForeignKey(
+        'Users.UserID'), nullable=False)
     VacateDate = db.Column(db.DateTime, default=datetime.utcnow)
     Reason = db.Column(db.String(255))
     Notes = db.Column(db.Text)
@@ -236,14 +272,19 @@ class VacateLog(db.Model):
     apartment = db.relationship('Apartment')
     user = db.relationship('User')
 
+
 class TransferLog(db.Model):
     __tablename__ = 'TransferLogs'
 
     LogID = db.Column(db.Integer, primary_key=True)
-    TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=False)
-    OldUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=False)
-    NewUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'), nullable=False)
-    TransferredBy = db.Column(db.Integer, db.ForeignKey('Users.UserID'), nullable=False)
+    TenantID = db.Column(db.Integer, db.ForeignKey(
+        'Tenants.TenantID'), nullable=False)
+    OldUnitID = db.Column(db.Integer, db.ForeignKey(
+        'RentalUnits.UnitID'), nullable=False)
+    NewUnitID = db.Column(db.Integer, db.ForeignKey(
+        'RentalUnits.UnitID'), nullable=False)
+    TransferredBy = db.Column(
+        db.Integer, db.ForeignKey('Users.UserID'), nullable=False)
     TransferDate = db.Column(db.DateTime, default=datetime.utcnow)
     Reason = db.Column(db.String(255))
 
@@ -252,15 +293,18 @@ class TransferLog(db.Model):
     new_unit = db.relationship('RentalUnit', foreign_keys=[NewUnitID])
     user = db.relationship('User')
 
-    
+
 class SMSUsageLog(db.Model):
     __tablename__ = 'SMSUsageLogs'
 
     SMSLogID = db.Column(db.Integer, primary_key=True, autoincrement=True)
 
-    LandlordID = db.Column(db.Integer, db.ForeignKey('Users.UserID'), nullable=False)
-    TenantID = db.Column(db.Integer, db.ForeignKey('Tenants.TenantID'), nullable=True)
-    BillID = db.Column(db.Integer, db.ForeignKey('TenantBills.BillID'), nullable=True)
+    LandlordID = db.Column(db.Integer, db.ForeignKey(
+        'Users.UserID'), nullable=False)
+    TenantID = db.Column(db.Integer, db.ForeignKey(
+        'Tenants.TenantID'), nullable=True)
+    BillID = db.Column(db.Integer, db.ForeignKey(
+        'TenantBills.BillID'), nullable=True)
 
     PhoneNumber = db.Column(db.String(20), nullable=False)
     Message = db.Column(db.Text, nullable=False)
@@ -270,7 +314,8 @@ class SMSUsageLog(db.Model):
     # Relationships
     landlord = db.relationship('User', backref='sms_logs')
     tenant = db.relationship('Tenant', backref='sms_logs')
-    bill = db.relationship('TenantBill', backref='sms_logs')  # ✅ allows bill.sms_logs
+    # ✅ allows bill.sms_logs
+    bill = db.relationship('TenantBill', backref='sms_logs')
 
     def __repr__(self):
         return (

@@ -8,6 +8,9 @@ from flask_mail import Mail
 from datetime import datetime, timedelta
 from utils.sms_helper import send_sms
 import time
+from utils.billing_helper import calculate_new_bill, generate_monthly_bills, update_bill_utilities
+
+
 # from utils import send_sms  # Placeholder for SMS function
 from flask_jwt_extended import (
     create_access_token, jwt_required, get_jwt_identity
@@ -1413,243 +1416,417 @@ def view_vacate_logs():
         "vacate_logs": result
     }), 200
 
-# Route for creating tenant bill
 
-
-@routes.route('/tenant-bills/create', methods=['POST'])
+# ✅ Generate base rent bills for all tenants
+@routes.route('/generate-bills', methods=['POST'])
 @jwt_required()
-def create_tenant_bill():
+def generate_bills():
     user_id = get_jwt_identity()
-    landlord = User.query.get(user_id)
+    user = User.query.get(user_id)
 
-    if not landlord or not landlord.IsAdmin:
-        return jsonify({"message": "Unauthorized. Only landlords can issue bills."}), 403
-
-    data = request.get_json()
-
-    tenant_id = data.get('TenantID')
-    billing_month = data.get('BillingMonth')
-    due_date_str = data.get('DueDate')
-
-    if tenant_id is None:
-        return jsonify({"message": "❌ TenantID is required."}), 400
-    if not billing_month:
-        return jsonify({"message": "❌ BillingMonth is required."}), 400
-    if not due_date_str:
-        return jsonify({"message": "❌ DueDate is required."}), 400
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized. Only landlords can generate bills."}), 403
 
     try:
-        due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date()
-    except ValueError:
-        return jsonify({"message": "❌ DueDate must be in YYYY-MM-DD format."}), 400
-
-    tenant = Tenant.query.get(tenant_id)
-    if not tenant:
-        return jsonify({"message": "❌ Tenant not found."}), 404
-
-    unit = RentalUnit.query.get(tenant.RentalUnitID)
-    apartment = Apartment.query.get(unit.ApartmentID) if unit else None
-    if not apartment or apartment.UserID != user_id:
-        return jsonify({"message": "❌ Unauthorized: You do not manage this tenant."}), 403
-
-    # ✅ Fetch rent and additional bills automatically
-    rent = float(unit.MonthlyRent or 0.0)
-    included_bills = float(unit.AdditionalBills or 0.0)
-
-    # ✅ Optional amenities
-    water = float(data.get('WaterBill') or 0.0)
-    electricity = float(data.get('ElectricityBill') or 0.0)
-    garbage = float(data.get('Garbage') or 0.0)
-    internet = float(data.get('Internet') or 0.0)
-
-    # ✅ Get all previous bills and payments (excluding current month)
-    previous_bills = (
-        TenantBill.query.filter_by(TenantID=tenant_id)
-        .filter(TenantBill.BillingMonth != billing_month)
-        .all()
-    )
-
-    total_billed = sum(b.TotalAmountDue for b in previous_bills)
-
-    total_paid = (
-        db.session.query(db.func.coalesce(
-            db.func.sum(RentPayment.AmountPaid), 0.0))
-        .filter(RentPayment.TenantID == tenant_id)
-        .filter(RentPayment.BillingMonth != billing_month)
-        .scalar()
-    )
-
-    # ✅ Can be negative (overpaid) or positive (underpaid)
-    previous_balance = total_billed - total_paid
-
-    # ✅ Total bill for current month
-    current_charges = rent + water + electricity + \
-        garbage + internet + included_bills
-    total_due = current_charges + previous_balance
-
-    bill = TenantBill(
-        TenantID=tenant_id,
-        RentalUnitID=tenant.RentalUnitID,
-        BillingMonth=billing_month,
-        RentAmount=rent,
-        WaterBill=water,
-        ElectricityBill=electricity,
-        Garbage=garbage,
-        Internet=internet,
-        TotalAmountDue=total_due,
-        DueDate=due_date
-    )
-
-    db.session.add(bill)
-    db.session.commit()
-
-    return jsonify({
-        "message": "✅ Tenant bill created successfully.",
-        "Bill": {
-            "BillID": bill.BillID,
-            "Tenant": tenant.FullName,
-            "Unit": unit.Label,
-            "BillingMonth": bill.BillingMonth,
-            "Rent": rent,
-            "WaterBill": water,
-            "ElectricityBill": electricity,
-            "Garbage": garbage,
-            "Internet": internet,
-            "AdditionalCharges": included_bills,
-            "PreviousBalance": round(previous_balance, 2),
-            "TotalAmountDue": round(total_due, 2),
-            "DueDate": bill.DueDate.strftime('%Y-%m-%d'),
-            "IssuedDate": bill.IssuedDate.strftime('%Y-%m-%d %H:%M:%S'),
-            "IsPaid": bill.IsPaid
-        }
-    }), 201
+        result = generate_monthly_bills()
+        return jsonify({
+            "status": "success",
+            "alert": f"✅ {result['bills_created']} bills generated for {result['billing_month']}",
+            "details": result
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "alert": "❌ Failed to generate monthly bills.",
+            "error": str(e)
+        }), 500
 
 
-# Route for recording the tenant bill payment
-
-
-@routes.route('/rent-payments/create', methods=['POST'])
+# ✅ Update utilities for a specific tenant bill
+@routes.route('/bills/<int:bill_id>/update-utilities', methods=['PATCH'])
 @jwt_required()
-def record_rent_payment():
-    landlord_id = get_jwt_identity()
-    landlord = User.query.get(landlord_id)
-    if not landlord or not landlord.IsAdmin:
-        return jsonify({"message": "Unauthorized."}), 403
+def update_utilities(bill_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized. Only landlords can update bills."}), 403
 
     data = request.get_json()
-    bill_id = data.get("BillID")
-    amount_paid = data.get("AmountPaid")
-    paid_via = data.get("PaidViaMobile", "Unknown")
 
-    # --- Basic validation ---------------------------------------------------
-    if bill_id is None:
-        return jsonify({"message": "BillID is required."}), 400
-    if amount_paid is None or amount_paid <= 0:
-        return jsonify({"message": "AmountPaid must be > 0."}), 400
+    try:
+        result = update_bill_utilities(bill_id, data)
 
-    # --- Fetch & ownership check -------------------------------------------
-    bill = TenantBill.query.get(bill_id)
-    if not bill:
-        return jsonify({"message": "Bill not found."}), 404
+        if not result["updated"]:
+            return jsonify({"status": "error", "message": "Bill not found."}), 404
 
-    unit = RentalUnit.query.get(bill.RentalUnitID)
-    apartment = Apartment.query.get(unit.ApartmentID) if unit else None
-    if not apartment or apartment.UserID != landlord_id:
-        return jsonify({"message": "Unauthorized: Not your tenant."}), 403
+        return jsonify({
+            "status": "success",
+            "alert": f"✅ Utilities updated for Bill ID {bill_id}.",
+            "updated_total_due": result["new_total_due"]
+        }), 200
 
-    # --- Sum previous payments for this bill -------------------------------
-    previous_paid = (
-        db.session.query(db.func.coalesce(
-            db.func.sum(RentPayment.AmountPaid), 0.0))
-        .filter(RentPayment.BilledAmount == bill.TotalAmountDue)
-        .filter(RentPayment.BillingMonth == bill.BillingMonth)
-        .filter(RentPayment.TenantID == bill.TenantID)
-        .scalar()
-    )
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "alert": "❌ Failed to update utilities.",
+            "error": str(e)
+        }), 500
 
-    balance_before = bill.TotalAmountDue - previous_paid
-    # can be negative (over-payment)
-    balance_after = balance_before - amount_paid
+# Route for fetching the bills for all the tenants of a landlord
 
-    # --- Create RentPayment record -----------------------------------------
-    payment = RentPayment(
-        TenantID=bill.TenantID,
-        RentalUnitID=bill.RentalUnitID,
-        BillingMonth=bill.BillingMonth,
-        BilledAmount=bill.TotalAmountDue,
-        AmountPaid=amount_paid,
-        Balance=balance_after,          # ▶ may be negative if over-paid
-        PaidViaMobile=paid_via
-    )
-    db.session.add(payment)
 
-    # --- Update bill status -------------------------------------------------
-    bill.IsPaid = balance_after <= 0.01          # treat small rounding as paid
+@routes.route("/bills", methods=["GET"])
+@jwt_required()
+def get_filtered_bills():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
 
-    db.session.commit()
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+
+    # ✅ Get query parameters
+    apartment_id = request.args.get("apartment_id", type=int)  # e.g., 3
+    month_filter = request.args.get(
+        "month")                   # e.g., "July 2025"
+    status_filter = request.args.get("status")                 # e.g., "Unpaid"
+
+    valid_statuses = ["Unpaid", "Paid", "Partially Paid", "Overpaid"]
+    if status_filter and status_filter not in valid_statuses:
+        return jsonify({
+            "status": "error",
+            "message": f"Invalid status. Choose from {valid_statuses}"
+        }), 400
+
+    # ✅ Get landlord's apartments
+    apartments = Apartment.query.filter_by(UserID=user_id).all()
+    apartment_ids = [a.ApartmentID for a in apartments]
+
+    if apartment_id and apartment_id not in apartment_ids:
+        return jsonify({"status": "error", "message": "You do not own this apartment."}), 403
+
+    # ✅ Get units (filtered by apartment if specified)
+    units_query = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids))
+    if apartment_id:
+        units_query = units_query.filter_by(ApartmentID=apartment_id)
+
+    units = units_query.all()
+    unit_ids = [u.UnitID for u in units]
+
+    # ✅ Base query for bills
+    query = TenantBill.query.filter(TenantBill.RentalUnitID.in_(unit_ids))
+
+    # ✅ Apply filters
+    if month_filter:
+        query = query.filter(TenantBill.BillingMonth.ilike(month_filter))
+    if status_filter:
+        query = query.filter(TenantBill.BillStatus == status_filter)
+
+    bills = query.order_by(TenantBill.BillID.asc()).all()
+
+    if not bills:
+        return jsonify({
+            "status": "success",
+            "message": "No bills found for the given filters.",
+            "total_bills": 0,
+            "bills": []
+        }), 200
+
+    result = []
+    for bill in bills:
+        tenant = Tenant.query.get(bill.TenantID)
+        unit = RentalUnit.query.get(bill.RentalUnitID)
+        apartment = Apartment.query.get(unit.ApartmentID) if unit else None
+
+        result.append({
+            "BillID": bill.BillID,
+            "TenantName": tenant.FullName if tenant else "Unknown",
+            "ApartmentName": apartment.ApartmentName if apartment else "Unknown",
+            "UnitLabel": unit.Label if unit else "Unknown",
+            "BillingMonth": bill.BillingMonth,
+            "TotalAmountDue": bill.TotalAmountDue,
+            "BillStatus": bill.BillStatus,
+            "DueDate": bill.DueDate.strftime("%Y-%m-%d"),
+            "IssuedDate": bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S")
+        })
 
     return jsonify({
-        "message": "✅ Payment recorded.",
-        "Payment": {
-            "PaymentID": payment.PaymentID,
-            "TenantID": payment.TenantID,
-            "BillingMonth": payment.BillingMonth,
-            "AmountPaid": amount_paid,
-            # negative → credit
-            "BalanceAfterPayment": round(balance_after, 2),
-            "IsBillPaid": bill.IsPaid,
-            "PaymentDate": payment.PaymentDate.strftime("%Y-%m-%d %H:%M:%S")
-        }
-    }), 201
+        "status": "success",
+        "filters": {
+            "apartment": apartment_id if apartment_id else "All",
+            "month": month_filter if month_filter else "All",
+            "status": status_filter if status_filter else "All"
+        },
+        "total_bills": len(result),
+        "bills": result
+    }), 200
 
 
-# # Route for sending a tenant bill notification sms
-# @routes.route('/send-bill-notification/<int:bill_id>', methods=['POST'])
-# @jwt_required()
-# def send_bill_notification(bill_id):
-#     user_id = get_jwt_identity()
-#     landlord = User.query.get(user_id)
+# Route for fecthing  bills for tenants of a specific apartment
 
-#     if not landlord or not landlord.IsAdmin:
-#         return jsonify({"message": "Unauthorized. Only landlords can send notifications."}), 403
 
-#     bill = TenantBill.query.get(bill_id)
-#     if not bill:
-#         return jsonify({"message": "Bill not found"}), 404
+@routes.route("/bills/apartment/<int:apartment_id>", methods=["GET"])
+@jwt_required()
+def get_bills_by_apartment(apartment_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
 
-#     tenant = Tenant.query.get(bill.TenantID)
-#     if not tenant or not tenant.Phone:
-#         return jsonify({"message": "Tenant or phone number not found"}), 404
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
 
-#     # Format the SMS content
-#     sms_message = (
-#         f"Dear {tenant.FullName}, your {bill.BillingMonth} bill is KES {bill.TotalAmountDue:.2f}. "
-#         f"Due by {bill.DueDate.strftime('%d-%b-%Y')}. "
-#         f"Rent: {bill.RentAmount}, Water: {bill.WaterBill}, "
-#         f"Electricity: {bill.ElectricityBill}, Internet: {bill.Internet}."
-#     )
+    # ✅ Get units that belong to the given apartment
+    units = RentalUnit.query.filter_by(ApartmentID=apartment_id).all()
+    unit_ids = [u.UnitID for u in units]
 
-#     sms_result = send_sms(tenant.Phone, sms_message)
+    if not unit_ids:
+        return jsonify({"status": "success", "message": "No rental units found for this apartment.", "bills": []}), 200
 
-#     if sms_result['success']:
-#         # Log the SMS sent
-#         sms_log = SMSUsageLog(
-#             LandlordID=landlord.UserID,
-#             TenantID=tenant.TenantID,
-#             BillID=bill.BillID,
-#             PhoneNumber=tenant.Phone,
-#             Message=sms_message,
-#             CostPerSMS=1.0  # Assume KES 1.0 for now, adjust as needed
-#         )
-#         db.session.add(sms_log)
-#         db.session.commit()
+    # ✅ Get bills for tenants in those units
+    bills = TenantBill.query.filter(TenantBill.RentalUnitID.in_(unit_ids))\
+                            .order_by(TenantBill.BillID.asc()).all()
 
-#         return jsonify({
-#             "message": "✅ Bill notification sent successfully.",
-#             "log": sms_result['response']
-#         }), 200
-#     else:
-#         return jsonify({
-#             "message": "❌ Failed to send SMS.",
-#             "error": sms_result['error']
-#         }), 500
+    result = []
+    for bill in bills:
+        tenant = Tenant.query.get(bill.TenantID)
+        unit = RentalUnit.query.get(bill.RentalUnitID)
+
+        result.append({
+            "BillID": bill.BillID,
+            "TenantName": tenant.FullName if tenant else "Unknown",
+            "UnitLabel": unit.Label if unit else "Unknown",
+            "BillingMonth": bill.BillingMonth,
+            "RentAmount": bill.RentAmount,
+            "WaterBill": bill.WaterBill,
+            "ElectricityBill": bill.ElectricityBill,
+            "Garbage": bill.Garbage,
+            "Internet": bill.Internet,
+            "CarriedForwardBalance": bill.CarriedForwardBalance,
+            "TotalAmountDue": bill.TotalAmountDue,
+            "BillStatus": bill.BillStatus,
+            "DueDate": bill.DueDate.strftime("%Y-%m-%d"),
+            "IssuedDate": bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S")
+        })
+
+    return jsonify({
+        "status": "success",
+        "apartment_id": apartment_id,
+        "total_bills": len(result),
+        "bills": result
+    }), 200
+
+# route for fetching a tenant bill for a specific rental unit
+
+
+@routes.route("/bills/unit/<int:unit_id>", methods=["GET"])
+@jwt_required()
+def get_bills_for_unit(unit_id):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    # ✅ Only landlords/admins can view bills
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+
+    # ✅ Get the rental unit
+    unit = RentalUnit.query.get(unit_id)
+    if not unit:
+        return jsonify({"status": "error", "message": "Rental unit not found."}), 404
+
+    # ✅ Ensure landlord owns the apartment where this unit belongs
+    apartment = Apartment.query.get(unit.ApartmentID)
+    if not apartment or apartment.UserID != user_id:
+        return jsonify({"status": "error", "message": "You can only view bills for your own units."}), 403
+
+    # ✅ Fetch bills for this unit (latest first)
+    bills = TenantBill.query.filter_by(RentalUnitID=unit_id).order_by(
+        TenantBill.IssuedDate.desc()).all()
+
+    if not bills:
+        return jsonify({
+            "status": "success",
+            "message": f"No bills found for unit {unit.Label}.",
+            "bills": []
+        }), 200
+
+    result = []
+    for bill in bills:
+        tenant = Tenant.query.get(bill.TenantID)
+
+        result.append({
+            "BillID": bill.BillID,
+            "TenantName": tenant.FullName if tenant else "Unknown",
+            "UnitLabel": unit.Label,
+            "BillingMonth": bill.BillingMonth,
+            "RentAmount": bill.RentAmount,
+            "WaterBill": bill.WaterBill,
+            "ElectricityBill": bill.ElectricityBill,
+            "Garbage": bill.Garbage,
+            "Internet": bill.Internet,
+            "CarriedForwardBalance": bill.CarriedForwardBalance,
+            "TotalAmountDue": bill.TotalAmountDue,
+            "BillStatus": bill.BillStatus,
+            "DueDate": bill.DueDate.strftime("%Y-%m-%d"),
+            "IssuedDate": bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S")
+        })
+
+    return jsonify({
+        "status": "success",
+        "unit": unit.Label,
+        "apartment": apartment.ApartmentName,
+        "total_bills": len(result),
+        "bills": result
+    }), 200
+
+
+# View Bills for a Specific Month
+@routes.route("/bills/month/<string:month>", methods=["GET"])
+@jwt_required()
+def get_bills_by_month(month):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+
+    # Get apartments owned by landlord
+    apartments = Apartment.query.filter_by(UserID=user_id).all()
+    apartment_ids = [a.ApartmentID for a in apartments]
+
+    # Get all rental units under these apartments
+    units = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids)).all()
+    unit_ids = [u.UnitID for u in units]
+
+    # Fetch bills for given month and landlord's units
+    bills = TenantBill.query.filter(
+        TenantBill.RentalUnitID.in_(unit_ids),
+        TenantBill.BillingMonth.ilike(month)  # e.g. "July 2025"
+    ).order_by(TenantBill.BillID.asc()).all()
+
+    if not bills:
+        return jsonify({"status": "success", "message": f"No bills found for {month}."}), 200
+
+    result = []
+    for bill in bills:
+        tenant = Tenant.query.get(bill.TenantID)
+        unit = RentalUnit.query.get(bill.RentalUnitID)
+
+        result.append({
+            "BillID": bill.BillID,
+            "TenantName": tenant.FullName if tenant else "Unknown",
+            "UnitLabel": unit.Label if unit else "Unknown",
+            "BillingMonth": bill.BillingMonth,
+            "TotalAmountDue": bill.TotalAmountDue,
+            "BillStatus": bill.BillStatus
+        })
+
+    return jsonify({
+        "status": "success",
+        "month": month,
+        "total_bills": len(result),
+        "bills": result
+    }), 200
+
+# View Bills Filtered by BillStatus (Unpaid, Paid, Partially Paid, Overpaid)
+
+
+@routes.route("/bills/status/<string:status>", methods=["GET"])
+@jwt_required()
+def get_bills_by_status(status):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+
+    valid_statuses = ["Unpaid", "Paid", "Partially Paid", "Overpaid"]
+    if status not in valid_statuses:
+        return jsonify({"status": "error", "message": f"Invalid status. Choose from {valid_statuses}"}), 400
+
+    apartments = Apartment.query.filter_by(UserID=user_id).all()
+    apartment_ids = [a.ApartmentID for a in apartments]
+
+    units = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids)).all()
+    unit_ids = [u.UnitID for u in units]
+
+    bills = TenantBill.query.filter(
+        TenantBill.RentalUnitID.in_(unit_ids),
+        TenantBill.BillStatus == status
+    ).order_by(TenantBill.BillID.asc()).all()
+
+    if not bills:
+        return jsonify({"status": "success", "message": f"No bills found with status '{status}'."}), 200
+
+    result = []
+    for bill in bills:
+        tenant = Tenant.query.get(bill.TenantID)
+        unit = RentalUnit.query.get(bill.RentalUnitID)
+
+        result.append({
+            "BillID": bill.BillID,
+            "TenantName": tenant.FullName if tenant else "Unknown",
+            "UnitLabel": unit.Label if unit else "Unknown",
+            "BillingMonth": bill.BillingMonth,
+            "TotalAmountDue": bill.TotalAmountDue,
+            "BillStatus": bill.BillStatus
+        })
+
+    return jsonify({
+        "status": "success",
+        "filter_status": status,
+        "total_bills": len(result),
+        "bills": result
+    }), 200
+
+# View Bills for a Specific Month for All Units in a Landlord’s Apartments
+
+
+@routes.route("/bills/apartment/<string:month>", methods=["GET"])
+@jwt_required()
+def get_bills_by_apartment_month(month):
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+
+    apartments = Apartment.query.filter_by(UserID=user_id).all()
+
+    response = []
+    for apartment in apartments:
+        units = RentalUnit.query.filter_by(
+            ApartmentID=apartment.ApartmentID).all()
+        unit_ids = [u.UnitID for u in units]
+
+        bills = TenantBill.query.filter(
+            TenantBill.RentalUnitID.in_(unit_ids),
+            TenantBill.BillingMonth.ilike(month)
+        ).order_by(TenantBill.BillID.asc()).all()
+
+        bills_list = []
+        for bill in bills:
+            tenant = Tenant.query.get(bill.TenantID)
+            unit = RentalUnit.query.get(bill.RentalUnitID)
+            bills_list.append({
+                "BillID": bill.BillID,
+                "TenantName": tenant.FullName if tenant else "Unknown",
+                "UnitLabel": unit.Label if unit else "Unknown",
+                "BillingMonth": bill.BillingMonth,
+                "TotalAmountDue": bill.TotalAmountDue,
+                "BillStatus": bill.BillStatus
+            })
+
+        response.append({
+            "ApartmentID": apartment.ApartmentID,
+            "ApartmentName": apartment.ApartmentName,
+            "TotalBills": len(bills_list),
+            "Bills": bills_list
+        })
+
+    return jsonify({
+        "status": "success",
+        "month": month,
+        "apartments": response
+    }), 200
