@@ -72,7 +72,6 @@ class RentalUnit(db.Model):
     Label = db.Column(db.String(20), nullable=False)
     Description = db.Column(db.String(300))
     MonthlyRent = db.Column(db.Float, nullable=False)
-    AdditionalBills = db.Column(db.Float, default=0.0)
 
     StatusID = db.Column(db.Integer, db.ForeignKey(
         'RentalUnitStatuses.StatusID'))

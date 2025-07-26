@@ -8,7 +8,7 @@ from flask_mail import Mail
 from datetime import datetime, timedelta
 from utils.sms_helper import send_sms
 import time
-from utils.billing_helper import calculate_new_bill, generate_monthly_bills, update_bill_utilities
+from utils.billing_helper import calculate_bill_amount
 
 
 # from utils import send_sms  # Placeholder for SMS function
@@ -1417,59 +1417,125 @@ def view_vacate_logs():
     }), 200
 
 
-# ✅ Generate base rent bills for all tenants
-@routes.route('/generate-bills', methods=['POST'])
+# ✅ Route for generating the monthly bill for all tenants
+@routes.route('/bills/generate-or-update', methods=['POST'])
 @jwt_required()
-def generate_bills():
+def generate_or_update_bills():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
     if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized. Only landlords can generate bills."}), 403
+        return jsonify({
+            "status": "error",
+            "message": "Unauthorized. Only landlords can manage bills."
+        }), 403
+
+    data = request.get_json() or {}
+
+    tenant_id = data.get("TenantID")  # Optional for individual tenant
+    billing_month = data.get("BillingMonth")
+
+    # ✅ If BillingMonth not provided, use current month
+    if not billing_month:
+        today = datetime.today()
+        billing_month = today.strftime("%B %Y")
+
+    utilities_data = data.get("utilities", {})
 
     try:
-        result = generate_monthly_bills()
+        due_date = datetime(datetime.today().year, datetime.today().month, 5)
+
+        # ✅ Filter active tenants
+        query = Tenant.query.filter_by(Status="Active")
+        if tenant_id:
+            query = query.filter_by(TenantID=tenant_id)
+
+        active_tenants = query.all()
+        if not active_tenants:
+            return jsonify({"status": "error", "message": "No active tenants found."}), 404
+
+        bills_created_or_updated = 0
+
+        for tenant in active_tenants:
+            unit = RentalUnit.query.get(tenant.RentalUnitID)
+            if not unit:
+                continue
+
+            # ✅ Check if a bill for this tenant & month exists
+            bill = TenantBill.query.filter_by(
+                TenantID=tenant.TenantID,
+                BillingMonth=billing_month
+            ).first()
+
+            if not bill:
+                # ✅ Create new bill
+                bill = TenantBill(
+                    TenantID=tenant.TenantID,
+                    RentalUnitID=tenant.RentalUnitID,
+                    BillingMonth=billing_month,
+                    RentAmount=unit.MonthlyRent,
+                    WaterBill=utilities_data.get("WaterBill", 0.0),
+                    ElectricityBill=utilities_data.get("ElectricityBill", 0.0),
+                    Garbage=utilities_data.get("Garbage", 0.0),
+                    Internet=utilities_data.get("Internet", 0.0),
+                    DueDate=due_date,
+                    IssuedDate=datetime.now(),
+                    BillStatus="Unpaid"
+                )
+
+                # ✅ Calculate totals BEFORE adding to DB
+                total_due, carried_balance = calculate_bill_amount(
+                    tenant.TenantID,
+                    unit.MonthlyRent,
+                    bill.WaterBill,
+                    bill.ElectricityBill,
+                    bill.Garbage,
+                    bill.Internet
+                )
+
+                bill.CarriedForwardBalance = carried_balance
+                bill.TotalAmountDue = total_due
+
+                db.session.add(bill)
+
+            else:
+                # ✅ Update bill utilities if already exists
+                bill.WaterBill = utilities_data.get(
+                    "WaterBill", bill.WaterBill)
+                bill.ElectricityBill = utilities_data.get(
+                    "ElectricityBill", bill.ElectricityBill)
+                bill.Garbage = utilities_data.get("Garbage", bill.Garbage)
+                bill.Internet = utilities_data.get("Internet", bill.Internet)
+
+                total_due, carried_balance = calculate_bill_amount(
+                    tenant.TenantID,
+                    unit.MonthlyRent,
+                    bill.WaterBill,
+                    bill.ElectricityBill,
+                    bill.Garbage,
+                    bill.Internet
+                )
+
+                bill.CarriedForwardBalance = carried_balance
+                bill.TotalAmountDue = total_due
+
+            bills_created_or_updated += 1
+
+        db.session.commit()
+
         return jsonify({
             "status": "success",
-            "alert": f"✅ {result['bills_created']} bills generated for {result['billing_month']}",
-            "details": result
+            "alert": f"✅ {bills_created_or_updated} bill(s) created/updated for {billing_month}.",
+            "details": {
+                "bills_created_or_updated": bills_created_or_updated,
+                "billing_month": billing_month
+            }
         }), 200
+
     except Exception as e:
         return jsonify({
             "status": "error",
-            "alert": "❌ Failed to generate monthly bills.",
-            "error": str(e)
-        }), 500
-
-
-# ✅ Update utilities for a specific tenant bill
-@routes.route('/bills/<int:bill_id>/update-utilities', methods=['PATCH'])
-@jwt_required()
-def update_utilities(bill_id):
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-
-    if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized. Only landlords can update bills."}), 403
-
-    data = request.get_json()
-
-    try:
-        result = update_bill_utilities(bill_id, data)
-
-        if not result["updated"]:
-            return jsonify({"status": "error", "message": "Bill not found."}), 404
-
-        return jsonify({
-            "status": "success",
-            "alert": f"✅ Utilities updated for Bill ID {bill_id}.",
-            "updated_total_due": result["new_total_due"]
-        }), 200
-
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "alert": "❌ Failed to update utilities.",
+            "alert": "❌ Failed to generate/update bills.",
             "error": str(e)
         }), 500
 
@@ -1830,3 +1896,91 @@ def get_bills_by_apartment_month(month):
         "month": month,
         "apartments": response
     }), 200
+
+# Route for posting the rent payment and updating its status as paid
+
+
+@routes.route("/tenant-payments", methods=["POST"])
+@jwt_required()
+def record_rent_payment():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    # ✅ Only landlords can record payments
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized."}), 403
+
+    data = request.get_json()
+    tenant_id = data.get("TenantID")
+    rental_unit_id = data.get("RentalUnitID")
+    billing_month = data.get("BillingMonth")
+    paid_via_mobile = data.get("PaidViaMobile")
+
+    # ✅ Validate required fields (except AmountPaid)
+    if tenant_id is None or rental_unit_id is None or billing_month is None or paid_via_mobile is None:
+        return jsonify({"status": "error", "message": "TenantID, RentalUnitID, BillingMonth, and PaidViaMobile are required."}), 400
+
+    # ✅ Validate AmountPaid separately
+    if "AmountPaid" not in data:
+        return jsonify({"status": "error", "message": "AmountPaid is required."}), 400
+
+    try:
+        amount_paid = float(data.get("AmountPaid"))
+    except ValueError:
+        return jsonify({"status": "error", "message": "AmountPaid must be a number."}), 400
+
+    # ✅ Find the corresponding TenantBill
+    tenant_bill = TenantBill.query.filter_by(
+        TenantID=tenant_id,
+        RentalUnitID=rental_unit_id,
+        BillingMonth=billing_month
+    ).first()
+
+    if not tenant_bill:
+        return jsonify({"status": "error", "message": "Tenant bill not found for this month."}), 404
+
+    billed_amount = tenant_bill.TotalAmountDue
+    balance = billed_amount - amount_paid  # Default balance
+
+    # ✅ Determine Bill Status
+    if amount_paid == billed_amount:
+        bill_status = "Paid"
+        balance = 0.0
+    elif amount_paid < billed_amount:
+        bill_status = "Partially Paid"
+    else:  # Overpayment
+        bill_status = "Overpaid"
+        balance = -(amount_paid - billed_amount)
+
+    # ✅ Record the payment
+    new_payment = RentPayment(
+        TenantID=tenant_id,
+        RentalUnitID=rental_unit_id,
+        BillingMonth=billing_month,
+        BilledAmount=billed_amount,
+        AmountPaid=amount_paid,
+        Balance=balance,
+        PaidViaMobile=paid_via_mobile
+    )
+    db.session.add(new_payment)
+
+    # ✅ Update ONLY Bill Status
+    tenant_bill.BillStatus = bill_status
+    # ❌ Do NOT update CarriedForwardBalance here
+    # It will be recalculated in the next month's bill using helper
+
+    db.session.commit()
+
+    return jsonify({
+        "status": "success",
+        "message": f"Payment recorded successfully. Bill is now '{bill_status}'.",
+        "payment_details": {
+            "TenantID": tenant_id,
+            "RentalUnitID": rental_unit_id,
+            "BillingMonth": billing_month,
+            "BilledAmount": billed_amount,
+            "AmountPaid": amount_paid,
+            "Balance": balance,
+            "BillStatus": bill_status
+        }
+    }), 201
