@@ -15,7 +15,7 @@ from utils.billing_helper import calculate_bill_amount
 from flask_jwt_extended import (
     create_access_token, jwt_required, get_jwt_identity
 )
-from models.models import db, User,  Apartment,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog, TransferLog, VacateNotice, SMSUsageLog, TenantBill, RentPayment
+from models.models import db, User,  Apartment,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog, TransferLog, VacateNotice, SMSUsageLog, TenantBill, RentPayment, LandlordExpense
 import re  # ✅ For password strength checking
 
 routes = Blueprint('routes', __name__)
@@ -1984,3 +1984,162 @@ def record_rent_payment():
             "BillStatus": bill_status
         }
     }), 201
+
+
+# route for creating landlord expenses for a particular apartment
+@routes.route("/landlord-expenses/add", methods=["POST"])
+@jwt_required()
+def add_landlord_expense():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    # ✅ Only landlords (admins) can add expenses
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized. Only landlords can add expenses."}), 403
+
+    data = request.get_json()
+
+    apartment_id = data.get("ApartmentID")
+    expense_type = data.get("ExpenseType")
+    amount = data.get("Amount")
+    description = data.get("Description", "")
+
+    # ✅ Validate required fields
+    if not apartment_id or not expense_type or amount is None:
+        return jsonify({"status": "error", "message": "ApartmentID, ExpenseType, and Amount are required."}), 400
+
+    try:
+        amount = float(amount)
+    except ValueError:
+        return jsonify({"status": "error", "message": "Amount must be a valid number."}), 400
+
+    # ✅ Check if apartment exists
+    apartment = Apartment.query.get(apartment_id)
+    if not apartment:
+        return jsonify({"status": "error", "message": "Apartment not found."}), 404
+
+    # ✅ Create the expense record
+    new_expense = LandlordExpense(
+        ApartmentID=apartment_id,
+        ExpenseType=expense_type,
+        Amount=amount,
+        Description=description,
+        ExpenseDate=datetime.utcnow()  # You can allow user to pass custom date if needed
+    )
+
+    db.session.add(new_expense)
+    db.session.commit()
+
+    return jsonify({
+        "status": "success",
+        "message": "Expense added successfully.",
+        "expense": {
+            "ExpenseID": new_expense.ExpenseID,
+            "ApartmentID": new_expense.ApartmentID,
+            "ExpenseType": new_expense.ExpenseType,
+            "Amount": new_expense.Amount,
+            "Description": new_expense.Description,
+            "ExpenseDate": new_expense.ExpenseDate.strftime("%Y-%m-%d")
+        }
+    }), 201
+
+# Routes for fetching the landlord expenses grouped by apartment
+
+
+@routes.route("/landlord-expenses/by-apartment", methods=["GET"])
+@jwt_required()
+def view_expenses_by_apartment():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
+
+    # ✅ Get all expenses grouped by apartment
+    expenses = LandlordExpense.query.join(Apartment).all()
+
+    result = {}
+    for exp in expenses:
+        apt_name = exp.apartment.ApartmentName  # Assuming Apartment has ApartmentName
+        if apt_name not in result:
+            result[apt_name] = []
+        result[apt_name].append({
+            "ExpenseID": exp.ExpenseID,
+            "ExpenseType": exp.ExpenseType,
+            "Amount": exp.Amount,
+            "Description": exp.Description,
+            "ExpenseDate": exp.ExpenseDate.strftime("%Y-%m-%d")
+        })
+
+    return jsonify({"status": "success", "expenses": result}), 200
+
+# View landlord expenses per month
+
+
+@routes.route("/landlord-expenses/by-month", methods=["GET"])
+@jwt_required()
+def view_expenses_by_month():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
+
+    expenses = LandlordExpense.query.all()
+
+    result = {}
+    for exp in expenses:
+        month_key = exp.ExpenseDate.strftime("%B %Y")
+        if month_key not in result:
+            result[month_key] = []
+        result[month_key].append({
+            "ExpenseID": exp.ExpenseID,
+            "Apartment": exp.apartment.ApartmentName,
+            "ExpenseType": exp.ExpenseType,
+            "Amount": exp.Amount,
+            "Description": exp.Description,
+            "ExpenseDate": exp.ExpenseDate.strftime("%Y-%m-%d")
+        })
+
+    return jsonify({"status": "success", "expenses": result}), 200
+
+# Get summary of landlord expenses for a specific month
+
+
+@routes.route("/landlord-expenses/monthly-summary", methods=["GET"])
+@jwt_required()
+def monthly_expense_summary():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
+
+    expenses = LandlordExpense.query.all()
+
+    summary = {}
+    for exp in expenses:
+        month_key = exp.ExpenseDate.strftime("%B %Y")
+        summary[month_key] = summary.get(month_key, 0) + exp.Amount
+
+    return jsonify({"status": "success", "summary": summary}), 200
+
+
+# Get expenses summary per apartment
+@routes.route("/landlord-expenses/apartment-summary", methods=["GET"])
+@jwt_required()
+def apartment_expense_summary():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
+
+    expenses = LandlordExpense.query.join(Apartment).all()
+
+    summary = {}
+    for exp in expenses:
+        apt_name = exp.apartment.ApartmentName
+        summary[apt_name] = summary.get(apt_name, 0) + exp.Amount
+
+    return jsonify({"status": "success", "summary": summary}), 200
