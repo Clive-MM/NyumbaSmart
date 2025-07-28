@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from utils.sms_helper import send_sms
 import time
 from utils.billing_helper import calculate_bill_amount
+import os
 
 
 # from utils import send_sms  # Placeholder for SMS function
@@ -48,16 +49,24 @@ def register_landlord():
     phone = data.get('phone')
 
     # ✅ Basic required field check
-    if not all([full_name, email, password, confirm_password]):
-        return jsonify({'message': 'Full name, email, password and confirm password are required'}), 400
+    if not all([full_name, email, password, confirm_password, phone]):
+        return jsonify({'message': 'Full name, email, password, confirm password, and phone are required'}), 400
 
     # ✅ Check if passwords match
     if password != confirm_password:
         return jsonify({'message': 'Passwords do not match!'}), 400
 
-    # ✅ Check if user already exists
+    # ✅ Check if user already exists (email)
     if User.query.filter_by(Email=email).first():
         return jsonify({'message': 'Email is already registered'}), 409
+
+    # ✅ Check if user already exists (phone)
+    if User.query.filter_by(Phone=phone).first():
+        return jsonify({'message': 'Phone number is already registered'}), 409
+
+    # ✅ Validate phone number format (Kenya format 2547XXXXXXXX)
+    if not re.fullmatch(r"2547\d{8}", phone):
+        return jsonify({'message': 'Phone number must be in format 2547XXXXXXXX'}), 400
 
     # ✅ Password strength validation
     if len(password) < 8:
@@ -85,7 +94,7 @@ def register_landlord():
     db.session.add(new_user)
     db.session.commit()
 
-    return jsonify({'message': '✅ Landlord account created successfully!'}), 201
+    return jsonify({'message': '🚀 You’re all set!. Welcome aboard! Your NyumbaSmart account is ready!'}), 201
 
 
 # Track failed login attempts
@@ -265,14 +274,16 @@ def forgot_password():
     data = request.get_json()
     email = data.get('email')
 
+    # ✅ Validate email input
     if not email:
-        return jsonify({'message': 'Email is required'}), 400
+        return jsonify({'message': '❌ Email is required.'}), 400
 
+    # ✅ Check if user exists
     user = User.query.filter_by(Email=email).first()
     if not user:
-        return jsonify({'message': 'This email is not registered with us.'}), 404
+        return jsonify({'message': '❌ This email is not registered with us.'}), 404
 
-    # Generate a token valid for 24 hours
+    # ✅ Generate a token valid for 24 hours
     token = jwt.encode(
         {
             'user_id': user.UserID,
@@ -282,36 +293,35 @@ def forgot_password():
         algorithm='HS256'
     )
 
-    # Create reset link (adjust domain if hosted)
-    reset_link = f"http://127.0.0.1:5000/reset-password/{token}"
+    # ✅ Get frontend URL from environment (fallback to localhost if missing)
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    reset_link = f"{frontend_url}/reset-password/{token}"
 
-    # Send email
+    # ✅ Create email message
     msg = Message(
-        subject="🔐 Reset Your Password",
+        subject="🔐 Reset Your Password - NyumbaSmart",
         recipients=[email],
         body=f"""
-Dear {user.FullName},
+Hello {user.FullName},
 
-We received a request to reset your password.
+We received a request to reset your NyumbaSmart password.
 
-Click the link below to reset it:
+Click the link below to reset your password:
 {reset_link}
 
-This link is valid for 24 hours.
-
-If you didn’t request this, you can ignore this email.
+⚠️ This link is valid for 24 hours. If you didn’t request this, you can safely ignore this email.
 
 Best regards,  
-NyumbaSmart Support
+NyumbaSmart Support Team
 """
     )
 
+    # ✅ Send email safely
     try:
         mail.send(msg)
-        return jsonify({'message': '✅ Password reset link sent to your email.'}), 200
+        return jsonify({'message': '✅ Password reset link sent to your email address.'}), 200
     except Exception as e:
-        return jsonify({'message': '❌ Failed to send email.', 'error': str(e)}), 500
-
+        return jsonify({'message': '❌ Failed to send email. Please try again later.', 'error': str(e)}), 500
 # Reset Password Link Route from Forgotten Password
 
 
