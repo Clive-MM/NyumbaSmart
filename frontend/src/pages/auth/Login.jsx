@@ -57,6 +57,7 @@ const Login = () => {
             });
 
             setTimeout(() => navigate("/dashboard"), 2000);
+
         } catch (error) {
             setSnackbar({
                 open: true,
@@ -86,7 +87,7 @@ const Login = () => {
                             PayNest Login
                         </Typography>
                         <Typography variant="body2" align="center" sx={{ mb: 2 }}>
-                            Access your landlord dashboard easily and securely.
+                            Access your dashboard easily and securely.
                         </Typography>
 
                         <Box component="form" onSubmit={handleSubmit}>

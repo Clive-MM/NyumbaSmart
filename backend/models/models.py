@@ -322,3 +322,24 @@ class SMSUsageLog(db.Model):
             f"TenantID={self.TenantID} BillID={self.BillID} "
             f"Phone={self.PhoneNumber} SentAt={self.SentAt}>"
         )
+
+
+class Profile(db.Model):
+    __tablename__ = "Profiles"
+
+    ProfileID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    UserID = db.Column(db.Integer, db.ForeignKey(
+        "Users.UserID"), unique=True, nullable=False)
+
+    ProfilePicture = db.Column(db.String(300))
+    Address = db.Column(db.String(200))
+    NationalID = db.Column(db.String(50))
+    KRA_PIN = db.Column(db.String(50))
+    Bio = db.Column(db.Text)
+    DateOfBirth = db.Column(db.Date)
+    UpdatedAt = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship with User
+    user = db.relationship(
+        "User", backref=db.backref("profile", uselist=False))

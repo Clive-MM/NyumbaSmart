@@ -115,7 +115,7 @@ const Register = () => {
                         PayNest Registration
                     </Typography>
                     <Typography variant="body2" align="center" sx={{ mb: 2 }}>
-                        Manage your properties, tenants, and payments easily.
+                        Manage your properties, tenants, and payments with ease.
                     </Typography>
 
                     <Box component="form" onSubmit={handleSubmit}>

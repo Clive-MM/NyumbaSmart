@@ -4,16 +4,21 @@ import Register from "./pages/auth/Register";
 import Login from "./pages/auth/Login";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
+import DashboardHome from "./pages/dashboard/DashboardHome";
 
 function App() {
   return (
     <Router>
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<h1>Welcome to NyumbaSmart</h1>} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+        {/* Dashboard Route After Login */}
+        <Route path="/dashboard" element={<DashboardHome />} />
       </Routes>
     </Router>
   );

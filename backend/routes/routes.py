@@ -10,13 +10,14 @@ from utils.sms_helper import send_sms
 import time
 from utils.billing_helper import calculate_bill_amount
 import os
+from utils.cloudinary_helper import upload_to_cloudinary
 
 
 # from utils import send_sms  # Placeholder for SMS function
 from flask_jwt_extended import (
     create_access_token, jwt_required, get_jwt_identity
 )
-from models.models import db, User,  Apartment,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog, TransferLog, VacateNotice, SMSUsageLog, TenantBill, RentPayment, LandlordExpense
+from models.models import db, User,  Apartment,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog, TransferLog, VacateNotice, SMSUsageLog, TenantBill, RentPayment, LandlordExpense, Profile
 import re  # ✅ For password strength checking
 
 routes = Blueprint('routes', __name__)
@@ -2153,3 +2154,58 @@ def apartment_expense_summary():
         summary[apt_name] = summary.get(apt_name, 0) + exp.Amount
 
     return jsonify({"status": "success", "summary": summary}), 200
+
+
+@routes.route("/upload", methods=["POST"])
+def upload_file():
+    if "file" not in request.files:
+        return jsonify({"status": "error", "message": "No file provided"}), 400
+
+    file = request.files["file"]
+
+    try:
+        upload_result = upload_to_cloudinary(file)  # ✅ Uses helper
+        return jsonify({
+            "status": "success",
+            "url": upload_result["url"],
+            "public_id": upload_result["public_id"]
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Route for creating a user profile
+
+
+@routes.route("/profile", methods=["POST"])
+@jwt_required()  # ✅ Only logged-in users can create their profile
+def create_profile():
+    user_id = get_jwt_identity()  # ✅ Get logged-in user
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"status": "error", "message": "User not found"}), 404
+
+    # ✅ Check if profile already exists
+    if Profile.query.filter_by(UserID=user_id).first():
+        return jsonify({"status": "error", "message": "Profile already exists"}), 400
+
+    data = request.get_json()
+
+    new_profile = Profile(
+        UserID=user_id,
+        ProfilePicture=data.get("ProfilePicture"),
+        Address=data.get("Address"),
+        NationalID=data.get("NationalID"),
+        KRA_PIN=data.get("KRA_PIN"),
+        Bio=data.get("Bio"),
+        DateOfBirth=data.get("DateOfBirth")
+    )
+
+    try:
+        db.session.add(new_profile)
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Profile created successfully"}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500

@@ -7,14 +7,15 @@ from flask_jwt_extended import JWTManager
 from sqlalchemy import text
 from dotenv import load_dotenv
 import os
+import cloudinary
 
 from models import db
 from models import (
     User, Apartment, UnitCategory, RentalUnitStatus, RentalUnit, Tenant,
     VacateNotice, TenantBill, RentPayment, LandlordExpense,
-    NotificationTag, Notification,VacateLog,TransferLog
+    NotificationTag, Notification, VacateLog, TransferLog
 )
-from routes.routes import routes ,register_mail_instance
+from routes.routes import routes, register_mail_instance
 
 # ✅ Load environment variables
 load_dotenv()
@@ -29,20 +30,26 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY")
 app.config['JWT_IDENTITY_CLAIM'] = 'identity'
 
-#Mail Configuration
+# Mail Configuration
 app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
 app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT'))
 app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS') == 'True'
 app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
+#
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET")
+)
 
 
 # ✅ Initialize extensions
 db.init_app(app)
 mail = Mail(app)
-bcrypt = Bcrypt(app)    
-jwt = JWTManager(app)   
+bcrypt = Bcrypt(app)
+jwt = JWTManager(app)
 
 # ✅ Register mail instance to routes
 register_mail_instance(mail)
@@ -51,9 +58,12 @@ register_mail_instance(mail)
 app.register_blueprint(routes)
 
 # ✅ Root health check
+
+
 @app.route('/')
 def home():
     return {'message': 'NyumbaSmart Backend Running Successfully'}
+
 
 # ✅ Run and create tables
 if __name__ == '__main__':
