@@ -155,7 +155,7 @@ function Header() {
                                     variant="subtitle1"
                                     sx={{ fontSize: "1.2rem", fontStyle: "italic", color: "#E0E7FF" }}
                                 >
-                                    Smart Homes, Smarter Payments
+                                    Smart Homes, Smarter Payments.
                                 </Typography>
                             </Box>
                         )}

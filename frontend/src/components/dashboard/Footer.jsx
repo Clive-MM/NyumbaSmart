@@ -14,7 +14,7 @@ function Footer() {
             }}
         >
             <Typography variant="body2">
-                © {new Date().getFullYear()} NyumbaSmart. All rights reserved.
+                © {new Date().getFullYear()} PayNest. All rights reserved.
             </Typography>
         </Box>
     );
