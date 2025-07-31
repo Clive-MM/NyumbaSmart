@@ -5,7 +5,7 @@ import Login from "./pages/auth/Login";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import DashboardHome from "./pages/dashboard/DashboardHome";
-
+import Profile from "./pages/dashboard/Profile";
 function App() {
   return (
     <Router>
@@ -19,6 +19,7 @@ function App() {
 
         {/* Dashboard Route After Login */}
         <Route path="/dashboard" element={<DashboardHome />} />
+        <Route path="/profile" element={<Profile />} />
       </Routes>
     </Router>
   );

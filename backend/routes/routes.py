@@ -11,6 +11,7 @@ import time
 from utils.billing_helper import calculate_bill_amount
 import os
 from utils.cloudinary_helper import upload_to_cloudinary
+import cloudinary.uploader
 
 
 # from utils import send_sms  # Placeholder for SMS function
@@ -2176,36 +2177,54 @@ def upload_file():
 # Route for creating a user profile
 
 
-@routes.route("/profile", methods=["POST"])
-@jwt_required()  # ✅ Only logged-in users can create their profile
-def create_profile():
-    user_id = get_jwt_identity()  # ✅ Get logged-in user
+@routes.route("/profile", methods=["POST", "PUT"])
+@jwt_required()
+def create_or_update_profile():
+    user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
     if not user:
-        return jsonify({"status": "error", "message": "User not found"}), 404
+        return jsonify({"message": "User not found"}), 404
 
-    # ✅ Check if profile already exists
-    if Profile.query.filter_by(UserID=user_id).first():
-        return jsonify({"status": "error", "message": "Profile already exists"}), 400
+    # Get form data
+    data = request.form
+    file = request.files.get("ProfilePicture")
 
-    data = request.get_json()
+    # Check if profile exists
+    profile = Profile.query.filter_by(UserID=user_id).first()
 
-    new_profile = Profile(
-        UserID=user_id,
-        ProfilePicture=data.get("ProfilePicture"),
-        Address=data.get("Address"),
-        NationalID=data.get("NationalID"),
-        KRA_PIN=data.get("KRA_PIN"),
-        Bio=data.get("Bio"),
-        DateOfBirth=data.get("DateOfBirth")
-    )
+    # ✅ Upload profile picture if provided
+    profile_pic_url = None
+    if file:
+        try:
+            upload_result = cloudinary.uploader.upload(
+                file, folder="profile_pictures")
+            profile_pic_url = upload_result.get("secure_url")
+        except Exception as e:
+            return jsonify({"message": "Image upload failed", "error": str(e)}), 500
 
-    try:
+    if not profile:
+        # ✅ Create new profile
+        new_profile = Profile(
+            UserID=user_id,
+            ProfilePicture=profile_pic_url,
+            Address=data.get("Address"),
+            NationalID=data.get("NationalID"),
+            KRA_PIN=data.get("KRA_PIN"),
+            Bio=data.get("Bio"),
+            DateOfBirth=data.get("DateOfBirth"),
+        )
         db.session.add(new_profile)
         db.session.commit()
-        return jsonify({"status": "success", "message": "Profile created successfully"}), 201
-
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"message": "Profile created successfully"}), 201
+    else:
+        # ✅ Update existing profile
+        profile.Address = data.get("Address", profile.Address)
+        profile.NationalID = data.get("NationalID", profile.NationalID)
+        profile.KRA_PIN = data.get("KRA_PIN", profile.KRA_PIN)
+        profile.Bio = data.get("Bio", profile.Bio)
+        profile.DateOfBirth = data.get("DateOfBirth", profile.DateOfBirth)
+        if profile_pic_url:
+            profile.ProfilePicture = profile_pic_url
+        db.session.commit()
+        return jsonify({"message": "Profile updated successfully"}), 200

@@ -14,7 +14,6 @@ import { styled, alpha } from "@mui/material/styles";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 
 const logoUrl =
@@ -53,15 +52,14 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
 
 const CustomToggle = () => {
     const [checked, setChecked] = useState(true);
-    const navigate = useNavigate();
 
     const handleToggle = () => {
         if (checked) {
             localStorage.removeItem("token");
             localStorage.removeItem("user");
-            navigate("/login");
+            window.location.href = "/login";
         } else {
-            navigate("/login");
+            window.location.href = "/login";
         }
         setChecked(!checked);
     };
@@ -104,16 +102,11 @@ const CustomToggle = () => {
     );
 };
 
-function Header() {
+function Header({ setActivePage }) {
     const [showSearch, setShowSearch] = useState(false);
     const isMobile = useMediaQuery("(max-width:600px)");
 
     const user = { name: "John Doe", avatar: "" };
-
-    const getInitials = (name) => {
-        const parts = name.trim().split(" ");
-        return parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
-    };
 
     const slogan = "Smart Homes, Smarter Payments.";
     const [visibleText, setVisibleText] = useState("");
@@ -131,7 +124,6 @@ function Header() {
         return () => clearInterval(interval);
     }, []);
 
-    // ✅ Reusable Hover Icon Component
     const HoverIcon = ({ icon, label, onClick }) => (
         <motion.div
             whileHover={{ y: -8, scale: 1.1 }}
@@ -243,7 +235,7 @@ function Header() {
                     </motion.div>
                 )}
 
-                {/* ✅ Right Icons with Labels */}
+                {/* ✅ Right Icons */}
                 <Box display="flex" alignItems="center" gap={isMobile ? 1.5 : 3}>
                     <HoverIcon
                         icon={<SearchIcon sx={{ fontSize: 32 }} />}
@@ -260,11 +252,12 @@ function Header() {
                         label="Notifications"
                     />
 
+                    {/* ✅ Avatar Click shows Profile in Main Content */}
                     <HoverIcon
                         icon={
                             <Avatar
                                 alt={user.name}
-                                src={user.avatar}
+                                src={user.avatar || ""}
                                 sx={{
                                     width: 55,
                                     height: 55,
@@ -272,10 +265,10 @@ function Header() {
                                     color: "#1E3A8A",
                                     fontWeight: "bold",
                                     fontSize: "1.4rem",
+                                    cursor: "pointer",
                                 }}
-                            >
-                                {!user.avatar && getInitials(user.name)}
-                            </Avatar>
+                                onClick={() => setActivePage("profile")} // ✅ Show Profile in Main Content
+                            />
                         }
                         label="Profile"
                     />
