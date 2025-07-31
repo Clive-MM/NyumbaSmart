@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     AppBar,
     Toolbar,
@@ -94,7 +94,6 @@ const CustomToggle = () => {
                         bgcolor: "white",
                         borderRadius: "50%",
                         boxShadow: "0px 2px 6px rgba(0,0,0,0.3)",
-                        transition: "transform 0.3s ease",
                     }}
                 />
             </Box>
@@ -116,9 +115,47 @@ function Header() {
         return parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
     };
 
-    // ✅ Text Animation for Slogan
     const slogan = "Smart Homes, Smarter Payments.";
-    const sloganLetters = slogan.split("");
+    const [visibleText, setVisibleText] = useState("");
+
+    useEffect(() => {
+        let i = 0;
+        const interval = setInterval(() => {
+            if (i <= slogan.length) {
+                setVisibleText(slogan.substring(0, i));
+                i++;
+            } else {
+                clearInterval(interval);
+            }
+        }, 100);
+        return () => clearInterval(interval);
+    }, []);
+
+    // ✅ Reusable Hover Icon Component
+    const HoverIcon = ({ icon, label, onClick }) => (
+        <motion.div
+            whileHover={{ y: -8, scale: 1.1 }}
+            style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
+        >
+            <IconButton color="inherit" onClick={onClick}>
+                {icon}
+            </IconButton>
+            <motion.span
+                initial={{ opacity: 0, y: 5 }}
+                whileHover={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                style={{
+                    fontSize: "0.8rem",
+                    color: "#E0E7FF",
+                    fontWeight: 600,
+                    marginTop: "-3px",
+                    textShadow: "0px 0px 5px rgba(255,255,255,0.5)",
+                }}
+            >
+                {label}
+            </motion.span>
+        </motion.div>
+    );
 
     return (
         <AppBar
@@ -136,18 +173,14 @@ function Header() {
                     minHeight: "130px",
                 }}
             >
-                {/* ✅ Logo + App Name + Slogan */}
+                {/* ✅ Logo + PayNest + Slogan */}
                 <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }}>
                     <Box display="flex" alignItems="center" gap={2}>
-                        {/* ✅ Animated Logo */}
                         <motion.div
-                            initial={{ y: -100 }}
+                            initial={{ y: -80 }}
                             animate={{ y: 0 }}
-                            transition={{
-                                type: "spring",
-                                stiffness: 300,
-                                damping: 15,
-                            }}
+                            transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                            whileHover={{ scale: 1.1 }}
                             style={{
                                 background: "linear-gradient(135deg, #2563EB, #1E3A8A)",
                                 padding: "8px",
@@ -164,36 +197,35 @@ function Header() {
 
                         {!isMobile && (
                             <Box>
-                                <Typography
-                                    variant="h4"
-                                    sx={{
-                                        fontWeight: "bold",
-                                        letterSpacing: 1,
-                                        color: "#FFFFFF",
-                                    }}
-                                >
-                                    PayNest
-                                </Typography>
+                                <motion.div whileHover={{ scale: 1.05 }}>
+                                    <Typography
+                                        variant="h4"
+                                        sx={{
+                                            fontWeight: "bold",
+                                            letterSpacing: 1.2,
+                                            color: "white",
+                                            textShadow: "0px 0px 10px rgba(255,255,255,0.8)",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        PayNest
+                                    </Typography>
+                                </motion.div>
 
-                                {/* ✅ Animated Slogan (Typewriter Effect) */}
-                                <Box display="flex" flexWrap="wrap">
-                                    {sloganLetters.map((char, index) => (
-                                        <motion.span
-                                            key={index}
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: index * 0.05 }}
-                                            style={{
-                                                fontSize: "1.1rem",
-                                                fontStyle: "italic",
-                                                color: "#F1F5F9",
-                                                fontWeight: 500,
-                                            }}
-                                        >
-                                            {char}
-                                        </motion.span>
-                                    ))}
-                                </Box>
+                                <motion.div>
+                                    <Typography
+                                        variant="subtitle1"
+                                        sx={{
+                                            fontSize: "1.2rem",
+                                            fontStyle: "italic",
+                                            color: "#F1F5F9",
+                                            textShadow: "0px 0px 6px rgba(255,255,255,0.6)",
+                                            fontWeight: 500,
+                                        }}
+                                    >
+                                        {visibleText}
+                                    </Typography>
+                                </motion.div>
                             </Box>
                         )}
                     </Box>
@@ -211,44 +243,44 @@ function Header() {
                     </motion.div>
                 )}
 
-                {/* ✅ Right Section */}
+                {/* ✅ Right Icons with Labels */}
                 <Box display="flex" alignItems="center" gap={isMobile ? 1.5 : 3}>
-                    <motion.div whileHover={{ scale: 1.2 }}>
-                        <IconButton color="inherit" onClick={() => setShowSearch(!showSearch)}>
-                            <SearchIcon sx={{ fontSize: 32 }} />
-                        </IconButton>
-                    </motion.div>
+                    <HoverIcon
+                        icon={<SearchIcon sx={{ fontSize: 32 }} />}
+                        label="Search"
+                        onClick={() => setShowSearch(!showSearch)}
+                    />
 
-                    <motion.div whileHover={{ scale: 1.2 }}>
-                        <IconButton color="inherit">
+                    <HoverIcon
+                        icon={
                             <Badge badgeContent={3} color="error">
                                 <NotificationsIcon sx={{ fontSize: 32 }} />
                             </Badge>
-                        </IconButton>
-                    </motion.div>
+                        }
+                        label="Notifications"
+                    />
 
-                    <motion.div whileHover={{ scale: 1.1 }}>
-                        <Avatar
-                            alt={user.name}
-                            src={user.avatar}
-                            sx={{
-                                width: 55,
-                                height: 55,
-                                bgcolor: "#ffffff",
-                                color: "#1E3A8A",
-                                fontWeight: "bold",
-                                fontSize: "1.4rem",
-                            }}
-                        >
-                            {!user.avatar && getInitials(user.name)}
-                        </Avatar>
-                    </motion.div>
+                    <HoverIcon
+                        icon={
+                            <Avatar
+                                alt={user.name}
+                                src={user.avatar}
+                                sx={{
+                                    width: 55,
+                                    height: 55,
+                                    bgcolor: "#ffffff",
+                                    color: "#1E3A8A",
+                                    fontWeight: "bold",
+                                    fontSize: "1.4rem",
+                                }}
+                            >
+                                {!user.avatar && getInitials(user.name)}
+                            </Avatar>
+                        }
+                        label="Profile"
+                    />
 
-                    <motion.div whileHover={{ scale: 1.2 }}>
-                        <IconButton color="inherit">
-                            <SettingsIcon sx={{ fontSize: 32 }} />
-                        </IconButton>
-                    </motion.div>
+                    <HoverIcon icon={<SettingsIcon sx={{ fontSize: 32 }} />} label="Settings" />
 
                     <motion.div whileHover={{ scale: 1.05 }}>
                         <CustomToggle />
