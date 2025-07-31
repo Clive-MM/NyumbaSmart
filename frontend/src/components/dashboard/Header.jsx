@@ -51,7 +51,6 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
     },
 }));
 
-// ✅ Custom Toggle Component
 const CustomToggle = () => {
     const [checked, setChecked] = useState(true);
     const navigate = useNavigate();
@@ -75,7 +74,6 @@ const CustomToggle = () => {
             onClick={handleToggle}
             sx={{ cursor: "pointer", userSelect: "none" }}
         >
-            {/* Track */}
             <Box
                 sx={{
                     width: 65,
@@ -89,7 +87,6 @@ const CustomToggle = () => {
                     transition: "all 0.3s ease",
                 }}
             >
-                {/* Thumb */}
                 <Box
                     sx={{
                         width: 28,
@@ -101,8 +98,6 @@ const CustomToggle = () => {
                     }}
                 />
             </Box>
-
-            {/* Label */}
             <Typography sx={{ color: "white", fontWeight: "bold", fontSize: "1rem" }}>
                 {checked ? "Logout" : "Login"}
             </Typography>
@@ -118,10 +113,12 @@ function Header() {
 
     const getInitials = (name) => {
         const parts = name.trim().split(" ");
-        return parts.length >= 2
-            ? parts[0][0] + parts[1][0]
-            : name.slice(0, 2);
+        return parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
     };
+
+    // ✅ Text Animation for Slogan
+    const slogan = "Smart Homes, Smarter Payments.";
+    const sloganLetters = slogan.split("");
 
     return (
         <AppBar
@@ -142,21 +139,61 @@ function Header() {
                 {/* ✅ Logo + App Name + Slogan */}
                 <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }}>
                     <Box display="flex" alignItems="center" gap={2}>
-                        <img src={logoUrl} alt="PayNest Logo" style={{ height: 65, borderRadius: 4 }} />
+                        {/* ✅ Animated Logo */}
+                        <motion.div
+                            initial={{ y: -100 }}
+                            animate={{ y: 0 }}
+                            transition={{
+                                type: "spring",
+                                stiffness: 300,
+                                damping: 15,
+                            }}
+                            style={{
+                                background: "linear-gradient(135deg, #2563EB, #1E3A8A)",
+                                padding: "8px",
+                                borderRadius: "12px",
+                                boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+                            }}
+                        >
+                            <img
+                                src={logoUrl}
+                                alt="PayNest Logo"
+                                style={{ height: 50, width: 50, objectFit: "contain" }}
+                            />
+                        </motion.div>
+
                         {!isMobile && (
                             <Box>
                                 <Typography
                                     variant="h4"
-                                    sx={{ fontWeight: "bold", lineHeight: 1, letterSpacing: 0.6 }}
+                                    sx={{
+                                        fontWeight: "bold",
+                                        letterSpacing: 1,
+                                        color: "#FFFFFF",
+                                    }}
                                 >
                                     PayNest
                                 </Typography>
-                                <Typography
-                                    variant="subtitle1"
-                                    sx={{ fontSize: "1.2rem", fontStyle: "italic", color: "#E0E7FF" }}
-                                >
-                                    Smart Homes, Smarter Payments.
-                                </Typography>
+
+                                {/* ✅ Animated Slogan (Typewriter Effect) */}
+                                <Box display="flex" flexWrap="wrap">
+                                    {sloganLetters.map((char, index) => (
+                                        <motion.span
+                                            key={index}
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: index * 0.05 }}
+                                            style={{
+                                                fontSize: "1.1rem",
+                                                fontStyle: "italic",
+                                                color: "#F1F5F9",
+                                                fontWeight: 500,
+                                            }}
+                                        >
+                                            {char}
+                                        </motion.span>
+                                    ))}
+                                </Box>
                             </Box>
                         )}
                     </Box>
@@ -213,7 +250,6 @@ function Header() {
                         </IconButton>
                     </motion.div>
 
-                    {/* ✅ Custom Toggle */}
                     <motion.div whileHover={{ scale: 1.05 }}>
                         <CustomToggle />
                     </motion.div>
