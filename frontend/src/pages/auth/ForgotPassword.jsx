@@ -51,7 +51,7 @@ const ForgotPassword = () => {
         <Box
             sx={{
                 minHeight: "100vh",
-                background: "linear-gradient(135deg, #E0EAFC, #CFDEF3)",
+                background: "#E0E0E0", // Neumorphic background
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
@@ -64,9 +64,12 @@ const ForgotPassword = () => {
                         sx={{
                             p: 4,
                             borderRadius: 4,
-                            background: "rgba(255, 255, 255, 0.7)",
-                            backdropFilter: "blur(12px)",
-                            boxShadow: "8px 8px 16px rgba(0, 0, 0, 0.1), -8px -8px 16px rgba(255, 255, 255, 0.5)",
+                            background: "#E0E0E0",
+                            boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+                            transition: "0.3s",
+                            "&:hover": {
+                                boxShadow: "inset 8px 8px 16px #bebebe, inset -8px -8px 16px #ffffff",
+                            },
                         }}
                     >
                         <Typography
@@ -94,8 +97,8 @@ const ForgotPassword = () => {
                                 sx={{
                                     "& .MuiOutlinedInput-root": {
                                         borderRadius: 3,
-                                        background: "rgba(255,255,255,0.8)",
-                                        boxShadow: "inset 3px 3px 6px rgba(0,0,0,0.1), inset -3px -3px 6px rgba(255,255,255,0.5)",
+                                        background: "#E0E0E0",
+                                        boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
                                     },
                                 }}
                             />
@@ -110,7 +113,7 @@ const ForgotPassword = () => {
                                     backgroundColor: "#1E3A8A",
                                     fontWeight: "bold",
                                     borderRadius: 3,
-                                    boxShadow: "4px 4px 10px rgba(0,0,0,0.2)",
+                                    boxShadow: "4px 4px 10px #bebebe, -4px -4px 10px #ffffff",
                                     "&:hover": { backgroundColor: "#0100FE" },
                                 }}
                                 disabled={loading}
