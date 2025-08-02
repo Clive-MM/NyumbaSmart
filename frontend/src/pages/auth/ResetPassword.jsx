@@ -4,21 +4,61 @@ import {
     Button,
     TextField,
     Typography,
-    Container,
-    Paper,
     Snackbar,
     Alert,
     CircularProgress,
     LinearProgress,
     IconButton,
     InputAdornment,
+    Paper,
 } from "@mui/material";
 import { Visibility, VisibilityOff, Lock } from "@mui/icons-material";
 import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { styled } from "@mui/material/styles";
 
 const API_URL = process.env.REACT_APP_API_URL;
+
+// 🌟 Neumorphic Styled Paper
+const NeumorphicPaper = styled(Paper)({
+    padding: "2rem",
+    borderRadius: "20px",
+    background: "rgba(255, 255, 255, 0.2)",
+    backdropFilter: "blur(15px)",
+    boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+    maxWidth: 450,
+    margin: "auto",
+    textAlign: "center",
+    transition: "0.3s",
+    "&:hover": {
+        boxShadow: "inset 8px 8px 16px #bebebe, inset -8px -8px 16px #ffffff",
+    },
+});
+
+// 🌟 Neumorphic TextField
+const NeumorphicTextField = styled(TextField)({
+    "& .MuiOutlinedInput-root": {
+        borderRadius: 12,
+        background: "#e0e0e0",
+        boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
+    },
+    "& .MuiInputLabel-root": { fontWeight: 500 },
+});
+
+// 🌟 Neumorphic Button
+const NeumorphicButton = styled(Button)({
+    marginTop: "1rem",
+    background: "#456BBC",
+    color: "#fff",
+    fontWeight: "bold",
+    padding: "10px",
+    borderRadius: 12,
+    boxShadow: "6px 6px 12px #bebebe, -6px -6px 12px #ffffff",
+    "&:hover": {
+        background: "#0100FE",
+    },
+});
 
 const ResetPassword = () => {
     const { token } = useParams(); // ✅ Get token from URL
@@ -69,7 +109,6 @@ const ResetPassword = () => {
             });
 
             setSnackbar({ open: true, message: response.data.message, severity: "success" });
-
             setTimeout(() => navigate("/login"), 2500);
         } catch (error) {
             setSnackbar({
@@ -86,98 +125,98 @@ const ResetPassword = () => {
         <Box
             sx={{
                 minHeight: "100vh",
-                backgroundColor: "#FFFFFF",
+                background: "linear-gradient(135deg, #dfe9f3 0%, #ffffff 100%)",
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
                 p: 2,
             }}
         >
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                <Container maxWidth="xs">
-                    <Paper elevation={6} sx={{ p: 4, borderRadius: 3, backgroundColor: "#F5FBF7" }}>
-                        <Typography variant="h4" align="center" gutterBottom sx={{ color: "#456BBC", fontWeight: "bold" }}>
-                            Reset Password
-                        </Typography>
-                        <Typography variant="body2" align="center" sx={{ mb: 2 }}>
-                            Enter your new password below.
-                        </Typography>
+            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+                <NeumorphicPaper>
+                    <Typography variant="h4" fontWeight="bold" sx={{ mb: 1, color: "#456BBC" }}>
+                        Reset Password
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 3, color: "#333" }}>
+                        Enter your new password below.
+                    </Typography>
 
-                        <Box component="form" onSubmit={handleSubmit}>
-                            <TextField
-                                fullWidth
-                                label="New Password"
-                                type={showPassword ? "text" : "password"}
-                                value={password}
-                                onChange={handlePasswordChange}
-                                margin="normal"
-                                required
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Lock />
-                                        </InputAdornment>
-                                    ),
-                                    endAdornment: (
-                                        <InputAdornment position="end">
-                                            <IconButton onClick={() => setShowPassword(!showPassword)}>
-                                                {showPassword ? <VisibilityOff /> : <Visibility />}
-                                            </IconButton>
-                                        </InputAdornment>
-                                    ),
-                                }}
-                            />
+                    <Box component="form" onSubmit={handleSubmit}>
+                        <NeumorphicTextField
+                            fullWidth
+                            label="New Password"
+                            type={showPassword ? "text" : "password"}
+                            value={password}
+                            onChange={handlePasswordChange}
+                            margin="normal"
+                            required
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Lock />
+                                    </InputAdornment>
+                                ),
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton onClick={() => setShowPassword(!showPassword)}>
+                                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                ),
+                            }}
+                        />
 
-                            {password && (
-                                <Box sx={{ mt: 1 }}>
-                                    <LinearProgress variant="determinate" value={passwordStrength} />
-                                    <Typography variant="caption">
-                                        {passwordStrength < 50 ? "Weak" : passwordStrength < 75 ? "Medium" : "Strong"}
-                                    </Typography>
-                                </Box>
-                            )}
+                        {/* Password Strength Bar */}
+                        {password && (
+                            <Box sx={{ mt: 1 }}>
+                                <LinearProgress
+                                    variant="determinate"
+                                    value={passwordStrength}
+                                    sx={{
+                                        height: 6,
+                                        borderRadius: 5,
+                                        backgroundColor: "#d1d9e6",
+                                        "& .MuiLinearProgress-bar": {
+                                            backgroundColor:
+                                                passwordStrength < 50 ? "#ff4d4f" : passwordStrength < 75 ? "#faad14" : "#52c41a",
+                                        },
+                                    }}
+                                />
+                                <Typography variant="caption">
+                                    {passwordStrength < 50 ? "Weak" : passwordStrength < 75 ? "Medium" : "Strong"}
+                                </Typography>
+                            </Box>
+                        )}
 
-                            <TextField
-                                fullWidth
-                                label="Confirm Password"
-                                type={showConfirmPassword ? "text" : "password"}
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                margin="normal"
-                                required
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Lock />
-                                        </InputAdornment>
-                                    ),
-                                    endAdornment: (
-                                        <InputAdornment position="end">
-                                            <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                                                {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                                            </IconButton>
-                                        </InputAdornment>
-                                    ),
-                                }}
-                            />
+                        <NeumorphicTextField
+                            fullWidth
+                            label="Confirm Password"
+                            type={showConfirmPassword ? "text" : "password"}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            margin="normal"
+                            required
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Lock />
+                                    </InputAdornment>
+                                ),
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                ),
+                            }}
+                        />
 
-                            <Button
-                                type="submit"
-                                variant="contained"
-                                fullWidth
-                                sx={{
-                                    mt: 2,
-                                    backgroundColor: "#456BBC",
-                                    "&:hover": { backgroundColor: "#0100FE" },
-                                }}
-                                disabled={loading}
-                                startIcon={loading && <CircularProgress size={20} sx={{ color: "white" }} />}
-                            >
-                                {loading ? "Resetting..." : "Reset Password"}
-                            </Button>
-                        </Box>
-                    </Paper>
-                </Container>
+                        <NeumorphicButton type="submit" fullWidth disabled={loading}>
+                            {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Reset Password"}
+                        </NeumorphicButton>
+                    </Box>
+                </NeumorphicPaper>
             </motion.div>
 
             <Snackbar

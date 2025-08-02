@@ -10,7 +10,7 @@ import {
     useMediaQuery,
     InputBase,
 } from "@mui/material";
-import { styled, alpha } from "@mui/material/styles";
+import { styled } from "@mui/material/styles";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -21,13 +21,15 @@ const logoUrl =
 
 const Search = styled("div")(({ theme }) => ({
     position: "relative",
-    borderRadius: theme.shape.borderRadius,
-    backgroundColor: alpha(theme.palette.common.white, 0.15),
-    "&:hover": { backgroundColor: alpha(theme.palette.common.white, 0.25) },
+    borderRadius: "12px",
+    background: "rgba(255, 255, 255, 0.2)",
+    backdropFilter: "blur(12px)",
+    "&:hover": { background: "rgba(255, 255, 255, 0.3)" },
     marginLeft: theme.spacing(2),
     width: "100%",
     maxWidth: 450,
     transition: "all 0.3s ease",
+    boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
 }));
 
 const SearchIconWrapper = styled("div")(({ theme }) => ({
@@ -41,17 +43,17 @@ const SearchIconWrapper = styled("div")(({ theme }) => ({
 }));
 
 const StyledInputBase = styled(InputBase)(({ theme }) => ({
-    color: "inherit",
+    color: "#fff",
     width: "100%",
     "& .MuiInputBase-input": {
-        padding: theme.spacing(1.6, 1, 1.6, 0),
+        padding: theme.spacing(1.5, 1, 1.5, 0),
         paddingLeft: `calc(1em + ${theme.spacing(4)})`,
-        fontSize: "1.1rem",
+        fontSize: "1rem",
     },
 }));
 
 const CustomToggle = () => {
-    const [checked, setChecked] = useState(true);
+    const [checked] = useState(true);
 
     const handleToggle = () => {
         localStorage.removeItem("token");
@@ -63,7 +65,7 @@ const CustomToggle = () => {
         <Box
             display="flex"
             alignItems="center"
-            gap={1.5}
+            gap={1.2}
             onClick={handleToggle}
             sx={{ cursor: "pointer", userSelect: "none" }}
         >
@@ -71,13 +73,14 @@ const CustomToggle = () => {
                 sx={{
                     width: 65,
                     height: 32,
-                    bgcolor: checked ? "#3f51b5" : "#bbb",
+                    bgcolor: checked ? "#456BBC" : "#bbb",
                     borderRadius: 20,
                     px: "4px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: checked ? "flex-end" : "flex-start",
                     transition: "all 0.3s ease",
+                    boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
                 }}
             >
                 <Box
@@ -86,7 +89,7 @@ const CustomToggle = () => {
                         height: 28,
                         bgcolor: "white",
                         borderRadius: "50%",
-                        boxShadow: "0px 2px 6px rgba(0,0,0,0.3)",
+                        boxShadow: "2px 2px 5px rgba(0,0,0,0.3)",
                     }}
                 />
             </Box>
@@ -120,10 +123,17 @@ export default function Header({ setActivePage }) {
 
     const HoverIcon = ({ icon, label, onClick }) => (
         <motion.div
-            whileHover={{ y: -8, scale: 1.1 }}
+            whileHover={{ y: -6, scale: 1.08 }}
             style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
         >
-            <IconButton color="inherit" onClick={onClick}>
+            <IconButton
+                sx={{
+                    background: "rgba(255, 255, 255, 0.15)",
+                    backdropFilter: "blur(10px)",
+                    "&:hover": { background: "rgba(255, 255, 255, 0.3)" },
+                }}
+                onClick={onClick}
+            >
                 {icon}
             </IconButton>
             <motion.span
@@ -147,9 +157,10 @@ export default function Header({ setActivePage }) {
         <AppBar
             position="fixed"
             sx={{
-                backgroundColor: "#1E3A8A",
+                background: "rgba(30, 58, 138, 0.85)",
+                backdropFilter: "blur(12px)",
                 px: { xs: 2, sm: 3 },
-                boxShadow: "0px 4px 10px rgba(0,0,0,0.3)",
+                boxShadow: "4px 4px 10px rgba(0,0,0,0.2)",
             }}
         >
             <Toolbar
@@ -168,10 +179,10 @@ export default function Header({ setActivePage }) {
                             transition={{ type: "spring", stiffness: 300, damping: 15 }}
                             whileHover={{ scale: 1.1 }}
                             style={{
-                                background: "linear-gradient(135deg, #2563EB, #1E3A8A)",
+                                background: "rgba(255, 255, 255, 0.25)",
                                 padding: "8px",
                                 borderRadius: "12px",
-                                boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+                                boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
                             }}
                         >
                             <img
@@ -222,7 +233,7 @@ export default function Header({ setActivePage }) {
                     <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
                         <Search>
                             <SearchIconWrapper>
-                                <SearchIcon sx={{ fontSize: 32 }} />
+                                <SearchIcon sx={{ fontSize: 28, color: "#fff" }} />
                             </SearchIconWrapper>
                             <StyledInputBase placeholder="Search…" />
                         </Search>
@@ -232,7 +243,7 @@ export default function Header({ setActivePage }) {
                 {/* ✅ Right Side Icons */}
                 <Box display="flex" alignItems="center" gap={isMobile ? 1.5 : 3}>
                     <HoverIcon
-                        icon={<SearchIcon sx={{ fontSize: 32 }} />}
+                        icon={<SearchIcon sx={{ fontSize: 28, color: "#fff" }} />}
                         label="Search"
                         onClick={() => setShowSearch(!showSearch)}
                     />
@@ -240,25 +251,24 @@ export default function Header({ setActivePage }) {
                     <HoverIcon
                         icon={
                             <Badge badgeContent={3} color="error">
-                                <NotificationsIcon sx={{ fontSize: 32 }} />
+                                <NotificationsIcon sx={{ fontSize: 28, color: "#fff" }} />
                             </Badge>
                         }
                         label="Notifications"
                     />
 
-                    {/* ✅ Avatar Click → Show Profile Page */}
                     <HoverIcon
                         icon={
                             <Avatar
                                 alt={user.name}
                                 src={user.avatar || ""}
                                 sx={{
-                                    width: 55,
-                                    height: 55,
-                                    bgcolor: "#ffffff",
+                                    width: 50,
+                                    height: 50,
+                                    bgcolor: "#fff",
                                     color: "#1E3A8A",
                                     fontWeight: "bold",
-                                    fontSize: "1.4rem",
+                                    fontSize: "1.3rem",
                                     cursor: "pointer",
                                 }}
                                 onClick={() => setActivePage("profile")}
@@ -267,7 +277,7 @@ export default function Header({ setActivePage }) {
                         label="Profile"
                     />
 
-                    <HoverIcon icon={<SettingsIcon sx={{ fontSize: 32 }} />} label="Settings" />
+                    <HoverIcon icon={<SettingsIcon sx={{ fontSize: 28, color: "#fff" }} />} label="Settings" />
 
                     <motion.div whileHover={{ scale: 1.05 }}>
                         <CustomToggle />

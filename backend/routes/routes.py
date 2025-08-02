@@ -48,6 +48,23 @@ def register_mail_instance(mail_instance):
     global mail
     mail = mail_instance
 
+
+def serialize_profile(user, profile):
+    return {
+        "UserID": user.UserID,
+        "FullName": user.FullName,
+        "Email": user.Email,
+        "Phone": user.Phone,
+        "ProfilePicture": profile.ProfilePicture if profile else None,
+        "Address": profile.Address if profile else "",
+        "NationalID": profile.NationalID if profile else "",
+        "KRA_PIN": profile.KRA_PIN if profile else "",
+        "Bio": profile.Bio if profile else "",
+        "DateOfBirth": profile.DateOfBirth.strftime("%Y-%m-%d") if profile and profile.DateOfBirth else None,
+        "UpdatedAt": profile.UpdatedAt.strftime("%Y-%m-%d %H:%M:%S") if profile and profile.UpdatedAt else None
+    }
+
+
 # ✅ Landlord registration route with full validation
 
 
@@ -2134,20 +2151,12 @@ def create_profile():
     if not user:
         return jsonify({"message": "User not found"}), 404
 
-    # ✅ Prevent duplicate profile
     if Profile.query.filter_by(UserID=user_id).first():
         return jsonify({"message": "Profile already exists. Use PUT to update."}), 400
 
     data = request.form
     file = request.files.get("ProfilePicture")
 
-    # ✅ Validate required fields
-    required_fields = ["Address", "NationalID", "KRA_PIN"]
-    missing_fields = [f for f in required_fields if not data.get(f)]
-    if missing_fields:
-        return jsonify({"message": f"Missing required fields: {', '.join(missing_fields)}"}), 400
-
-    # ✅ Parse DateOfBirth safely
     dob = None
     if data.get("DateOfBirth"):
         try:
@@ -2155,19 +2164,16 @@ def create_profile():
         except ValueError:
             return jsonify({"message": "Invalid DateOfBirth format. Use YYYY-MM-DD."}), 400
 
-    # ✅ Upload profile picture
     profile_pic_url = None
     if file:
         try:
             upload_result = cloudinary.uploader.upload(
-                file, folder="profile_pictures", resource_type="image"
-            )
+                file, folder="profile_pictures")
             profile_pic_url = upload_result.get(
                 "secure_url") or upload_result.get("url")
         except Exception as e:
             return jsonify({"message": "Image upload failed", "error": str(e)}), 500
 
-    # ✅ Save Profile
     profile = Profile(
         UserID=user_id,
         ProfilePicture=profile_pic_url,
@@ -2177,16 +2183,18 @@ def create_profile():
         Bio=data.get("Bio"),
         DateOfBirth=dob
     )
+
     db.session.add(profile)
     db.session.commit()
 
     return jsonify({
         "message": "✅ Profile created successfully!",
-        "profile": format_profile_response(user, profile)
+        "profile": serialize_profile(user, profile)
     }), 201
 
-
 # ✅ Update Profile
+
+
 @routes.route("/refreshprofile", methods=["PUT"])
 @jwt_required()
 def update_profile():
@@ -2203,7 +2211,6 @@ def update_profile():
     data = request.form
     file = request.files.get("ProfilePicture")
 
-    # ✅ Parse DateOfBirth safely
     dob = profile.DateOfBirth
     if data.get("DateOfBirth"):
         try:
@@ -2211,29 +2218,16 @@ def update_profile():
         except ValueError:
             return jsonify({"message": "Invalid DateOfBirth format. Use YYYY-MM-DD."}), 400
 
-    # ✅ If a new profile picture is uploaded, delete the old one
     profile_pic_url = profile.ProfilePicture
     if file:
         try:
-            if profile.ProfilePicture:
-                try:
-                    public_id = profile.ProfilePicture.split(
-                        "/")[-1].split(".")[0]
-                    cloudinary.uploader.destroy(
-                        f"profile_pictures/{public_id}")
-                except Exception as e:
-                    print("⚠️ Failed to delete old image:", str(e))
-
             upload_result = cloudinary.uploader.upload(
-                file, folder="profile_pictures", resource_type="image"
-            )
+                file, folder="profile_pictures")
             profile_pic_url = upload_result.get(
                 "secure_url") or upload_result.get("url")
-
         except Exception as e:
             return jsonify({"message": "Image upload failed", "error": str(e)}), 500
 
-    # ✅ Update profile fields
     profile.Address = data.get("Address", profile.Address)
     profile.NationalID = data.get("NationalID", profile.NationalID)
     profile.KRA_PIN = data.get("KRA_PIN", profile.KRA_PIN)
@@ -2245,7 +2239,7 @@ def update_profile():
 
     return jsonify({
         "message": "✅ Profile updated successfully!",
-        "profile": format_profile_response(user, profile)
+        "profile": serialize_profile(user, profile)
     }), 200
 
 

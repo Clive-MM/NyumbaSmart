@@ -1,16 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-    Box,
-    Typography,
-    Avatar,
-    CircularProgress,
-    Paper,
-    TextField,
-    Grid,
-    Fab,
-    Tooltip,
-    Snackbar,
-    Alert,
+    Box, Typography, Avatar, CircularProgress, Paper, TextField, Grid, Fab, Tooltip, Snackbar, Alert,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
@@ -28,10 +18,6 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
     maxWidth: 520,
     margin: "auto",
     textAlign: "center",
-    transition: "0.3s",
-    "&:hover": {
-        boxShadow: "inset 8px 8px 16px #bebebe, inset -8px -8px 16px #ffffff",
-    },
 }));
 
 const StyledTextField = styled(TextField)({
@@ -46,9 +32,7 @@ const StyledTextField = styled(TextField)({
 const NeumorphicFab = styled(Fab)({
     background: "#e0e0e0",
     boxShadow: "6px 6px 12px #bebebe, -6px -6px 12px #ffffff",
-    "&:active": {
-        boxShadow: "inset 6px 6px 12px #bebebe, inset -6px -6px 12px #ffffff",
-    },
+    "&:active": { boxShadow: "inset 6px 6px 12px #bebebe, inset -6px -6px 12px #ffffff" },
 });
 
 export default function Profile() {
@@ -66,7 +50,6 @@ export default function Profile() {
     const [preview, setPreview] = useState(null);
     const [alert, setAlert] = useState({ open: false, message: "", severity: "success" });
 
-    // ✅ Fetch Profile
     const fetchProfile = () => {
         axios
             .get("http://127.0.0.1:5000/viewprofile", {
@@ -83,9 +66,9 @@ export default function Profile() {
                     DateOfBirth: res.data.DateOfBirth || "",
                 });
                 setPreview(res.data.ProfilePicture || null);
-                setLoading(false);
             })
-            .catch(() => setLoading(false));
+            .catch(() => setAlert({ open: true, message: "❌ Failed to load profile", severity: "error" }))
+            .finally(() => setLoading(false));
     };
 
     useEffect(() => {
@@ -100,18 +83,15 @@ export default function Profile() {
         }
     };
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
+    const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-    // ✅ Save Profile
     const handleSave = () => {
         const form = new FormData();
         Object.keys(formData).forEach((key) => {
             if (formData[key]) form.append(key, formData[key]);
         });
 
-        const method = profile ? "put" : "post";
+        const method = profile && profile.Address ? "put" : "post";
         const url =
             method === "post"
                 ? "http://127.0.0.1:5000/create_profile"
@@ -127,14 +107,13 @@ export default function Profile() {
             },
         })
             .then((res) => {
-                setAlert({
-                    open: true,
-                    message: res.data.message,
-                    severity: "success",
-                });
+                setAlert({ open: true, message: res.data.message, severity: "success" });
                 setIsEditing(false);
-                setProfile(res.data.profile); // ✅ Instantly update profile without refetch
-                setPreview(res.data.profile?.ProfilePicture || preview); // ✅ Update new profile picture
+
+                if (res.data.profile) {
+                    setProfile(res.data.profile);
+                    setPreview(res.data.profile.ProfilePicture || preview);
+                }
             })
             .catch((err) => {
                 setAlert({
@@ -150,15 +129,8 @@ export default function Profile() {
     return (
         <Box sx={{ mt: 3, display: "flex", justifyContent: "center" }}>
             <StyledPaper>
-                {/* ✅ Profile Picture Upload */}
                 <label htmlFor="avatar-upload">
-                    <Input
-                        accept="image/*"
-                        id="avatar-upload"
-                        type="file"
-                        onChange={handleFileChange}
-                        disabled={!isEditing}
-                    />
+                    <Input accept="image/*" id="avatar-upload" type="file" onChange={handleFileChange} disabled={!isEditing} />
                     <Avatar
                         src={preview}
                         sx={{
@@ -175,36 +147,17 @@ export default function Profile() {
                     />
                 </label>
 
-                {/* ✅ Show User's Full Name */}
                 {profile?.FullName && (
                     <Typography variant="h6" fontWeight="bold" sx={{ mb: 3, color: "#333" }}>
                         {profile.FullName}
                     </Typography>
                 )}
 
-                {/* ✅ Editable Fields */}
-                <StyledTextField
-                    fullWidth
-                    label="Bio"
-                    name="Bio"
-                    value={formData.Bio}
-                    onChange={handleChange}
-                    disabled={!isEditing}
-                    multiline
-                    rows={2}
-                    sx={{ mb: 2 }}
-                />
+                <StyledTextField fullWidth label="Bio" name="Bio" value={formData.Bio} onChange={handleChange} disabled={!isEditing} multiline rows={2} sx={{ mb: 2 }} />
 
                 <Grid container spacing={2} sx={{ mb: 2 }}>
                     <Grid item xs={12} sm={6}>
-                        <StyledTextField
-                            fullWidth
-                            label="Address"
-                            name="Address"
-                            value={formData.Address}
-                            onChange={handleChange}
-                            disabled={!isEditing}
-                        />
+                        <StyledTextField fullWidth label="Address" name="Address" value={formData.Address} onChange={handleChange} disabled={!isEditing} />
                     </Grid>
                     <Grid item xs={12} sm={6}>
                         <StyledTextField
@@ -222,28 +175,13 @@ export default function Profile() {
 
                 <Grid container spacing={2} sx={{ mb: 3 }}>
                     <Grid item xs={12} sm={6}>
-                        <StyledTextField
-                            fullWidth
-                            label="National ID"
-                            name="NationalID"
-                            value={formData.NationalID}
-                            onChange={handleChange}
-                            disabled={!isEditing}
-                        />
+                        <StyledTextField fullWidth label="National ID" name="NationalID" value={formData.NationalID} onChange={handleChange} disabled={!isEditing} />
                     </Grid>
                     <Grid item xs={12} sm={6}>
-                        <StyledTextField
-                            fullWidth
-                            label="KRA PIN"
-                            name="KRA_PIN"
-                            value={formData.KRA_PIN}
-                            onChange={handleChange}
-                            disabled={!isEditing}
-                        />
+                        <StyledTextField fullWidth label="KRA PIN" name="KRA_PIN" value={formData.KRA_PIN} onChange={handleChange} disabled={!isEditing} />
                     </Grid>
                 </Grid>
 
-                {/* ✅ Edit / Save / Cancel Buttons */}
                 {!isEditing ? (
                     <Tooltip title="Edit Profile">
                         <NeumorphicFab onClick={() => setIsEditing(true)}>
@@ -266,13 +204,11 @@ export default function Profile() {
                 )}
             </StyledPaper>
 
-            {/* ✅ Snackbar Notification */}
-            <Snackbar
-                open={alert.open}
-                autoHideDuration={4000}
-                onClose={() => setAlert({ ...alert, open: false })}
-            >
-                <Alert severity={alert.severity}>{alert.message}</Alert>
+            {/* ✅ Snackbar Notifications */}
+            <Snackbar open={alert.open} autoHideDuration={3000} onClose={() => setAlert({ ...alert, open: false })}>
+                <Alert severity={alert.severity} sx={{ width: "100%" }}>
+                    {alert.message}
+                </Alert>
             </Snackbar>
         </Box>
     );

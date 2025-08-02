@@ -1,7 +1,6 @@
 import React from "react";
 import {
     Box,
-
     List,
     ListItem,
     ListItemButton,
@@ -20,6 +19,31 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import AssessmentIcon from "@mui/icons-material/Assessment"; // Reports
 import HistoryIcon from "@mui/icons-material/History"; // Logs / History
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney"; // Expenses
+import { styled } from "@mui/material/styles";
+
+const NeumorphicBox = styled(Box)({
+    width: 240,
+    padding: "1rem",
+    marginTop: "64px",
+    minHeight: "calc(100vh - 64px)",
+    background: "rgba(255, 255, 255, 0.25)",
+    backdropFilter: "blur(10px)",
+    borderRadius: "0 20px 20px 0",
+    boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+    borderRight: "1px solid rgba(255, 255, 255, 0.3)",
+    transition: "all 0.3s ease-in-out",
+});
+
+const NeumorphicListItemButton = styled(ListItemButton)({
+    borderRadius: "10px",
+    padding: "10px 14px",
+    transition: "all 0.2s ease-in-out",
+    "&:hover": {
+        backgroundColor: "rgba(69, 107, 188, 0.1)",
+        transform: "scale(1.03)",
+        boxShadow: "inset 4px 4px 6px #bebebe, inset -4px -4px 6px #ffffff",
+    },
+});
 
 function SideMenu() {
     const menuItems = [
@@ -36,44 +60,27 @@ function SideMenu() {
     ];
 
     return (
-        <Box
-            sx={{
-                width: 240,
-                background: "linear-gradient(180deg, #f9f9f9 0%, #ffffff 100%)",
-                boxShadow: "2px 0 10px rgba(0,0,0,0.08)",
-                p: 2,
-                minHeight: "calc(100vh - 64px)",
-                mt: 8,
-                borderRight: "1px solid #e0e0e0",
-            }}
-        >
-
-
+        <NeumorphicBox>
             <List>
                 {menuItems.map((item, index) => (
                     <ListItem key={index} disablePadding sx={{ mb: 1 }}>
-                        <ListItemButton
-                            sx={{
-                                borderRadius: "8px",
-                                "&:hover": {
-                                    backgroundColor: "#e3f2fd",
-                                    transform: "scale(1.02)",
-                                    transition: "all 0.2s ease-in-out",
-                                },
-                            }}
-                        >
-                            <ListItemIcon sx={{ color: "#1976d2" }}>{item.icon}</ListItemIcon>
+                        <NeumorphicListItemButton>
+                            <ListItemIcon sx={{ color: "#456BBC", minWidth: 40 }}>
+                                {item.icon}
+                            </ListItemIcon>
                             <ListItemText
                                 primary={item.text}
-                                primaryTypographyProps={{ fontSize: "0.95rem", fontWeight: 500 }}
+                                primaryTypographyProps={{
+                                    fontSize: "0.95rem",
+                                    fontWeight: 500,
+                                    color: "#333",
+                                }}
                             />
-                        </ListItemButton>
+                        </NeumorphicListItemButton>
                     </ListItem>
                 ))}
             </List>
-
-
-        </Box>
+        </NeumorphicBox>
     );
 }
 

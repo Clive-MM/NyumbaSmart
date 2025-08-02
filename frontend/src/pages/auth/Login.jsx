@@ -4,7 +4,6 @@ import {
     Button,
     TextField,
     Typography,
-    Container,
     Paper,
     IconButton,
     InputAdornment,
@@ -18,8 +17,48 @@ import { Visibility, VisibilityOff, Email, Lock } from "@mui/icons-material";
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { styled } from "@mui/material/styles";
 
 const API_URL = process.env.REACT_APP_API_URL;
+
+// 🌟 Neumorphic Styled Paper
+const NeumorphicPaper = styled(Paper)({
+    padding: "2rem",
+    borderRadius: "20px",
+    background: "#e0e0e0",
+    boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+    maxWidth: 400,
+    margin: "auto",
+    textAlign: "center",
+    transition: "0.3s",
+    "&:hover": {
+        boxShadow: "inset 8px 8px 16px #bebebe, inset -8px -8px 16px #ffffff",
+    },
+});
+
+// 🌟 Neumorphic TextField
+const NeumorphicTextField = styled(TextField)({
+    "& .MuiOutlinedInput-root": {
+        borderRadius: 12,
+        background: "#e0e0e0",
+        boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
+    },
+    "& .MuiInputLabel-root": { fontWeight: 500 },
+});
+
+// 🌟 Neumorphic Button
+const NeumorphicButton = styled(Button)({
+    marginTop: "1rem",
+    background: "#456BBC",
+    color: "#fff",
+    fontWeight: "bold",
+    padding: "10px",
+    borderRadius: 12,
+    boxShadow: "6px 6px 12px #bebebe, -6px -6px 12px #ffffff",
+    "&:hover": {
+        background: "#0100FE",
+    },
+});
 
 const Login = () => {
     const [formData, setFormData] = useState({ email: "", password: "", remember_me: false });
@@ -46,9 +85,14 @@ const Login = () => {
             setLoading(true);
             const response = await axios.post(`${API_URL}/login`, formData);
 
-            // ✅ Save token to localStorage
-            localStorage.setItem("token", response.data.token);
-            localStorage.setItem("user", JSON.stringify(response.data.user));
+            // ✅ Save token (if Remember Me is checked, store token persistently)
+            if (formData.remember_me) {
+                localStorage.setItem("token", response.data.token);
+                localStorage.setItem("user", JSON.stringify(response.data.user));
+            } else {
+                sessionStorage.setItem("token", response.data.token);
+                sessionStorage.setItem("user", JSON.stringify(response.data.user));
+            }
 
             setSnackbar({
                 open: true,
@@ -57,7 +101,6 @@ const Login = () => {
             });
 
             setTimeout(() => navigate("/dashboard"), 2000);
-
         } catch (error) {
             setSnackbar({
                 open: true,
@@ -73,102 +116,90 @@ const Login = () => {
         <Box
             sx={{
                 minHeight: "100vh",
-                backgroundColor: "#FFFFFF",
+                background: "#f2f3f5",
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
                 p: 2,
             }}
         >
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                <Container maxWidth="xs">
-                    <Paper elevation={6} sx={{ p: 4, backgroundColor: "#F5FBF7", borderRadius: 3 }}>
-                        <Typography variant="h4" align="center" gutterBottom sx={{ color: "#456BBC", fontWeight: "bold" }}>
-                            PayNest Login
+            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+                <NeumorphicPaper>
+                    <Typography variant="h4" fontWeight="bold" sx={{ mb: 1, color: "#456BBC" }}>
+                        PayNest Login
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 3, color: "#333" }}>
+                        Access your dashboard easily and securely.
+                    </Typography>
+
+                    <Box component="form" onSubmit={handleSubmit}>
+                        <NeumorphicTextField
+                            fullWidth
+                            label="Email"
+                            name="email"
+                            type="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            margin="normal"
+                            required
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Email />
+                                    </InputAdornment>
+                                ),
+                            }}
+                        />
+
+                        <NeumorphicTextField
+                            fullWidth
+                            label="Password"
+                            name="password"
+                            type={showPassword ? "text" : "password"}
+                            value={formData.password}
+                            onChange={handleChange}
+                            margin="normal"
+                            required
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Lock />
+                                    </InputAdornment>
+                                ),
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton onClick={() => setShowPassword(!showPassword)}>
+                                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                ),
+                            }}
+                        />
+
+                        <FormControlLabel
+                            control={<Checkbox name="remember_me" checked={formData.remember_me} onChange={handleChange} />}
+                            label="Remember Me"
+                            sx={{ mt: 1 }}
+                        />
+
+                        <NeumorphicButton type="submit" fullWidth disabled={loading}>
+                            {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Login"}
+                        </NeumorphicButton>
+
+                        <Typography variant="body2" align="center" sx={{ mt: 2 }}>
+                            <Link to="/forgot-password" style={{ textDecoration: "none", color: "#456BBC" }}>
+                                Forgot Password?
+                            </Link>
                         </Typography>
-                        <Typography variant="body2" align="center" sx={{ mb: 2 }}>
-                            Access your dashboard easily and securely.
+
+                        <Typography variant="body2" align="center" sx={{ mt: 1 }}>
+                            Don't have an account?{" "}
+                            <Link to="/register" style={{ color: "#456BBC", fontWeight: "bold" }}>
+                                Register
+                            </Link>
                         </Typography>
-
-                        <Box component="form" onSubmit={handleSubmit}>
-                            <TextField
-                                fullWidth
-                                label="Email"
-                                name="email"
-                                type="email"
-                                value={formData.email}
-                                onChange={handleChange}
-                                margin="normal"
-                                required
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Email />
-                                        </InputAdornment>
-                                    ),
-                                }}
-                            />
-
-                            <TextField
-                                fullWidth
-                                label="Password"
-                                name="password"
-                                type={showPassword ? "text" : "password"}
-                                value={formData.password}
-                                onChange={handleChange}
-                                margin="normal"
-                                required
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Lock />
-                                        </InputAdornment>
-                                    ),
-                                    endAdornment: (
-                                        <InputAdornment position="end">
-                                            <IconButton onClick={() => setShowPassword(!showPassword)}>
-                                                {showPassword ? <VisibilityOff /> : <Visibility />}
-                                            </IconButton>
-                                        </InputAdornment>
-                                    ),
-                                }}
-                            />
-
-                            {/* Remember Me */}
-                            <FormControlLabel
-                                control={<Checkbox name="remember_me" checked={formData.remember_me} onChange={handleChange} />}
-                                label="Remember Me"
-                            />
-
-                            {/* Login Button */}
-                            <Button
-                                type="submit"
-                                variant="contained"
-                                fullWidth
-                                sx={{
-                                    mt: 2,
-                                    backgroundColor: "#456BBC",
-                                    "&:hover": { backgroundColor: "#0100FE" },
-                                }}
-                                disabled={loading}
-                                startIcon={loading && <CircularProgress size={20} sx={{ color: "white" }} />}
-                            >
-                                {loading ? "Logging in..." : "Login"}
-                            </Button>
-
-                            {/* Forgot Password & Register Links */}
-                            <Typography variant="body2" align="center" sx={{ mt: 2 }}>
-                                <Link to="/forgot-password" style={{ textDecoration: "none", color: "#456BBC" }}>
-                                    Forgot Password?
-                                </Link>
-                            </Typography>
-
-                            <Typography variant="body2" align="center" sx={{ mt: 1 }}>
-                                Don't have an account? <Link to="/register">Register</Link>
-                            </Typography>
-                        </Box>
-                    </Paper>
-                </Container>
+                    </Box>
+                </NeumorphicPaper>
             </motion.div>
 
             {/* Snackbar */}
