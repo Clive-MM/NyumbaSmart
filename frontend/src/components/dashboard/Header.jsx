@@ -6,9 +6,9 @@ import {
     IconButton,
     Avatar,
     Box,
-    InputBase,
     Badge,
     useMediaQuery,
+    InputBase,
 } from "@mui/material";
 import { styled, alpha } from "@mui/material/styles";
 import NotificationsIcon from "@mui/icons-material/Notifications";
@@ -54,14 +54,9 @@ const CustomToggle = () => {
     const [checked, setChecked] = useState(true);
 
     const handleToggle = () => {
-        if (checked) {
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            window.location.href = "/login";
-        } else {
-            window.location.href = "/login";
-        }
-        setChecked(!checked);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
     };
 
     return (
@@ -96,18 +91,17 @@ const CustomToggle = () => {
                 />
             </Box>
             <Typography sx={{ color: "white", fontWeight: "bold", fontSize: "1rem" }}>
-                {checked ? "Logout" : "Login"}
+                Logout
             </Typography>
         </Box>
     );
 };
 
-function Header({ setActivePage }) {
+export default function Header({ setActivePage }) {
     const [showSearch, setShowSearch] = useState(false);
     const isMobile = useMediaQuery("(max-width:600px)");
 
     const user = { name: "John Doe", avatar: "" };
-
     const slogan = "Smart Homes, Smarter Payments.";
     const [visibleText, setVisibleText] = useState("");
 
@@ -165,7 +159,7 @@ function Header({ setActivePage }) {
                     minHeight: "130px",
                 }}
             >
-                {/* ✅ Logo + PayNest + Slogan */}
+                {/* ✅ Logo + Slogan */}
                 <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }}>
                     <Box display="flex" alignItems="center" gap={2}>
                         <motion.div
@@ -223,7 +217,7 @@ function Header({ setActivePage }) {
                     </Box>
                 </motion.div>
 
-                {/* ✅ Collapsible Search */}
+                {/* ✅ Search Bar */}
                 {showSearch && (
                     <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}>
                         <Search>
@@ -235,7 +229,7 @@ function Header({ setActivePage }) {
                     </motion.div>
                 )}
 
-                {/* ✅ Right Icons */}
+                {/* ✅ Right Side Icons */}
                 <Box display="flex" alignItems="center" gap={isMobile ? 1.5 : 3}>
                     <HoverIcon
                         icon={<SearchIcon sx={{ fontSize: 32 }} />}
@@ -252,7 +246,7 @@ function Header({ setActivePage }) {
                         label="Notifications"
                     />
 
-                    {/* ✅ Avatar Click shows Profile in Main Content */}
+                    {/* ✅ Avatar Click → Show Profile Page */}
                     <HoverIcon
                         icon={
                             <Avatar
@@ -267,7 +261,7 @@ function Header({ setActivePage }) {
                                     fontSize: "1.4rem",
                                     cursor: "pointer",
                                 }}
-                                onClick={() => setActivePage("profile")} // ✅ Show Profile in Main Content
+                                onClick={() => setActivePage("profile")}
                             />
                         }
                         label="Profile"
@@ -283,5 +277,3 @@ function Header({ setActivePage }) {
         </AppBar>
     );
 }
-
-export default Header;
