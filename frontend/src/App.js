@@ -4,8 +4,9 @@ import Register from "./pages/auth/Register";
 import Login from "./pages/auth/Login";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
-import DashboardHome from "./pages/dashboard/DashboardHome";
+
 import Profile from "./pages/dashboard/Profile";
+import DashboardLayout from "./components/layouts/DashboardLayout";
 function App() {
   return (
     <Router>
@@ -18,7 +19,7 @@ function App() {
         <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         {/* Dashboard Route After Login */}
-        <Route path="/dashboard" element={<DashboardHome />} />
+        <Route path="/dashboard" element={<DashboardLayout />} />
         <Route path="/profile" element={<Profile />} />
       </Routes>
     </Router>

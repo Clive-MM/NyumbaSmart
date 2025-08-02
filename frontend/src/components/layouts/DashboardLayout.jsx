@@ -3,17 +3,47 @@ import { Box } from "@mui/material";
 import Header from "../dashboard/Header";
 import Footer from "../dashboard/Footer";
 import SideMenu from "../dashboard/SideMenu";
-import Profile from "../../pages/dashboard/Profile"; // ✅ Import Profile component
+import Profile from "../../pages/dashboard/Profile";
+import Billing from "../../pages/dashboard/Billing";
+import Expenses from "../../pages/dashboard/Expenses";
+import Properties from "../../pages/dashboard/Properties";
+import Tenants from "../../pages/dashboard/Tenants";
+import HistoryLogs from "../../pages/dashboard/HistoryLogs";
+import Notifications from "../../pages/dashboard/Notification";
+import Payments from "../../pages/dashboard/Payments";
+import Reports from "../../pages/dashboard/Reports"
+import Settings from "../../pages/dashboard/Settings";
+import DashboardHome from "../../pages/dashboard/DashboardHome";
+
+
 
 export default function DashboardLayout() {
-    const [activePage, setActivePage] = useState("dashboard"); // ✅ Track active page
+    const [activePage, setActivePage] = useState("dashboard");
 
     const renderContent = () => {
         switch (activePage) {
+            case "billing":
+                return <Billing />;
+            case "expenses":
+                return <Expenses />;
+            case "properties":
+                return <Properties />;
+            case "tenants":
+                return <Tenants />;
+            case "historylogs":
+                return <HistoryLogs />;
             case "profile":
                 return <Profile />;
+            case "notifications":
+                return <Notifications />;
+            case "payments":
+                return <Payments />;
+            case "reports":
+                return <Reports />;
+            case "settings":
+                return <Settings />;
             default:
-                return <h2>Welcome to NyumbaSmart Dashboard</h2>; // ✅ Default page
+                return <DashboardHome />; // ✅ Default page
         }
     };
 

@@ -6,7 +6,6 @@ import {
     ListItemButton,
     ListItemIcon,
     ListItemText,
-
 } from "@mui/material";
 
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -45,18 +44,18 @@ const NeumorphicListItemButton = styled(ListItemButton)({
     },
 });
 
-function SideMenu() {
+export default function SideMenu({ setActivePage }) {
     const menuItems = [
-        { text: "Dashboard", icon: <DashboardIcon /> },
-        { text: "Properties", icon: <HomeIcon /> },
-        { text: "Tenants", icon: <PeopleIcon /> },
-        { text: "Billing", icon: <ReceiptIcon /> },
-        { text: "Payments", icon: <PaymentIcon /> },
-        { text: "Expenses", icon: <AttachMoneyIcon /> },
-        { text: "Reports", icon: <AssessmentIcon /> },
-        { text: "Logs / History", icon: <HistoryIcon /> },
-        { text: "Notifications", icon: <NotificationsIcon /> },
-        { text: "Settings", icon: <SettingsIcon /> },
+        { text: "Dashboard", icon: <DashboardIcon />, page: "dashboard" },
+        { text: "Properties", icon: <HomeIcon />, page: "properties" },
+        { text: "Tenants", icon: <PeopleIcon />, page: "tenants" },
+        { text: "Billing", icon: <ReceiptIcon />, page: "billing" },
+        { text: "Payments", icon: <PaymentIcon />, page: "payments" },
+        { text: "Expenses", icon: <AttachMoneyIcon />, page: "expenses" },
+        { text: "Reports", icon: <AssessmentIcon />, page: "reports" },
+        { text: "HistoryLogs", icon: <HistoryIcon />, page: "historylogs" },
+        { text: "Notifications", icon: <NotificationsIcon />, page: "notifications" },
+        { text: "Settings", icon: <SettingsIcon />, page: "settings" },
     ];
 
     return (
@@ -64,7 +63,7 @@ function SideMenu() {
             <List>
                 {menuItems.map((item, index) => (
                     <ListItem key={index} disablePadding sx={{ mb: 1 }}>
-                        <NeumorphicListItemButton>
+                        <NeumorphicListItemButton onClick={() => setActivePage(item.page)}>
                             <ListItemIcon sx={{ color: "#456BBC", minWidth: 40 }}>
                                 {item.icon}
                             </ListItemIcon>
@@ -83,5 +82,3 @@ function SideMenu() {
         </NeumorphicBox>
     );
 }
-
-export default SideMenu;
