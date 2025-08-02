@@ -9,6 +9,8 @@ import {
     Grid,
     Fab,
     Tooltip,
+    Snackbar,
+    Alert,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
@@ -16,29 +18,38 @@ import EditIcon from "@mui/icons-material/Edit";
 import { styled } from "@mui/material/styles";
 import axios from "axios";
 
-const Input = styled("input")({
-    display: "none",
-});
+const Input = styled("input")({ display: "none" });
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
     padding: theme.spacing(4),
-    borderRadius: 16,
-    boxShadow: "0 6px 16px rgba(0, 0, 0, 0.15)",
-    background: "#f9fafc",
-    textAlign: "center",
-    maxWidth: 500,
+    borderRadius: 20,
+    background: "#e0e0e0",
+    boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+    maxWidth: 520,
     margin: "auto",
+    textAlign: "center",
+    transition: "0.3s",
+    "&:hover": {
+        boxShadow: "inset 8px 8px 16px #bebebe, inset -8px -8px 16px #ffffff",
+    },
 }));
 
-const StyledTextField = styled(TextField)(({ theme }) => ({
+const StyledTextField = styled(TextField)({
     "& .MuiOutlinedInput-root": {
-        borderRadius: 10,
-        background: "#fff",
+        borderRadius: 12,
+        background: "#e0e0e0",
+        boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
     },
-    "& .MuiInputLabel-root": {
-        fontWeight: 500,
+    "& .MuiInputLabel-root": { fontWeight: 500 },
+});
+
+const NeumorphicFab = styled(Fab)({
+    background: "#e0e0e0",
+    boxShadow: "6px 6px 12px #bebebe, -6px -6px 12px #ffffff",
+    "&:active": {
+        boxShadow: "inset 6px 6px 12px #bebebe, inset -6px -6px 12px #ffffff",
     },
-}));
+});
 
 export default function Profile() {
     const [profile, setProfile] = useState(null);
@@ -53,27 +64,32 @@ export default function Profile() {
         DateOfBirth: "",
     });
     const [preview, setPreview] = useState(null);
+    const [alert, setAlert] = useState({ open: false, message: "", severity: "success" });
 
-    useEffect(() => {
+    // ✅ Fetch Profile
+    const fetchProfile = () => {
         axios
-            .get("/profile", {
+            .get("http://127.0.0.1:5000/viewprofile", {
                 headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
             })
             .then((res) => {
-                const data = res.data.profile;
-                setProfile(data);
+                setProfile(res.data);
                 setFormData({
-                    ProfilePicture: data?.ProfilePicture || null,
-                    Address: data?.Address || "",
-                    NationalID: data?.NationalID || "",
-                    KRA_PIN: data?.KRA_PIN || "",
-                    Bio: data?.Bio || "",
-                    DateOfBirth: data?.DateOfBirth || "",
+                    ProfilePicture: null,
+                    Address: res.data.Address || "",
+                    NationalID: res.data.NationalID || "",
+                    KRA_PIN: res.data.KRA_PIN || "",
+                    Bio: res.data.Bio || "",
+                    DateOfBirth: res.data.DateOfBirth || "",
                 });
-                setPreview(data?.ProfilePicture || null);
+                setPreview(res.data.ProfilePicture || null);
                 setLoading(false);
             })
             .catch(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        fetchProfile();
     }, []);
 
     const handleFileChange = (e) => {
@@ -88,24 +104,45 @@ export default function Profile() {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    // ✅ Save Profile
     const handleSave = () => {
         const form = new FormData();
         Object.keys(formData).forEach((key) => {
             if (formData[key]) form.append(key, formData[key]);
         });
 
-        axios
-            .post("/profile", form, {
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}`,
-                    "Content-Type": "multipart/form-data",
-                },
-            })
-            .then(() => {
-                alert("✅ Profile saved successfully!");
+        const method = profile ? "put" : "post";
+        const url =
+            method === "post"
+                ? "http://127.0.0.1:5000/create_profile"
+                : "http://127.0.0.1:5000/refreshprofile";
+
+        axios({
+            method,
+            url,
+            data: form,
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem("token")}`,
+                "Content-Type": "multipart/form-data",
+            },
+        })
+            .then((res) => {
+                setAlert({
+                    open: true,
+                    message: res.data.message,
+                    severity: "success",
+                });
                 setIsEditing(false);
+                setProfile(res.data.profile); // ✅ Instantly update profile without refetch
+                setPreview(res.data.profile?.ProfilePicture || preview); // ✅ Update new profile picture
             })
-            .catch(() => alert("❌ Failed to save profile"));
+            .catch((err) => {
+                setAlert({
+                    open: true,
+                    message: err.response?.data?.message || "❌ Failed to save profile",
+                    severity: "error",
+                });
+            });
     };
 
     if (loading) return <CircularProgress sx={{ m: 5 }} />;
@@ -113,7 +150,7 @@ export default function Profile() {
     return (
         <Box sx={{ mt: 3, display: "flex", justifyContent: "center" }}>
             <StyledPaper>
-                {/* ✅ Avatar Section */}
+                {/* ✅ Profile Picture Upload */}
                 <label htmlFor="avatar-upload">
                     <Input
                         accept="image/*"
@@ -128,22 +165,20 @@ export default function Profile() {
                             width: 110,
                             height: 110,
                             mx: "auto",
-                            mb: 1,
-                            bgcolor: "#E0E0E0",
-                            border: "3px solid #1976D2",
+                            mb: 2,
+                            bgcolor: "#e0e0e0",
+                            border: "3px solid #ccc",
+                            boxShadow: "4px 4px 10px #bebebe, -4px -4px 10px #ffffff",
                             cursor: isEditing ? "pointer" : "default",
                             "&:hover": isEditing ? { opacity: 0.8 } : {},
                         }}
                     />
                 </label>
 
-                {profile?.user?.FullName && (
-                    <Typography
-                        variant="h6"
-                        fontWeight="bold"
-                        sx={{ mb: 2, color: "#1E3A8A" }}
-                    >
-                        {profile.user.FullName}
+                {/* ✅ Show User's Full Name */}
+                {profile?.FullName && (
+                    <Typography variant="h6" fontWeight="bold" sx={{ mb: 3, color: "#333" }}>
+                        {profile.FullName}
                     </Typography>
                 )}
 
@@ -208,35 +243,37 @@ export default function Profile() {
                     </Grid>
                 </Grid>
 
-                {/* ✅ Floating Action Buttons */}
+                {/* ✅ Edit / Save / Cancel Buttons */}
                 {!isEditing ? (
                     <Tooltip title="Edit Profile">
-                        <Fab
-                            color="primary"
-                            onClick={() => setIsEditing(true)}
-                            sx={{ mt: 1 }}
-                        >
+                        <NeumorphicFab onClick={() => setIsEditing(true)}>
                             <EditIcon />
-                        </Fab>
+                        </NeumorphicFab>
                     </Tooltip>
                 ) : (
                     <Box display="flex" gap={3} justifyContent="center">
                         <Tooltip title="Save Changes">
-                            <Fab color="success" onClick={handleSave}>
+                            <NeumorphicFab sx={{ color: "green" }} onClick={handleSave}>
                                 <SaveIcon />
-                            </Fab>
+                            </NeumorphicFab>
                         </Tooltip>
                         <Tooltip title="Cancel">
-                            <Fab
-                                color="error"
-                                onClick={() => setIsEditing(false)}
-                            >
+                            <NeumorphicFab sx={{ color: "red" }} onClick={() => setIsEditing(false)}>
                                 <CloseIcon />
-                            </Fab>
+                            </NeumorphicFab>
                         </Tooltip>
                     </Box>
                 )}
             </StyledPaper>
+
+            {/* ✅ Snackbar Notification */}
+            <Snackbar
+                open={alert.open}
+                autoHideDuration={4000}
+                onClose={() => setAlert({ ...alert, open: false })}
+            >
+                <Alert severity={alert.severity}>{alert.message}</Alert>
+            </Snackbar>
         </Box>
     );
 }

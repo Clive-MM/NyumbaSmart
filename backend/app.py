@@ -22,7 +22,9 @@ load_dotenv()
 
 # ✅ Initialize Flask app
 app = Flask(__name__)
-CORS(app)
+
+# ✅ Configure CORS globally
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 # ✅ Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
@@ -30,20 +32,20 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY")
 app.config['JWT_IDENTITY_CLAIM'] = 'identity'
 
-# Mail Configuration
+# ✅ Mail Configuration
 app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
-app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT'))
-app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS') == 'True'
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True') == 'True'
 app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
-#
+
+# ✅ Configure Cloudinary
 cloudinary.config(
     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
     api_key=os.getenv("CLOUDINARY_API_KEY"),
     api_secret=os.getenv("CLOUDINARY_API_SECRET")
 )
-
 
 # ✅ Initialize extensions
 db.init_app(app)
@@ -60,13 +62,13 @@ app.register_blueprint(routes)
 # ✅ Root health check
 
 
-@app.route('/')
+@app.route("/")
 def home():
-    return {'message': 'NyumbaSmart Backend Running Successfully'}
+    return {"message": "NyumbaSmart Backend Running Successfully"}
 
 
 # ✅ Run and create tables
-if __name__ == '__main__':
+if __name__ == "__main__":
     with app.app_context():
         try:
             conn = db.engine.connect()

@@ -1,40 +1,50 @@
-from flask import current_app
-from flask import Blueprint, request, jsonify
+from flask import current_app, Blueprint, request, jsonify
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
-import jwt
-from flask_mail import Message
-from flask_mail import Mail
+from flask_mail import Message, Mail
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
-from utils.sms_helper import send_sms
-import time
-from utils.billing_helper import calculate_bill_amount
+import jwt
 import os
-from utils.cloudinary_helper import upload_to_cloudinary
+import re
+import time
 import cloudinary.uploader
 
-
-# from utils import send_sms  # Placeholder for SMS function
-from flask_jwt_extended import (
-    create_access_token, jwt_required, get_jwt_identity
+from utils.sms_helper import send_sms
+from utils.billing_helper import calculate_bill_amount
+from utils.cloudinary_helper import upload_to_cloudinary
+from models.models import (
+    db, User, Apartment, UnitCategory, RentalUnitStatus, RentalUnit, Tenant,
+    VacateLog, TransferLog, VacateNotice, SMSUsageLog, TenantBill,
+    RentPayment, LandlordExpense, Profile
 )
-from models.models import db, User,  Apartment,  UnitCategory,  RentalUnitStatus, RentalUnit, Tenant, VacateLog, TransferLog, VacateNotice, SMSUsageLog, TenantBill, RentPayment, LandlordExpense, Profile
-import re  # ✅ For password strength checking
 
-routes = Blueprint('routes', __name__)
-CORS(routes)
+# ✅ Initialize Blueprint
+routes = Blueprint("routes", __name__)
 
+# ✅ Configure CORS for specific origins
+CORS(
+    routes,
+    resources={r"/*": {"origins": [
+        "http://localhost:3000",       # Local frontend
+        "http://127.0.0.1:3000",       # Alternative local frontend
+        "https://nyumbasmart.vercel.app"  # Production frontend
+    ]}},
+    supports_credentials=True
+)
+
+# ✅ Initialize Bcrypt
 bcrypt = Bcrypt()
 
+# ✅ Mail instance (to be set from app.py)
 mail = None
-
-# ✅ Placeholder for mail - will be assigned later from app.py
-mail = None
-
-# ✅ Register mail instance
 
 
 def register_mail_instance(mail_instance):
+    """
+    Registers the Flask-Mail instance from app.py
+    so that routes can send emails.
+    """
     global mail
     mail = mail_instance
 
@@ -162,72 +172,11 @@ def update_attempts(email):
         login_attempts[email][0] += 1
         login_attempts[email][1] = now
 
-# Landlord can view the profile
-
-
-@routes.route('/profile', methods=['GET'])
-@jwt_required()
-def view_profile():
-    user_id = get_jwt_identity()  # ✅ pulls from 'identity'
-    user = User.query.get(user_id)
-
-    if not user:
-        return jsonify({'message': 'User not found'}), 404
-
-    return jsonify({
-        'UserID': user.UserID,
-        'FullName': user.FullName,
-        'Email': user.Email,
-        'Phone': user.Phone,
-        'IsAdmin': user.IsAdmin,
-        'CreatedAt': user.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
-    }), 200
-
-
-# Editing and Updating profile
-@routes.route('/update_profile', methods=['PATCH'])
-@jwt_required()
-def update_profile():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-
-    if not user:
-        return jsonify({'message': '❌ User not found.'}), 404
-
-    data = request.get_json()
-
-    full_name = data.get('FullName')
-    email = data.get('Email')
-    phone = data.get('Phone')
-
-    # ✅ Email uniqueness check
-    if email and email != user.Email:
-        if User.query.filter_by(Email=email).first():
-            return jsonify({'message': '❌ Email is already in use by another account.'}), 409
-        user.Email = email
-
-    if full_name:
-        user.FullName = full_name
-
-    if phone:
-        user.Phone = phone
-
-    db.session.commit()
-
-    return jsonify({
-        'message': '✅ Profile updated successfully!',
-        'updated_profile': {
-            'UserID': user.UserID,
-            'FullName': user.FullName,
-            'Email': user.Email,
-            'Phone': user.Phone
-        }
-    }), 200
 
 # ✅ Route for changing the password
 
 
-@routes.route('/password_change', methods=['PATCH'])
+@routes.route('/new_password_change', methods=['PATCH'])
 @jwt_required()
 def change_password():
     user_id = get_jwt_identity()
@@ -2174,57 +2123,162 @@ def upload_file():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Route for creating a user profile
 
-
-@routes.route("/profile", methods=["POST", "PUT"])
+# ✅ Create Profile
+@routes.route("/create_profile", methods=["POST"])
 @jwt_required()
-def create_or_update_profile():
+def create_profile():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
     if not user:
         return jsonify({"message": "User not found"}), 404
 
-    # Get form data
+    # ✅ Prevent duplicate profile
+    if Profile.query.filter_by(UserID=user_id).first():
+        return jsonify({"message": "Profile already exists. Use PUT to update."}), 400
+
     data = request.form
     file = request.files.get("ProfilePicture")
 
-    # Check if profile exists
-    profile = Profile.query.filter_by(UserID=user_id).first()
+    # ✅ Validate required fields
+    required_fields = ["Address", "NationalID", "KRA_PIN"]
+    missing_fields = [f for f in required_fields if not data.get(f)]
+    if missing_fields:
+        return jsonify({"message": f"Missing required fields: {', '.join(missing_fields)}"}), 400
 
-    # ✅ Upload profile picture if provided
+    # ✅ Parse DateOfBirth safely
+    dob = None
+    if data.get("DateOfBirth"):
+        try:
+            dob = datetime.strptime(data.get("DateOfBirth"), "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"message": "Invalid DateOfBirth format. Use YYYY-MM-DD."}), 400
+
+    # ✅ Upload profile picture
     profile_pic_url = None
     if file:
         try:
             upload_result = cloudinary.uploader.upload(
-                file, folder="profile_pictures")
-            profile_pic_url = upload_result.get("secure_url")
+                file, folder="profile_pictures", resource_type="image"
+            )
+            profile_pic_url = upload_result.get(
+                "secure_url") or upload_result.get("url")
         except Exception as e:
             return jsonify({"message": "Image upload failed", "error": str(e)}), 500
 
+    # ✅ Save Profile
+    profile = Profile(
+        UserID=user_id,
+        ProfilePicture=profile_pic_url,
+        Address=data.get("Address"),
+        NationalID=data.get("NationalID"),
+        KRA_PIN=data.get("KRA_PIN"),
+        Bio=data.get("Bio"),
+        DateOfBirth=dob
+    )
+    db.session.add(profile)
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Profile created successfully!",
+        "profile": format_profile_response(user, profile)
+    }), 201
+
+
+# ✅ Update Profile
+@routes.route("/refreshprofile", methods=["PUT"])
+@jwt_required()
+def update_profile():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    profile = Profile.query.filter_by(UserID=user_id).first()
     if not profile:
-        # ✅ Create new profile
-        new_profile = Profile(
-            UserID=user_id,
-            ProfilePicture=profile_pic_url,
-            Address=data.get("Address"),
-            NationalID=data.get("NationalID"),
-            KRA_PIN=data.get("KRA_PIN"),
-            Bio=data.get("Bio"),
-            DateOfBirth=data.get("DateOfBirth"),
-        )
-        db.session.add(new_profile)
-        db.session.commit()
-        return jsonify({"message": "Profile created successfully"}), 201
-    else:
-        # ✅ Update existing profile
-        profile.Address = data.get("Address", profile.Address)
-        profile.NationalID = data.get("NationalID", profile.NationalID)
-        profile.KRA_PIN = data.get("KRA_PIN", profile.KRA_PIN)
-        profile.Bio = data.get("Bio", profile.Bio)
-        profile.DateOfBirth = data.get("DateOfBirth", profile.DateOfBirth)
-        if profile_pic_url:
-            profile.ProfilePicture = profile_pic_url
-        db.session.commit()
-        return jsonify({"message": "Profile updated successfully"}), 200
+        return jsonify({"message": "Profile not found. Please create one first."}), 404
+
+    data = request.form
+    file = request.files.get("ProfilePicture")
+
+    # ✅ Parse DateOfBirth safely
+    dob = profile.DateOfBirth
+    if data.get("DateOfBirth"):
+        try:
+            dob = datetime.strptime(data.get("DateOfBirth"), "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"message": "Invalid DateOfBirth format. Use YYYY-MM-DD."}), 400
+
+    # ✅ If a new profile picture is uploaded, delete the old one
+    profile_pic_url = profile.ProfilePicture
+    if file:
+        try:
+            if profile.ProfilePicture:
+                try:
+                    public_id = profile.ProfilePicture.split(
+                        "/")[-1].split(".")[0]
+                    cloudinary.uploader.destroy(
+                        f"profile_pictures/{public_id}")
+                except Exception as e:
+                    print("⚠️ Failed to delete old image:", str(e))
+
+            upload_result = cloudinary.uploader.upload(
+                file, folder="profile_pictures", resource_type="image"
+            )
+            profile_pic_url = upload_result.get(
+                "secure_url") or upload_result.get("url")
+
+        except Exception as e:
+            return jsonify({"message": "Image upload failed", "error": str(e)}), 500
+
+    # ✅ Update profile fields
+    profile.Address = data.get("Address", profile.Address)
+    profile.NationalID = data.get("NationalID", profile.NationalID)
+    profile.KRA_PIN = data.get("KRA_PIN", profile.KRA_PIN)
+    profile.Bio = data.get("Bio", profile.Bio)
+    profile.DateOfBirth = dob
+    profile.ProfilePicture = profile_pic_url
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Profile updated successfully!",
+        "profile": format_profile_response(user, profile)
+    }), 200
+
+
+# ✅ Get Profile
+@routes.route("/viewprofile", methods=["GET"])
+@jwt_required()
+def get_profile():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    profile = Profile.query.filter_by(UserID=user_id).first()
+
+    if not profile:
+        return jsonify({"message": "Profile not found"}), 404
+
+    return jsonify(format_profile_response(user, profile)), 200
+
+
+# ✅ Helper function to format profile response
+def format_profile_response(user, profile):
+    return {
+        "UserID": user.UserID,
+        "FullName": user.FullName,
+        "Email": user.Email,
+        "Phone": user.Phone,
+        "ProfilePicture": profile.ProfilePicture if profile else None,
+        "Address": profile.Address if profile else "",
+        "NationalID": profile.NationalID if profile else "",
+        "KRA_PIN": profile.KRA_PIN if profile else "",
+        "Bio": profile.Bio if profile else "",
+        "DateOfBirth": profile.DateOfBirth.strftime("%Y-%m-%d") if profile and profile.DateOfBirth else None,
+        "UpdatedAt": profile.UpdatedAt.strftime("%Y-%m-%d %H:%M:%S") if profile and profile.UpdatedAt else None
+    }
