@@ -80,7 +80,8 @@ const CustomToggle = () => {
                     alignItems: "center",
                     justifyContent: checked ? "flex-end" : "flex-start",
                     transition: "all 0.3s ease",
-                    boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
+                    boxShadow:
+                        "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
                 }}
             >
                 <Box
@@ -93,7 +94,9 @@ const CustomToggle = () => {
                     }}
                 />
             </Box>
-            <Typography sx={{ color: "white", fontWeight: "bold", fontSize: "1rem" }}>
+            <Typography
+                sx={{ color: "white", fontWeight: "bold", fontSize: "1rem" }}
+            >
                 Logout
             </Typography>
         </Box>
@@ -182,7 +185,8 @@ export default function Header({ setActivePage }) {
                                 background: "rgba(255, 255, 255, 0.25)",
                                 padding: "8px",
                                 borderRadius: "12px",
-                                boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
+                                boxShadow:
+                                    "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
                             }}
                         >
                             <img
@@ -255,6 +259,7 @@ export default function Header({ setActivePage }) {
                             </Badge>
                         }
                         label="Notifications"
+                        onClick={() => setActivePage("notifications")}
                     />
 
                     <HoverIcon
@@ -277,7 +282,11 @@ export default function Header({ setActivePage }) {
                         label="Profile"
                     />
 
-                    <HoverIcon icon={<SettingsIcon sx={{ fontSize: 28, color: "#fff" }} />} label="Settings" />
+                    <HoverIcon
+                        icon={<SettingsIcon sx={{ fontSize: 28, color: "#fff" }} />}
+                        label="Settings"
+                        onClick={() => setActivePage("settings")}
+                    />
 
                     <motion.div whileHover={{ scale: 1.05 }}>
                         <CustomToggle />

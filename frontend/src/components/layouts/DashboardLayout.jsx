@@ -9,10 +9,11 @@ import Expenses from "../../pages/dashboard/Expenses";
 import Properties from "../../pages/dashboard/Properties";
 import Tenants from "../../pages/dashboard/Tenants";
 import HistoryLogs from "../../pages/dashboard/HistoryLogs";
-import Notifications from "../../pages/dashboard/Notification";
+import Settings from "../../pages/dashboard/Settings";
+import Notification from "../../pages/dashboard/Notification";
 import Payments from "../../pages/dashboard/Payments";
 import Reports from "../../pages/dashboard/Reports"
-import Settings from "../../pages/dashboard/Settings";
+
 import DashboardHome from "../../pages/dashboard/DashboardHome";
 
 
@@ -34,14 +35,15 @@ export default function DashboardLayout() {
                 return <HistoryLogs />;
             case "profile":
                 return <Profile />;
+            case "settings":
+                return <Settings />;
             case "notifications":
-                return <Notifications />;
+                return <Notification />;
             case "payments":
                 return <Payments />;
             case "reports":
                 return <Reports />;
-            case "settings":
-                return <Settings />;
+
             default:
                 return <DashboardHome />; // ✅ Default page
         }

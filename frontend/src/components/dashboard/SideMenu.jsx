@@ -14,10 +14,10 @@ import { motion } from "framer-motion";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PeopleIcon from "@mui/icons-material/People";
 import HomeIcon from "@mui/icons-material/Home";
-import SettingsIcon from "@mui/icons-material/Settings";
+
 import ReceiptIcon from "@mui/icons-material/Receipt";
 import PaymentIcon from "@mui/icons-material/Payment";
-import NotificationsIcon from "@mui/icons-material/Notifications";
+
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import HistoryIcon from "@mui/icons-material/History";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
@@ -64,8 +64,7 @@ export default function SideMenu({ setActivePage }) {
         { text: "Expenses", icon: <AttachMoneyIcon />, page: "expenses" },
         { text: "Reports", icon: <AssessmentIcon />, page: "reports" },
         { text: "History Logs", icon: <HistoryIcon />, page: "historylogs" },
-        { text: "Notifications", icon: <NotificationsIcon />, page: "notifications" },
-        { text: "Settings", icon: <SettingsIcon />, page: "settings" },
+
     ];
 
     return (
