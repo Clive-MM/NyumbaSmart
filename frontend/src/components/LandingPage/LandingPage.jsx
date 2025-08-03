@@ -19,7 +19,7 @@ const heroSlides = [
         title: "Hassle-Free Rent Payments",
         question: "Spending too much time following up on rentpayment progress?",
         answer:
-            "PayNest instantly records tenant payments, issues automated receipts, and updates transactions in real-time, making it easy to track payments and make informed decisions.",
+            "PayNest instantly records tenant payments, and updates transactions in real-time, making it easy to track payments and make folowup on unpaid bills and informed decisions.",
         textColor: "#f5f5f5",
     },
     {
