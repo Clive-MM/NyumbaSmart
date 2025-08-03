@@ -14,7 +14,7 @@ import {
     ListItemText,
     useMediaQuery,
     InputBase,
-    Paper
+    Paper,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { motion } from "framer-motion";
@@ -119,10 +119,10 @@ const NavBar = () => {
 
     return (
         <AppBar
-            position="absolute" // ✅ Change to absolute so it overlays hero section
+            position="absolute"
             sx={{
-                background: "transparent", // ✅ Make background transparent
-                boxShadow: "none", // ✅ Remove shadow for now
+                background: "transparent",
+                boxShadow: "none",
                 px: { xs: 2, sm: 3 },
                 minHeight: scrolled ? "80px" : "110px",
                 display: "flex",
@@ -130,40 +130,48 @@ const NavBar = () => {
             }}
         >
             <Toolbar sx={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
-                <motion.div whileHover={{ scale: 1.05 }}>
-                    <Box display="flex" alignItems="center" gap={2}>
-                        <motion.div whileHover={{ rotate: 10 }}>
-                            <img
-                                src={logoUrl}
-                                alt="PayNest Logo"
-                                style={{ height: 50, width: 50, objectFit: "contain", cursor: "pointer" }}
-                                onClick={() => navigate("/")}
-                            />
-                        </motion.div>
+                {/* ✅ Logo & Slogan */}
+                <Box display="flex" alignItems="center" gap={2} sx={{ mt: 1, ml: 1 }}>
+                    <motion.div whileHover={{ rotate: 10 }}>
+                        <img
+                            src={logoUrl}
+                            alt="PayNest Logo"
+                            style={{
+                                height: 60, // ✅ Increased size
+                                width: 60,
+                                objectFit: "contain",
+                                cursor: "pointer",
+                            }}
+                            onClick={() => navigate("/")}
+                        />
+                    </motion.div>
 
-                        {!isMobile && (
-                            <Box>
-                                <GradientText variant="h4" sx={{ fontWeight: "bold", cursor: "pointer" }}>
-                                    PayNest
-                                </GradientText>
-                                <Typography
-                                    variant="subtitle1"
-                                    sx={{
-                                        fontSize: "1.1rem",
-                                        fontStyle: "italic",
-                                        color: "#fff",
-                                        fontFamily: "'Counter Stream', sans-serif",
-                                    }}
-                                >
-                                    {visibleText}
-                                </Typography>
-                            </Box>
-                        )}
-                    </Box>
-                </motion.div>
+                    {!isMobile && (
+                        <Box>
+                            <GradientText
+                                variant="h4"
+                                sx={{ fontWeight: "bold", cursor: "pointer", fontSize: "2rem" }} // ✅ Increased size
+                            >
+                                PayNest
+                            </GradientText>
+                            <Typography
+                                variant="subtitle1"
+                                sx={{
+                                    fontSize: "1.2rem", // ✅ Increased slogan size
+                                    fontStyle: "italic",
+                                    color: "#fff",
+                                    fontFamily: "'Counter Stream', sans-serif",
+                                }}
+                            >
+                                {visibleText}
+                            </Typography>
+                        </Box>
+                    )}
+                </Box>
 
+                {/* ✅ Nav Links + Search */}
                 {!isMobile && (
-                    <Box display="flex" alignItems="center" gap={3}>
+                    <Box display="flex" alignItems="center" gap={3} sx={{ ml: 2 }}>
                         {navLinks.map((link) => (
                             <motion.div whileHover={{ scale: 1.1 }} key={link.text}>
                                 <Typography
@@ -192,102 +200,35 @@ const NavBar = () => {
                     </Box>
                 )}
 
+                {/* ✅ Buttons */}
                 {isMobile ? (
                     <IconButton onClick={() => setDrawerOpen(true)}>
                         <MenuIcon sx={{ color: "white" }} />
                     </IconButton>
                 ) : (
-                    <Box display="flex" gap={2}>
-                        {[{ icon: <LoginIcon />, path: "/login" }, { icon: <PersonAddIcon />, path: "/register" }].map(
-                            (btn, i) => (
-                                <Tooltip key={i} title={btn.path === "/login" ? "Login" : "Register"}>
-                                    <AnimatedIconButton
-                                        whileHover={{ scale: 1.15, rotate: 5 }}
-                                        whileTap={{ scale: 0.9 }}
-                                        onClick={() => navigate(btn.path)}
-                                        sx={{
-                                            background: "rgba(255, 255, 255, 0.25)",
-                                            backdropFilter: "blur(8px)",
-                                            boxShadow:
-                                                "4px 4px 10px rgba(0,0,0,0.3), -4px -4px 10px rgba(255,255,255,0.3)",
-                                            color: i === 0 ? "#06b6d4" : "#10b981",
-                                            p: 1.5,
-                                            borderRadius: "50%",
-                                        }}
-                                    >
-                                        {btn.icon}
-                                    </AnimatedIconButton>
-                                </Tooltip>
-                            )
-                        )}
+                    <Box display="flex" gap={2} sx={{ mr: 1 }}>
+                        {[{ icon: <LoginIcon />, path: "/login" }, { icon: <PersonAddIcon />, path: "/register" }].map((btn, i) => (
+                            <Tooltip key={i} title={btn.path === "/login" ? "Login" : "Register"}>
+                                <AnimatedIconButton
+                                    whileHover={{ scale: 1.15, rotate: 5 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => navigate(btn.path)}
+                                    sx={{
+                                        background: "rgba(255, 255, 255, 0.25)",
+                                        backdropFilter: "blur(8px)",
+                                        boxShadow:
+                                            "4px 4px 10px rgba(0,0,0,0.3), -4px -4px 10px rgba(255,255,255,0.3)",
+                                        color: i === 0 ? "#06b6d4" : "#10b981",
+                                        p: 1.5,
+                                        borderRadius: "50%",
+                                    }}
+                                >
+                                    {btn.icon}
+                                </AnimatedIconButton>
+                            </Tooltip>
+                        ))}
                     </Box>
                 )}
-
-                <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-                    <Box sx={{ width: 260, p: 2 }}>
-                        <NeumorphicPaper>
-                            <List>
-                                {navLinks.map((item) => (
-                                    <ListItem key={item.text} disablePadding>
-                                        <ListItemButton
-                                            onClick={() => navigate(item.path)}
-                                            sx={{
-                                                borderRadius: "12px",
-                                                m: 0.5,
-                                                boxShadow:
-                                                    "inset 2px 2px 5px rgba(0,0,0,0.2), inset -2px -2px 5px rgba(255,255,255,0.3)",
-                                            }}
-                                        >
-                                            <ListItemIcon>{item.icon}</ListItemIcon>
-                                            <ListItemText
-                                                primary={item.text}
-                                                primaryTypographyProps={{ fontFamily: "'Counter Stream', sans-serif" }}
-                                            />
-                                        </ListItemButton>
-                                    </ListItem>
-                                ))}
-                                <ListItem disablePadding>
-                                    <ListItemButton
-                                        onClick={() => navigate("/login")}
-                                        sx={{
-                                            borderRadius: "12px",
-                                            m: 0.5,
-                                            boxShadow:
-                                                "inset 2px 2px 5px rgba(0,0,0,0.2), inset -2px -2px 5px rgba(255,255,255,0.3)",
-                                        }}
-                                    >
-                                        <ListItemIcon>
-                                            <LoginIcon />
-                                        </ListItemIcon>
-                                        <ListItemText
-                                            primary="Login"
-                                            primaryTypographyProps={{ fontFamily: "'Counter Stream', sans-serif" }}
-                                        />
-                                    </ListItemButton>
-                                </ListItem>
-                                <ListItem disablePadding>
-                                    <ListItemButton
-                                        onClick={() => navigate("/register")}
-                                        sx={{
-                                            borderRadius: "12px",
-                                            m: 0.5,
-                                            boxShadow:
-                                                "inset 2px 2px 5px rgba(0,0,0,0.2), inset -2px -2px 5px rgba(255,255,255,0.3)",
-                                        }}
-                                    >
-                                        <ListItemIcon>
-                                            <PersonAddIcon />
-                                        </ListItemIcon>
-                                        <ListItemText
-                                            primary="Register"
-                                            primaryTypographyProps={{ fontFamily: "'Counter Stream', sans-serif" }}
-                                        />
-                                    </ListItemButton>
-                                </ListItem>
-                            </List>
-                        </NeumorphicPaper>
-                    </Box>
-                </Drawer>
             </Toolbar>
         </AppBar>
     );
