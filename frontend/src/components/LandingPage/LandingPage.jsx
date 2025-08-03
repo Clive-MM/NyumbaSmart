@@ -1,51 +1,64 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, Button } from "@mui/material";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import NavBar from "./NavBar";
 import Footer from "./Footer";
 
-const heroImages = [
+const heroSlides = [
     {
         url: "https://res.cloudinary.com/djydkcx01/image/upload/v1754220691/ChatGPT_Image_Aug_3_2025_02_25_27_PM_rcuvaq.png",
-        title: "Simplify Property Management",
-        subtitle: "Manage your properties and tenants with ease and efficiency.",
+        title: "Manage Properties Like a Pro",
+        question: "Tired of scattered records and manual rent tracking?",
+        answer:
+            "PayNest provides an all-in-one platform to automate tenant management and rent collection.",
+        textColor: "#ffffff",
     },
     {
         url: "https://res.cloudinary.com/djydkcx01/image/upload/v1754220693/ChatGPT_Image_Aug_3_2025_02_29_46_PM_jjatrh.png",
-        title: "Smart Rent Collection",
-        subtitle: "Collect payments securely and track transactions in real-time.",
+        title: "Hassle-Free Rent Payments",
+        question: "Spending too much time following up on rentpayment progress?",
+        answer:
+            "PayNest instantly records tenant payments, issues automated receipts, and updates transactions in real-time, making it easy to track payments and make informed decisions.",
+        textColor: "#f5f5f5",
     },
     {
         url: "https://res.cloudinary.com/djydkcx01/image/upload/v1754220694/ChatGPT_Image_Aug_3_2025_02_05_26_PM_sswdk0.png",
-        title: "Grow Your Investments",
-        subtitle: "Monitor performance and maximize your rental income effortlessly.",
+        title: "Unlock the Full Potential of Your Properties",
+        question: "Managing multiple properties but lack clear insights?",
+        answer:
+            "PayNest provides real-time reports on earnings, expenses, and occupancy, making it easier to track profits, reduce costs, and simplify tax calculations.",
+        textColor: "#ffffff",
     },
 ];
 
 const LandingPage = () => {
     const [currentIndex, setCurrentIndex] = useState(0);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const interval = setInterval(() => {
-            setCurrentIndex((prev) => (prev + 1) % heroImages.length);
-        }, 5000);
+            setCurrentIndex((prev) => (prev + 1) % heroSlides.length);
+        }, 10000);
         return () => clearInterval(interval);
     }, []);
+
+    const currentSlide = heroSlides[currentIndex];
 
     return (
         <Box sx={{ width: "100%", height: "100vh", overflow: "hidden", m: 0, p: 0 }}>
             <NavBar />
 
-            <Box sx={{ position: "relative", width: "100%", height: "100%", m: 0, p: 0 }}>
+            <Box sx={{ position: "relative", width: "100%", height: "100%" }}>
                 <AnimatePresence mode="wait">
                     <motion.div
-                        key={heroImages[currentIndex].url}
+                        key={currentSlide.url}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 1 }}
+                        transition={{ duration: 1.5 }}
                         style={{
-                            backgroundImage: `url(${heroImages[currentIndex].url})`,
+                            backgroundImage: `url(${currentSlide.url})`,
                             backgroundSize: "cover",
                             backgroundPosition: "center",
                             position: "absolute",
@@ -76,48 +89,64 @@ const LandingPage = () => {
                         left: "50%",
                         transform: "translate(-50%, -50%)",
                         textAlign: "center",
-                        color: "white",
+                        color: currentSlide.textColor,
                         zIndex: 1,
                         px: 2,
+                        maxWidth: "90%",
                     }}
                 >
                     <motion.div
-                        key={heroImages[currentIndex].title}
+                        key={currentSlide.title}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
                         transition={{ duration: 0.8 }}
                     >
                         <Typography
-                            variant="h2"
+                            variant="h3"
                             sx={{
-                                fontWeight: 700,
-                                fontSize: { xs: "2rem", sm: "3rem", md: "4rem" },
-                                color: "#fff",
-                                textShadow: "3px 3px 10px rgba(0,0,0,0.7)",
+                                fontWeight: 600,
+                                fontSize: { xs: "1.8rem", sm: "2.5rem", md: "3.2rem" },
+                                mb: 1,
+                                textShadow: "2px 2px 10px rgba(0,0,0,0.6)",
+                                fontFamily: "'Counter Stream', sans-serif",
                             }}
-                            gutterBottom
                         >
-                            {heroImages[currentIndex].title}
+                            {currentSlide.title}
                         </Typography>
 
                         <Typography
                             variant="h6"
                             sx={{
-                                maxWidth: 700,
-                                mx: "auto",
-                                fontSize: { xs: "1rem", sm: "1.3rem" },
-                                mb: 3,
-                                color: "#f5f5f5",
-                                textShadow: "2px 2px 6px rgba(0,0,0,0.6)",
+                                fontSize: { xs: "1rem", sm: "1.2rem" },
+                                mb: 1.5,
+                                fontStyle: "italic",
+                                color: "#ffe6e6",
+                                textShadow: "1px 1px 6px rgba(0,0,0,0.6)",
                             }}
                         >
-                            {heroImages[currentIndex].subtitle}
+                            {currentSlide.question}
+                        </Typography>
+
+                        <Typography
+                            variant="body1"
+                            sx={{
+                                maxWidth: 700,
+                                mx: "auto",
+                                mb: 3,
+                                fontSize: { xs: "0.95rem", sm: "1.05rem" },
+                                lineHeight: 1.6,
+                                fontFamily: "'Xillian', sans-serif",
+                                textShadow: "1px 1px 6px rgba(0,0,0,0.6)",
+                            }}
+                        >
+                            {currentSlide.answer}
                         </Typography>
 
                         <Button
                             variant="contained"
                             size="large"
+                            onClick={() => navigate("/register")}
                             sx={{
                                 px: 4,
                                 py: 1.3,
