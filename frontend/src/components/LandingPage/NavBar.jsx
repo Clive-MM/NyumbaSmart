@@ -119,17 +119,10 @@ const NavBar = () => {
 
     return (
         <AppBar
-            position="fixed"
+            position="absolute" // ✅ Change to absolute so it overlays hero section
             sx={{
-                background: scrolled
-                    ? "linear-gradient(135deg, rgba(20, 20, 60, 0.85), rgba(30, 58, 138, 0.85))"
-                    : "linear-gradient(135deg, rgba(30, 58, 138, 0.85), rgba(90, 20, 120, 0.85))",
-                backdropFilter: "blur(15px)",
-                borderRadius: "0 0 20px 20px",
-                boxShadow: scrolled
-                    ? "4px 4px 12px rgba(0,0,0,0.3), -4px -4px 12px rgba(255,255,255,0.1)"
-                    : "8px 8px 16px rgba(0,0,0,0.3), -6px -6px 12px rgba(255,255,255,0.2)",
-                transition: "all 0.3s ease",
+                background: "transparent", // ✅ Make background transparent
+                boxShadow: "none", // ✅ Remove shadow for now
                 px: { xs: 2, sm: 3 },
                 minHeight: scrolled ? "80px" : "110px",
                 display: "flex",
