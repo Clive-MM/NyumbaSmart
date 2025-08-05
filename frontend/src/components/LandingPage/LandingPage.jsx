@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, Button } from "@mui/material";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import NavBar from "./NavBar";
 import Footer from "./Footer";
 
 const heroSlides = [
     {
-        url: "https://res.cloudinary.com/djydkcx01/image/upload/v1754220691/ChatGPT_Image_Aug_3_2025_02_25_27_PM_rcuvaq.png",
+        url: "https://res.cloudinary.com/djydkcx01/image/upload/q_auto:best,f_auto,w_1920/ChatGPT_Image_Aug_3_2025_02_25_27_PM_rcuvaq.png",
         title: "Manage Properties Like a Pro",
         question: "Tired of scattered records and manual rent tracking?",
         answer:
@@ -15,7 +15,7 @@ const heroSlides = [
         textColor: "#ffffff",
     },
     {
-        url: "https://res.cloudinary.com/djydkcx01/image/upload/v1754220693/ChatGPT_Image_Aug_3_2025_02_29_46_PM_jjatrh.png",
+        url: "https://res.cloudinary.com/djydkcx01/image/upload/q_auto:best,f_auto,w_1920/ChatGPT_Image_Aug_3_2025_02_29_46_PM_jjatrh.png",
         title: "Hassle-Free Rent Payments",
         question: "Spending too much time following up on rentpayment progress?",
         answer:
@@ -23,7 +23,7 @@ const heroSlides = [
         textColor: "#f5f5f5",
     },
     {
-        url: "https://res.cloudinary.com/djydkcx01/image/upload/v1754220694/ChatGPT_Image_Aug_3_2025_02_05_26_PM_sswdk0.png",
+        url: "https://res.cloudinary.com/djydkcx01/image/upload/q_auto:best,f_auto,w_1920/ChatGPT_Image_Aug_3_2025_02_05_26_PM_sswdk0.png",
         title: "Unlock the Full Potential of Your Properties",
         question: "Managing multiple properties but lack clear insights?",
         answer:
@@ -50,15 +50,17 @@ const LandingPage = () => {
             <NavBar />
 
             <Box sx={{ position: "relative", width: "100%", height: "100%" }}>
-                <AnimatePresence mode="wait">
+                {heroSlides.map((slide, index) => (
                     <motion.div
-                        key={currentSlide.url}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 1.5 }}
+                        key={slide.url}
+                        initial={{ opacity: 0, scale: 1 }}
+                        animate={{
+                            opacity: currentIndex === index ? 1 : 0,
+                            scale: currentIndex === index ? 1.05 : 1,
+                        }}
+                        transition={{ duration: 1.8, ease: "easeInOut" }}
                         style={{
-                            backgroundImage: `url(${currentSlide.url})`,
+                            backgroundImage: `url(${slide.url})`,
                             backgroundSize: "cover",
                             backgroundPosition: "center",
                             position: "absolute",
@@ -67,10 +69,12 @@ const LandingPage = () => {
                             width: "100%",
                             height: "100%",
                             zIndex: -1,
+                            filter: "contrast(1.1) brightness(1.05)", // ✅ slight clarity boost
                         }}
                     />
-                </AnimatePresence>
+                ))}
 
+                {/* Gradient Overlay without blur */}
                 <Box
                     sx={{
                         position: "absolute",
@@ -79,9 +83,11 @@ const LandingPage = () => {
                         width: "100%",
                         height: "100%",
                         background: "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.5))",
+                        // backdropFilter: "blur(2px)", // ❌ Removed to keep images sharp
                     }}
                 />
 
+                {/* Main Content */}
                 <Box
                     sx={{
                         position: "absolute",
