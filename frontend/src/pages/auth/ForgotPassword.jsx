@@ -12,18 +12,23 @@ import {
 } from "@mui/material";
 import axios from "axios";
 import { motion } from "framer-motion";
+import { useNavigate, Link } from "react-router-dom";
 
 const API_URL = process.env.REACT_APP_API_URL;
+
+const logoUrl =
+    "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
 
 const ForgotPassword = () => {
     const [email, setEmail] = useState("");
     const [loading, setLoading] = useState(false);
     const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+    const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!email) {
-            setSnackbar({ open: true, message: "Please enter your email.", severity: "error" });
+            setSnackbar({ open: true, message: "Please enter your email address.", severity: "error" });
             return;
         }
 
@@ -32,7 +37,7 @@ const ForgotPassword = () => {
             const response = await axios.post(`${API_URL}/forgot-password`, { email });
             setSnackbar({
                 open: true,
-                message: response.data.message || "Password reset link sent to your email.",
+                message: response.data.message || "Check your email for a password reset link.",
                 severity: "success",
             });
             setEmail("");
@@ -50,80 +55,157 @@ const ForgotPassword = () => {
     return (
         <Box
             sx={{
+                position: "relative",
                 minHeight: "100vh",
-                background: "#E0E0E0", // Neumorphic background
+                backgroundImage: `url("https://res.cloudinary.com/djydkcx01/image/upload/v1754429529/ChatGPT_Image_Aug_6_2025_12_31_51_AM_nwempw.png")`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
-                p: 2,
+                overflow: "hidden",
+                px: 2,
             }}
         >
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                <Container maxWidth="xs">
-                    <Paper
-                        sx={{
-                            p: 4,
-                            borderRadius: 4,
-                            background: "#E0E0E0",
-                            boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
-                            transition: "0.3s",
-                            "&:hover": {
-                                boxShadow: "inset 8px 8px 16px #bebebe, inset -8px -8px 16px #ffffff",
-                            },
-                        }}
-                    >
-                        <Typography
-                            variant="h4"
-                            align="center"
-                            gutterBottom
-                            sx={{ color: "#1E3A8A", fontWeight: "bold", textShadow: "0px 0px 6px rgba(0,0,0,0.2)" }}
+            <Box
+                sx={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    background:
+                        "linear-gradient(135deg, rgba(255,0,128,0.15), rgba(126,0,166,0.15), rgba(69,107,188,0.1))",
+                    zIndex: 0,
+                }}
+            />
+
+            <motion.div
+                initial={{ opacity: 0, y: -30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+                style={{ position: "relative", zIndex: 1 }}
+            >
+                <Paper
+                    sx={{
+                        p: 4,
+                        width: { xs: "90vw", sm: 400 },
+                        borderRadius: 4,
+                        background: "rgba(255, 255, 255, 0.85)",
+                        backdropFilter: "blur(12px)",
+                        boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+                    }}
+                >
+                    <Link to="/" style={{ textDecoration: "none" }}>
+                        <motion.div
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ type: "spring", stiffness: 300 }}
+                            style={{ cursor: "pointer", marginBottom: "1.5rem", textAlign: "center" }}
                         >
-                            Forgot Password?
-                        </Typography>
-
-                        <Typography variant="body2" align="center" sx={{ mb: 2, color: "#374151" }}>
-                            Enter your email to receive a password reset link.
-                        </Typography>
-
-                        <Box component="form" onSubmit={handleSubmit}>
-                            <TextField
-                                fullWidth
-                                label="Email"
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                margin="normal"
-                                required
-                                sx={{
-                                    "& .MuiOutlinedInput-root": {
-                                        borderRadius: 3,
-                                        background: "#E0E0E0",
-                                        boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
-                                    },
+                            <motion.img
+                                src={logoUrl}
+                                alt="PayNest Logo"
+                                initial={{ scale: 1 }}
+                                whileHover={{ scale: 1.08, rotate: 2 }}
+                                transition={{ duration: 0.3 }}
+                                style={{
+                                    width: "80px",
+                                    height: "80px",
+                                    borderRadius: "50%",
+                                    marginBottom: "1rem",
+                                    boxShadow:
+                                        "0 0 10px rgba(212, 18, 78, 0.4), 0 0 15px rgba(69, 107, 188, 0.3)",
                                 }}
                             />
-
-                            <Button
-                                type="submit"
-                                variant="contained"
-                                fullWidth
+                            <Typography
+                                variant="h4"
+                                fontWeight="bold"
                                 sx={{
-                                    mt: 2,
-                                    py: 1.2,
-                                    backgroundColor: "#1E3A8A",
-                                    fontWeight: "bold",
-                                    borderRadius: 3,
-                                    boxShadow: "4px 4px 10px #bebebe, -4px -4px 10px #ffffff",
-                                    "&:hover": { backgroundColor: "#0100FE" },
+                                    mb: 0.5,
+                                    background:
+                                        "linear-gradient(to right, #D4124E, #456BBC, #FF0080)",
+                                    WebkitBackgroundClip: "text",
+                                    WebkitTextFillColor: "transparent",
+                                    transition: "all 0.3s",
                                 }}
-                                disabled={loading}
-                                startIcon={loading && <CircularProgress size={20} sx={{ color: "white" }} />}
                             >
-                                {loading ? "Sending..." : "Send Reset Link"}
-                            </Button>
-                        </Box>
-                    </Paper>
-                </Container>
+                                PayNest Login
+                            </Typography>
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    color: "#333",
+                                    fontWeight: 500,
+                                    transition: "color 0.3s",
+                                    "&:hover": {
+                                        color: "#D4124E",
+                                    },
+                                }}
+                            >
+                                Smart Homes, Smarter Payments.
+                            </Typography>
+                        </motion.div>
+                    </Link>
+
+                    <Typography
+                        variant="h5"
+                        align="center"
+                        gutterBottom
+                        sx={{ fontWeight: "bold", color: "#333", mb: 1 }}
+                    >
+                        Forgot Your Password?
+                    </Typography>
+
+                    <Typography variant="body2" align="center" sx={{ mb: 2, color: "#555" }}>
+                        Enter your email address. We'll send a secure link so you can reset your password and regain access.
+                    </Typography>
+
+                    <Box component="form" onSubmit={handleSubmit}>
+                        <TextField
+                            fullWidth
+                            label="Email Address"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            margin="normal"
+                            required
+                            sx={{
+                                "& .MuiOutlinedInput-root": {
+                                    borderRadius: 3,
+                                    background: "#fff",
+                                    boxShadow:
+                                        "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
+                                },
+                            }}
+                        />
+
+                        <Button
+                            type="submit"
+                            variant="contained"
+                            fullWidth
+                            sx={{
+                                mt: 2,
+                                py: 1.2,
+                                background:
+                                    "linear-gradient(45deg, #FF416C, #FF4B2B, #C04CFD)",
+                                fontWeight: "bold",
+                                borderRadius: 3,
+                                boxShadow:
+                                    "4px 4px 10px #bebebe, -4px -4px 10px #ffffff",
+                                transition: "transform 0.3s ease",
+                                "&:hover": {
+                                    transform: "scale(1.03)",
+                                },
+                            }}
+                            disabled={loading}
+                            startIcon={loading && (
+                                <CircularProgress size={20} sx={{ color: "white" }} />
+                            )}
+                        >
+                            {loading ? "Sending..." : "Send Reset Link"}
+                        </Button>
+                    </Box>
+                </Paper>
             </motion.div>
 
             <Snackbar
