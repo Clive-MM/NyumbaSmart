@@ -6,12 +6,8 @@ import {
     Box,
     IconButton,
     Tooltip,
-    Drawer,
-    List,
-    ListItem,
-    ListItemButton,
-    ListItemIcon,
-    ListItemText,
+
+
     useMediaQuery,
     InputBase,
     Paper,
@@ -71,7 +67,7 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
         fontSize: "1rem",
     },
 }));
-
+// eslint-disable-next-line
 const NeumorphicPaper = styled(Paper)(() => ({
     background: "rgba(255,255,255,0.15)",
     backdropFilter: "blur(10px)",
@@ -84,7 +80,7 @@ const NavBar = () => {
     const isMobile = useMediaQuery("(max-width:900px)");
     const slogan = "Smart Homes, Smarter Payments.";
     const [visibleText, setVisibleText] = useState("");
-    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [setDrawerOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const navigate = useNavigate();
 

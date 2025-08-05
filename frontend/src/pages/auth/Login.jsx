@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Box,
     Button,
@@ -13,52 +13,61 @@ import {
     Checkbox,
     FormControlLabel,
 } from "@mui/material";
-import { Visibility, VisibilityOff, Email, Lock } from "@mui/icons-material";
-import axios from "axios";
-import { useNavigate, Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { Visibility, VisibilityOff, Email, Lock, Login as LoginIcon } from "@mui/icons-material";
 import { styled } from "@mui/material/styles";
+import { motion } from "framer-motion";
+import { useNavigate, Link } from "react-router-dom";
+import axios from "axios";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
-// 🌟 Neumorphic Styled Paper
-const NeumorphicPaper = styled(Paper)({
+const NeumorphicPaper = styled(Paper)(() => ({
     padding: "2rem",
     borderRadius: "20px",
     background: "#e0e0e0",
-    boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+    boxShadow: `0 0 10px #FF0080, 0 0 20px #D4124E, 0 0 30px #7E00A6, 8px 8px 16px #bebebe, -8px -8px 16px #ffffff`,
     maxWidth: 400,
+    width: "90vw",
     margin: "auto",
     textAlign: "center",
     transition: "0.3s",
-    "&:hover": {
-        boxShadow: "inset 8px 8px 16px #bebebe, inset -8px -8px 16px #ffffff",
-    },
-});
+}));
 
-// 🌟 Neumorphic TextField
-const NeumorphicTextField = styled(TextField)({
+const NeumorphicTextField = styled(TextField)(() => ({
     "& .MuiOutlinedInput-root": {
         borderRadius: 12,
         background: "#e0e0e0",
         boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
     },
+    "& .MuiOutlinedInput-root.Mui-focused": {
+        boxShadow: "0 0 5px #FF0080",
+        borderColor: "#FF0080",
+    },
     "& .MuiInputLabel-root": { fontWeight: 500 },
-});
+}));
 
-// 🌟 Neumorphic Button
-const NeumorphicButton = styled(Button)({
+const NeumorphicButton = styled(motion(Button))(() => ({
     marginTop: "1rem",
-    background: "#456BBC",
+    background: "linear-gradient(to right, #D4124E, #E8511E, #FF0080)",
     color: "#fff",
     fontWeight: "bold",
     padding: "10px",
     borderRadius: 12,
+    transition: "all 0.3s ease",
     boxShadow: "6px 6px 12px #bebebe, -6px -6px 12px #ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.5rem",
     "&:hover": {
-        background: "#0100FE",
+        transform: "scale(1.05)",
+        background: "linear-gradient(to right, #FF0080, #E8511E, #D4124E)",
+        boxShadow: "0 0 12px rgba(255, 0, 128, 0.6), 0 0 20px rgba(212, 18, 78, 0.5)",
     },
-});
+}));
+
+const encrypt = (text) => btoa(unescape(encodeURIComponent(text)));
+const decrypt = (text) => decodeURIComponent(escape(atob(text)));
 
 const Login = () => {
     const [formData, setFormData] = useState({ email: "", password: "", remember_me: false });
@@ -67,6 +76,17 @@ const Login = () => {
     const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
 
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const remembered = localStorage.getItem("remember_me") === "true";
+        const email = localStorage.getItem("remember_email");
+        const encryptedPassword = localStorage.getItem("remember_password");
+        const password = encryptedPassword ? decrypt(encryptedPassword) : "";
+
+        if (remembered && email && password) {
+            setFormData({ email, password, remember_me: true });
+        }
+    }, []);
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -84,19 +104,25 @@ const Login = () => {
         try {
             setLoading(true);
             const response = await axios.post(`${API_URL}/login`, formData);
+            const { token, user } = response.data;
 
-            // ✅ Save token (if Remember Me is checked, store token persistently)
             if (formData.remember_me) {
-                localStorage.setItem("token", response.data.token);
-                localStorage.setItem("user", JSON.stringify(response.data.user));
+                localStorage.setItem("token", token);
+                localStorage.setItem("user", JSON.stringify(user));
+                localStorage.setItem("remember_me", "true");
+                localStorage.setItem("remember_email", formData.email);
+                localStorage.setItem("remember_password", encrypt(formData.password));
             } else {
-                sessionStorage.setItem("token", response.data.token);
-                sessionStorage.setItem("user", JSON.stringify(response.data.user));
+                sessionStorage.setItem("token", token);
+                sessionStorage.setItem("user", JSON.stringify(user));
+                localStorage.removeItem("remember_me");
+                localStorage.removeItem("remember_email");
+                localStorage.removeItem("remember_password");
             }
 
             setSnackbar({
                 open: true,
-                message: `🎉 Welcome back, ${response.data.user.FullName}! Redirecting...`,
+                message: `🎉 Welcome back, ${user.FullName}! Redirecting...`,
                 severity: "success",
             });
 
@@ -113,24 +139,59 @@ const Login = () => {
     };
 
     return (
-        <Box
-            sx={{
-                minHeight: "100vh",
-                background: "#f2f3f5",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                p: 2,
-            }}
-        >
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+        <Box sx={{
+            position: "relative",
+            minHeight: "100vh",
+            backgroundImage: `url("https://res.cloudinary.com/djydkcx01/image/upload/v1754418099/francesca-tosolini-tHkJAMcO3QE-unsplash_h4js1h.jpg")`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            overflow: "hidden",
+        }}>
+            <Box sx={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                background: "linear-gradient(135deg, rgba(255,0,128,0.15), rgba(126,0,166,0.15))",
+                zIndex: 0,
+            }} />
+
+            <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} style={{ position: "relative", zIndex: 1 }}>
                 <NeumorphicPaper>
-                    <Typography variant="h4" fontWeight="bold" sx={{ mb: 1, color: "#456BBC" }}>
-                        PayNest Login
-                    </Typography>
-                    <Typography variant="body2" sx={{ mb: 3, color: "#333" }}>
-                        Access your dashboard easily and securely.
-                    </Typography>
+                    <Link to="/" style={{ textDecoration: "none" }}>
+                        <motion.div whileHover={{ scale: 1.05 }} transition={{ type: "spring", stiffness: 300 }} style={{ cursor: "pointer", marginBottom: "1.5rem" }}>
+                            <Typography
+                                variant="h4"
+                                fontWeight="bold"
+                                sx={{
+                                    mb: 0.5,
+                                    background: "linear-gradient(to right, #D4124E, #E8511E)",
+                                    WebkitBackgroundClip: "text",
+                                    WebkitTextFillColor: "transparent",
+                                    transition: "all 0.3s",
+                                }}
+                            >
+                                PayNest Login
+                            </Typography>
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    color: "#333",
+                                    fontWeight: 500,
+                                    transition: "color 0.3s",
+                                    "&:hover": {
+                                        color: "#D4124E",
+                                    },
+                                }}
+                            >
+                                Smart Homes, Smarter Payments.
+                            </Typography>
+                        </motion.div>
+                    </Link>
 
                     <Box component="form" onSubmit={handleSubmit}>
                         <NeumorphicTextField
@@ -182,8 +243,14 @@ const Login = () => {
                             sx={{ mt: 1 }}
                         />
 
-                        <NeumorphicButton type="submit" fullWidth disabled={loading}>
-                            {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Login"}
+                        <NeumorphicButton whileTap={{ scale: 0.97 }} type="submit" fullWidth disabled={loading}>
+                            {loading ? (
+                                <CircularProgress size={20} sx={{ color: "#fff" }} />
+                            ) : (
+                                <>
+                                    <LoginIcon /> Login
+                                </>
+                            )}
                         </NeumorphicButton>
 
                         <Typography variant="body2" align="center" sx={{ mt: 2 }}>
@@ -193,8 +260,8 @@ const Login = () => {
                         </Typography>
 
                         <Typography variant="body2" align="center" sx={{ mt: 1 }}>
-                            Don't have an account?{" "}
-                            <Link to="/register" style={{ color: "#456BBC", fontWeight: "bold" }}>
+                            Don&apos;t have an account? {" "}
+                            <Link to="/register" style={{ color: "#456BBC", fontWeight: "bold", textDecoration: "none" }}>
                                 Register
                             </Link>
                         </Typography>
@@ -202,7 +269,6 @@ const Login = () => {
                 </NeumorphicPaper>
             </motion.div>
 
-            {/* Snackbar */}
             <Snackbar
                 open={snackbar.open}
                 autoHideDuration={2500}

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import NavBar from "./NavBar";
 import Footer from "./Footer";
+import FeaturesSection from "../LandingPage/FeaturesSection";
 
 const heroSlides = [
     {
@@ -173,7 +174,7 @@ const LandingPage = () => {
                     </motion.div>
                 </Box>
             </Box>
-
+            <FeaturesSection />
             <Footer />
         </Box>
     );
