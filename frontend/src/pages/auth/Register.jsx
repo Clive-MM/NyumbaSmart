@@ -61,6 +61,16 @@ const NeumorphicButton = styled(motion(Button))({
     },
 });
 
+const StyledMotionLink = styled(motion(Link))({
+    color: "#D4124E",
+    fontWeight: "bold",
+    textDecoration: "none",
+    transition: "color 0.3s",
+    "&:hover": {
+        color: "#FF0080",
+    },
+});
+
 const Register = () => {
     const [formData, setFormData] = useState({
         full_name: "",
@@ -129,8 +139,7 @@ const Register = () => {
         <Box
             sx={{
                 minHeight: "100vh",
-                backgroundImage:
-                    "url(https://res.cloudinary.com/djydkcx01/image/upload/v1754425642/juliana-morales-ramirez-vTNA1cC_IZY-unsplash_axtieh.jpg)",
+                backgroundImage: "url(https://res.cloudinary.com/djydkcx01/image/upload/v1754425642/juliana-morales-ramirez-vTNA1cC_IZY-unsplash_axtieh.jpg)",
                 backgroundSize: "cover",
                 backgroundPosition: "center",
                 display: "flex",
@@ -171,127 +180,38 @@ const Register = () => {
                     </Link>
 
                     <Box component="form" onSubmit={handleSubmit}>
-                        <NeumorphicTextField
-                            fullWidth
-                            label="Full Name"
-                            value={formData.full_name}
-                            onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                            margin="normal"
-                            required
-                        />
+                        <NeumorphicTextField fullWidth label="Full Name" value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} margin="normal" required />
 
-                        <NeumorphicTextField
-                            fullWidth
-                            label="Email"
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            margin="normal"
-                            required
-                            InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }}
-                        />
+                        <NeumorphicTextField fullWidth label="Email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} margin="normal" required InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }} />
 
-                        <NeumorphicTextField
-                            fullWidth
-                            label="Phone Number"
-                            value={formData.phone}
-                            onChange={handlePhoneChange}
-                            margin="normal"
-                            error={phoneError}
-                            helperText={phoneError ? "Invalid format. Use 2547XXXXXXXX" : ""}
-                            required
-                            InputProps={{ startAdornment: <InputAdornment position="start"><Phone /></InputAdornment> }}
-                        />
+                        <NeumorphicTextField fullWidth label="Phone Number" value={formData.phone} onChange={handlePhoneChange} margin="normal" error={phoneError} helperText={phoneError ? "Invalid format. Use 2547XXXXXXXX" : ""} required InputProps={{ startAdornment: <InputAdornment position="start"><Phone /></InputAdornment> }} />
 
-                        <NeumorphicTextField
-                            fullWidth
-                            type={showPassword ? "text" : "password"}
-                            label="Password"
-                            value={formData.password}
-                            onChange={handlePasswordChange}
-                            margin="normal"
-                            required
-                            InputProps={{
-                                startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton onClick={() => setShowPassword(!showPassword)}>
-                                            {showPassword ? <VisibilityOff /> : <Visibility />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                ),
-                            }}
-                        />
+                        <NeumorphicTextField fullWidth type={showPassword ? "text" : "password"} label="Password" value={formData.password} onChange={handlePasswordChange} margin="normal" required InputProps={{ startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>, endAdornment: (<InputAdornment position="end"><IconButton onClick={() => setShowPassword(!showPassword)}>{showPassword ? <VisibilityOff /> : <Visibility />}</IconButton></InputAdornment>) }} />
 
                         {formData.password && (
                             <Box sx={{ mt: 1 }}>
-                                <LinearProgress
-                                    variant="determinate"
-                                    value={passwordStrength}
-                                    sx={{
-                                        height: 6,
-                                        borderRadius: 5,
-                                        backgroundColor: "#d1d9e6",
-                                        "& .MuiLinearProgress-bar": {
-                                            backgroundColor:
-                                                passwordStrength < 50 ? "#ff4d4f" : passwordStrength < 75 ? "#faad14" : "#52c41a",
-                                        },
-                                    }}
-                                />
-                                <Typography variant="caption">
-                                    {passwordStrength < 50 ? "Weak" : passwordStrength < 75 ? "Medium" : "Strong"}
-                                </Typography>
+                                <LinearProgress variant="determinate" value={passwordStrength} sx={{ height: 6, borderRadius: 5, backgroundColor: "#d1d9e6", "& .MuiLinearProgress-bar": { backgroundColor: passwordStrength < 50 ? "#ff4d4f" : passwordStrength < 75 ? "#faad14" : "#52c41a" } }} />
+                                <Typography variant="caption">{passwordStrength < 50 ? "Weak" : passwordStrength < 75 ? "Medium" : "Strong"}</Typography>
                             </Box>
                         )}
 
-                        <NeumorphicTextField
-                            fullWidth
-                            type={showConfirmPassword ? "text" : "password"}
-                            label="Confirm Password"
-                            value={formData.confirm_password}
-                            onChange={(e) => setFormData({ ...formData, confirm_password: e.target.value })}
-                            margin="normal"
-                            required
-                            InputProps={{
-                                startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                ),
-                            }}
-                        />
+                        <NeumorphicTextField fullWidth type={showConfirmPassword ? "text" : "password"} label="Confirm Password" value={formData.confirm_password} onChange={(e) => setFormData({ ...formData, confirm_password: e.target.value })} margin="normal" required InputProps={{ startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>, endAdornment: (<InputAdornment position="end"><IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)}>{showConfirmPassword ? <VisibilityOff /> : <Visibility />}</IconButton></InputAdornment>) }} />
 
-                        <FormControlLabel
-                            control={<Checkbox checked={formData.terms} onChange={(e) => setFormData({ ...formData, terms: e.target.checked })} />}
-                            label="I agree to the Terms & Privacy Policy"
-                            sx={{ mt: 1 }}
-                        />
+                        <FormControlLabel control={<Checkbox checked={formData.terms} onChange={(e) => setFormData({ ...formData, terms: e.target.checked })} />} label="I agree to the Terms & Privacy Policy" sx={{ mt: 1 }} />
 
-                        <NeumorphicButton whileTap={{ scale: 0.97 }} type="submit" fullWidth disabled={loading}>
-                            {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Register"}
-                        </NeumorphicButton>
+                        <NeumorphicButton whileTap={{ scale: 0.97 }} type="submit" fullWidth disabled={loading}>{loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Register"}</NeumorphicButton>
 
                         <Typography variant="body2" sx={{ mt: 2 }}>
                             Already have an account?{' '}
-                            <Link to="/login" style={{ color: "#456BBC", fontWeight: "bold" }}>
-                                Login
-                            </Link>
+                            <StyledMotionLink to="/login" whileHover={{ scale: 1.1 }}>Login</StyledMotionLink>
                         </Typography>
                     </Box>
                 </NeumorphicPaper>
             </motion.div>
 
-            <Snackbar
-                open={openSnackbar}
-                autoHideDuration={2500}
-                onClose={() => setOpenSnackbar(false)}
-                anchorOrigin={{ vertical: "top", horizontal: "center" }}
-            >
+            <Snackbar open={openSnackbar} autoHideDuration={2500} onClose={() => setOpenSnackbar(false)} anchorOrigin={{ vertical: "top", horizontal: "center" }}>
                 <Alert severity="success" sx={{ width: "100%" }}>
-                    🎉 Welcome aboard! Redirecting to login page...
+                    🎉 Welcome aboard!
                 </Alert>
             </Snackbar>
         </Box>
