@@ -93,7 +93,8 @@ const ForgotPassword = () => {
                         borderRadius: 4,
                         background: "rgba(255, 255, 255, 0.85)",
                         backdropFilter: "blur(12px)",
-                        boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+                        boxShadow:
+                            "0 0 10px #FF0080, 0 0 20px #D4124E, 0 0 30px #7E00A6, 8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
                     }}
                 >
                     <Link to="/" style={{ textDecoration: "none" }}>

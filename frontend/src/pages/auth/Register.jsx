@@ -27,7 +27,8 @@ const NeumorphicPaper = styled(Paper)({
     padding: "2rem",
     borderRadius: "20px",
     background: "#e0e0e0",
-    boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+    boxShadow:
+        "0 0 10px #FF0080, 0 0 20px #D4124E, 0 0 30px #7E00A6, 8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
     maxWidth: 450,
     margin: "auto",
     textAlign: "center",
