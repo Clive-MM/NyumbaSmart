@@ -18,44 +18,38 @@ fontLink.href = "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 
-// Glow animation
-const glow = keyframes`
+// Pulse animation
+const pulse = keyframes`
   0% {
-    box-shadow: 0 0 5px #FF0080, 0 0 10px #FF69B4, 0 0 20px #D4124E, 0 0 30px #7E00A6, 0 0 40px #FFD700;
-    opacity: 0;
-    transform: scale(0.95);
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(255, 105, 180, 0.4);
   }
   50% {
-    opacity: 1;
-    transform: scale(1.02);
+    transform: scale(1.03);
+    box-shadow: 0 0 16px rgba(255, 105, 180, 0.6);
   }
   100% {
-    box-shadow: 0 0 10px #FF0080, 0 0 20px #D4124E, 0 0 30px #7E00A6, 0 0 40px #FFD700, 0 0 50px #FF69B4;
     transform: scale(1);
-    opacity: 1;
+    box-shadow: 0 0 0 rgba(255, 105, 180, 0.4);
   }
 `;
 
-// Styled glowing card
+// GlowCard with Glassmorphism + Hover Pulse
 const GlowCard = styled(Card)(() => ({
-    border: "2px solid white",
     borderRadius: "16px",
-    backgroundColor: "#fff",
-    animation: `${glow} 2s cubic-bezier(.08, .3, .41, 1.05) forwards`,
-    opacity: 0,
-    transition: "transform 0.3s ease, box-shadow 0.3s ease",
+    background: "rgba(255, 255, 255, 0.08)",
+    backdropFilter: "blur(12px)",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    boxShadow: "0 4px 30px rgba(255, 0, 128, 0.4)",
     overflow: "hidden",
-    '&:hover': {
-        transform: 'scale(1.05)',
-        boxShadow: `0 0 12px #FF0080,
-                    0 0 24px #D4124E,
-                    0 0 36px #7E00A6,
-                    0 0 48px #FFD700,
-                    0 0 60px #FF69B4`,
-    }
+    transition: "transform 0.3s ease, box-shadow 0.3s ease",
+    "&:hover": {
+        animation: `${pulse} 0.8s ease-in-out`,
+        boxShadow: `0 0 20px #FF69B4, 0 0 30px #D4124E`,
+    },
 }));
 
-// Top image area
+// Image container
 const ImageBox = styled(Box)(({ image }) => ({
     height: 160,
     backgroundImage: `url(${image})`,
@@ -63,7 +57,6 @@ const ImageBox = styled(Box)(({ image }) => ({
     backgroundPosition: "center",
 }));
 
-// Card data
 const features = [
     {
         title: "Tenant & Unit Management",
@@ -98,7 +91,6 @@ const FeaturesSection = () => {
                 fontFamily: "'Orbitron', sans-serif",
             }}
         >
-            {/* Heading */}
             <Typography
                 variant="h4"
                 align="center"
@@ -116,7 +108,6 @@ const FeaturesSection = () => {
                 From Chaos to Chill — Meet PayNest
             </Typography>
 
-            {/* Subheading Part 1 */}
             <Typography
                 variant="h6"
                 align="center"
@@ -129,7 +120,6 @@ const FeaturesSection = () => {
                 Built for Landlords. Powered by Simplicity.
             </Typography>
 
-            {/* Subheading Part 2 */}
             <Typography
                 variant="subtitle1"
                 align="center"
@@ -144,7 +134,6 @@ const FeaturesSection = () => {
                 Because Your Property Should Work for You.
             </Typography>
 
-            {/* Feature Cards */}
             <Grid container spacing={4} justifyContent="center">
                 {features.map((feature, index) => (
                     <Grid item xs={12} sm={6} md={3} key={index}>
@@ -165,9 +154,10 @@ const FeaturesSection = () => {
                                         <Typography
                                             variant="h6"
                                             sx={{
-                                                fontWeight: 700,
-                                                color: "#111",
+                                                fontWeight: 800,
+                                                color: "#fff",
                                                 fontFamily: "'Orbitron', sans-serif",
+                                                textShadow: "0 0 3px #FF69B4",
                                             }}
                                         >
                                             {feature.title}
@@ -176,12 +166,14 @@ const FeaturesSection = () => {
                                 />
                                 <CardContent>
                                     <Typography
-                                        variant="body2"
+                                        variant="body1"
                                         sx={{
                                             fontFamily: "'Orbitron', sans-serif",
-                                            color: "#555",
-                                            fontSize: "0.95rem",
+                                            color: "#e0e0e0",
+                                            fontWeight: 500,
+                                            fontSize: "1rem",
                                             textAlign: "center",
+                                            textShadow: "0 0 2px #000",
                                         }}
                                     >
                                         {feature.description}
