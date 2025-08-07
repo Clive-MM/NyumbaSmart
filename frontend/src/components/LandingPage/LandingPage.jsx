@@ -47,19 +47,32 @@ const LandingPage = () => {
     const currentSlide = heroSlides[currentIndex];
 
     return (
-        <Box sx={{ width: "100%", height: "100vh", overflow: "hidden", m: 0, p: 0 }}>
+        <Box
+            sx={{
+                width: "100vw",
+                minHeight: "100vh",
+                margin: 0,
+                padding: 0,
+                overflowX: "hidden",
+            }}
+        >
             <NavBar />
 
-            <Box sx={{ position: "relative", width: "100%", height: "100%" }}>
+            {/* Slideshow section */}
+            <Box
+                sx={{
+                    width: "100vw",
+                    height: "100vh",
+                    overflow: "hidden",
+                    position: "relative",
+                }}
+            >
                 {heroSlides.map((slide, index) => (
                     <motion.div
                         key={slide.url}
-                        initial={{ opacity: 0, scale: 1 }}
-                        animate={{
-                            opacity: currentIndex === index ? 1 : 0,
-                            scale: currentIndex === index ? 1.05 : 1,
-                        }}
-                        transition={{ duration: 1.8, ease: "easeInOut" }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: currentIndex === index ? 1 : 0 }}
+                        transition={{ duration: 1.5, ease: "easeInOut" }}
                         style={{
                             backgroundImage: `url(${slide.url})`,
                             backgroundSize: "cover",
@@ -70,12 +83,11 @@ const LandingPage = () => {
                             width: "100%",
                             height: "100%",
                             zIndex: -1,
-                            filter: "contrast(1.1) brightness(1.05)", // ✅ slight clarity boost
+                            filter: "contrast(1.1) brightness(1.05)",
                         }}
                     />
                 ))}
 
-                {/* Gradient Overlay without blur */}
                 <Box
                     sx={{
                         position: "absolute",
@@ -84,11 +96,10 @@ const LandingPage = () => {
                         width: "100%",
                         height: "100%",
                         background: "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.5))",
-                        // backdropFilter: "blur(2px)", // ❌ Removed to keep images sharp
                     }}
                 />
 
-                {/* Main Content */}
+                {/* Hero Text */}
                 <Box
                     sx={{
                         position: "absolute",
@@ -174,7 +185,24 @@ const LandingPage = () => {
                     </motion.div>
                 </Box>
             </Box>
-            <FeaturesSection />
+
+            {/* Features section */}
+            <Box
+                sx={{
+                    mt: { xs: -8, sm: -6, md: -4 },
+                    zIndex: 10,
+                    position: "relative",
+                }}
+            >
+                <motion.div
+                    initial={{ opacity: 0, y: 50 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 1.2, ease: "easeOut" }}
+                >
+                    <FeaturesSection />
+                </motion.div>
+            </Box>
+
             <Footer />
         </Box>
     );
