@@ -24,15 +24,18 @@ const API_URL = process.env.REACT_APP_API_URL;
 const logoUrl = "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
 
 const NeumorphicPaper = styled(Paper)({
-    padding: "2rem",
+    padding: "1rem 1.5rem",
     borderRadius: "20px",
     background: "#e0e0e0",
     boxShadow:
         "0 0 10px #FF0080, 0 0 20px #D4124E, 0 0 30px #7E00A6, 8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
     maxWidth: 450,
+    width: "100%",
     margin: "auto",
     textAlign: "center",
     transition: "0.3s",
+    overflow: "visible",
+    height: "fit-content",
     "&:hover": {
         boxShadow: "inset 8px 8px 16px #bebebe, inset -8px -8px 16px #ffffff",
     },
@@ -140,22 +143,23 @@ const Register = () => {
         <Box
             sx={{
                 minHeight: "100vh",
-                backgroundImage: "url(https://res.cloudinary.com/djydkcx01/image/upload/v1754425642/juliana-morales-ramirez-vTNA1cC_IZY-unsplash_axtieh.jpg)",
+                backgroundImage: "url(https://res.cloudinary.com/djydkcx01/image/upload/v1754579128/ChatGPT_Image_Aug_7_2025_06_00_21_PM_itikc7.png)",
                 backgroundSize: "cover",
                 backgroundPosition: "center",
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
                 px: 2,
+                overflow: "hidden", // prevent page scrollbars
             }}
         >
             <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
                 <NeumorphicPaper>
                     <Link to="/" style={{ textDecoration: "none" }}>
-                        <motion.div whileHover={{ scale: 1.05 }} style={{ cursor: "pointer", marginBottom: "1.5rem" }}>
-                            <img src={logoUrl} alt="PayNest Logo" style={{ height: 60, marginBottom: 8 }} />
+                        <motion.div whileHover={{ scale: 1.05 }} style={{ cursor: "pointer", marginBottom: "1rem" }}>
+                            <img src={logoUrl} alt="PayNest Logo" style={{ height: 50, marginBottom: 4 }} />
                             <Typography
-                                variant="h4"
+                                variant="h5"
                                 fontWeight="bold"
                                 sx={{
                                     background: "linear-gradient(to right, #D4124E, #E8511E)",
@@ -165,29 +169,18 @@ const Register = () => {
                             >
                                 PayNest Registration
                             </Typography>
-                            <Typography
-                                variant="body2"
-                                sx={{
-                                    color: "#333",
-                                    fontWeight: 500,
-                                    "&:hover": {
-                                        color: "#D4124E",
-                                    },
-                                }}
-                            >
+                            <Typography variant="caption" sx={{ color: "#333", fontWeight: 500 }}>
                                 Smart Homes, Smarter Payments.
                             </Typography>
                         </motion.div>
                     </Link>
 
                     <Box component="form" onSubmit={handleSubmit}>
-                        <NeumorphicTextField fullWidth label="Full Name" value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} margin="normal" required />
+                        <NeumorphicTextField fullWidth label="Full Name" value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} margin="dense" required />
+                        <NeumorphicTextField fullWidth label="Email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} margin="dense" required InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }} />
+                        <NeumorphicTextField fullWidth label="Phone Number" value={formData.phone} onChange={handlePhoneChange} margin="dense" error={phoneError} helperText={phoneError ? "Invalid format. Use 2547XXXXXXXX" : ""} required InputProps={{ startAdornment: <InputAdornment position="start"><Phone /></InputAdornment> }} />
 
-                        <NeumorphicTextField fullWidth label="Email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} margin="normal" required InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }} />
-
-                        <NeumorphicTextField fullWidth label="Phone Number" value={formData.phone} onChange={handlePhoneChange} margin="normal" error={phoneError} helperText={phoneError ? "Invalid format. Use 2547XXXXXXXX" : ""} required InputProps={{ startAdornment: <InputAdornment position="start"><Phone /></InputAdornment> }} />
-
-                        <NeumorphicTextField fullWidth type={showPassword ? "text" : "password"} label="Password" value={formData.password} onChange={handlePasswordChange} margin="normal" required InputProps={{ startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>, endAdornment: (<InputAdornment position="end"><IconButton onClick={() => setShowPassword(!showPassword)}>{showPassword ? <VisibilityOff /> : <Visibility />}</IconButton></InputAdornment>) }} />
+                        <NeumorphicTextField fullWidth type={showPassword ? "text" : "password"} label="Password" value={formData.password} onChange={handlePasswordChange} margin="dense" required InputProps={{ startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>, endAdornment: (<InputAdornment position="end"><IconButton onClick={() => setShowPassword(!showPassword)}>{showPassword ? <VisibilityOff /> : <Visibility />}</IconButton></InputAdornment>) }} />
 
                         {formData.password && (
                             <Box sx={{ mt: 1 }}>
@@ -196,14 +189,16 @@ const Register = () => {
                             </Box>
                         )}
 
-                        <NeumorphicTextField fullWidth type={showConfirmPassword ? "text" : "password"} label="Confirm Password" value={formData.confirm_password} onChange={(e) => setFormData({ ...formData, confirm_password: e.target.value })} margin="normal" required InputProps={{ startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>, endAdornment: (<InputAdornment position="end"><IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)}>{showConfirmPassword ? <VisibilityOff /> : <Visibility />}</IconButton></InputAdornment>) }} />
+                        <NeumorphicTextField fullWidth type={showConfirmPassword ? "text" : "password"} label="Confirm Password" value={formData.confirm_password} onChange={(e) => setFormData({ ...formData, confirm_password: e.target.value })} margin="dense" required InputProps={{ startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>, endAdornment: (<InputAdornment position="end"><IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)}>{showConfirmPassword ? <VisibilityOff /> : <Visibility />}</IconButton></InputAdornment>) }} />
 
-                        <FormControlLabel control={<Checkbox checked={formData.terms} onChange={(e) => setFormData({ ...formData, terms: e.target.checked })} />} label="I agree to the Terms & Privacy Policy" sx={{ mt: 1 }} />
+                        <FormControlLabel control={<Checkbox checked={formData.terms} onChange={(e) => setFormData({ ...formData, terms: e.target.checked })} />} label="I agree to the Terms & Privacy Policy" sx={{ mt: 0.3 }} />
 
-                        <NeumorphicButton whileTap={{ scale: 0.97 }} type="submit" fullWidth disabled={loading}>{loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Register"}</NeumorphicButton>
+                        <NeumorphicButton whileTap={{ scale: 0.97 }} type="submit" fullWidth disabled={loading}>
+                            {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "REGISTER"}
+                        </NeumorphicButton>
 
-                        <Typography variant="body2" sx={{ mt: 2 }}>
-                            Already have an account?{' '}
+                        <Typography variant="body2" sx={{ mt: 0.8 }}>
+                            Already have an account?{" "}
                             <StyledMotionLink to="/login" whileHover={{ scale: 1.1 }}>Login</StyledMotionLink>
                         </Typography>
                     </Box>
