@@ -19,58 +19,61 @@ import { motion } from "framer-motion";
 import { styled } from "@mui/material/styles";
 
 const API_URL = process.env.REACT_APP_API_URL;
+const logoUrl = "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
 
-// 🌟 Neumorphic Styled Paper
-const NeumorphicPaper = styled(Paper)({
-    padding: "2rem",
+const NeumorphicPaper = styled(Paper)(() => ({
+    padding: "2rem 1.5rem",
     borderRadius: "20px",
-    background: "rgba(255, 255, 255, 0.2)",
-    backdropFilter: "blur(15px)",
-    boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+    background: "#e0e0e0",
+    boxShadow:
+        "0 0 10px #FF0080, 0 0 20px #D4124E, 0 0 30px #7E00A6, 8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
     maxWidth: 450,
+    width: "100%",
     margin: "auto",
     textAlign: "center",
     transition: "0.3s",
+    overflow: "visible",
     "&:hover": {
         boxShadow: "inset 8px 8px 16px #bebebe, inset -8px -8px 16px #ffffff",
     },
-});
+}));
 
-// 🌟 Neumorphic TextField
-const NeumorphicTextField = styled(TextField)({
+const NeumorphicTextField = styled(TextField)(() => ({
     "& .MuiOutlinedInput-root": {
         borderRadius: 12,
         background: "#e0e0e0",
         boxShadow: "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
     },
-    "& .MuiInputLabel-root": { fontWeight: 500 },
-});
+    "& .MuiInputLabel-root": {
+        fontWeight: 500,
+    },
+}));
 
-// 🌟 Neumorphic Button
-const NeumorphicButton = styled(Button)({
+const NeumorphicButton = styled(motion(Button))(() => ({
     marginTop: "1rem",
-    background: "#456BBC",
+    background: "linear-gradient(to right, #D4124E, #E8511E, #FF0080)",
     color: "#fff",
     fontWeight: "bold",
     padding: "10px",
     borderRadius: 12,
     boxShadow: "6px 6px 12px #bebebe, -6px -6px 12px #ffffff",
     "&:hover": {
-        background: "#0100FE",
+        transform: "scale(1.05)",
+        background: "linear-gradient(to right, #FF0080, #E8511E, #D4124E)",
+        boxShadow: "0 0 12px rgba(255, 0, 128, 0.6), 0 0 20px rgba(212, 18, 78, 0.5)",
     },
-});
+}));
 
 const ResetPassword = () => {
-    const { token } = useParams(); // ✅ Get token from URL
+    const { token } = useParams();
     const navigate = useNavigate();
 
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [loading, setLoading] = useState(false);
-    const [passwordStrength, setPasswordStrength] = useState(0);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
+    const [passwordStrength, setPasswordStrength] = useState(0);
     const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
 
     const getPasswordStrength = (pw) => {
@@ -108,8 +111,13 @@ const ResetPassword = () => {
                 confirm_password: confirmPassword,
             });
 
-            setSnackbar({ open: true, message: response.data.message, severity: "success" });
-            setTimeout(() => navigate("/login"), 2500);
+            setSnackbar({
+                open: true,
+                message: "✅ Password reset successful! Redirecting to login...",
+                severity: "success",
+            });
+
+            setTimeout(() => navigate("/login"), 4000);
         } catch (error) {
             setSnackbar({
                 open: true,
@@ -125,21 +133,54 @@ const ResetPassword = () => {
         <Box
             sx={{
                 minHeight: "100vh",
-                background: "linear-gradient(135deg, #dfe9f3 0%, #ffffff 100%)",
+                backgroundImage:
+                    "url(https://res.cloudinary.com/djydkcx01/image/upload/v1754586644/ChatGPT_Image_Aug_7_2025_08_10_26_PM_ok7tfd.png)",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
-                p: 2,
+                px: 2,
+                overflow: "hidden",
+                position: "relative",
             }}
         >
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+            <Box
+                sx={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    background: "linear-gradient(135deg, rgba(255,0,128,0.2), rgba(69,107,188,0.2))",
+                    zIndex: 0,
+                }}
+            />
+
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+                style={{ zIndex: 1 }}
+            >
                 <NeumorphicPaper>
-                    <Typography variant="h4" fontWeight="bold" sx={{ mb: 1, color: "#456BBC" }}>
-                        Reset Password
-                    </Typography>
-                    <Typography variant="body2" sx={{ mb: 3, color: "#333" }}>
-                        Enter your new password below.
-                    </Typography>
+                    <Box sx={{ mb: 2 }}>
+                        <img src={logoUrl} alt="PayNest Logo" style={{ height: 50, marginBottom: 4 }} />
+                        <Typography
+                            variant="h5"
+                            fontWeight="bold"
+                            sx={{
+                                background: "linear-gradient(to right, #D4124E, #E8511E)",
+                                WebkitBackgroundClip: "text",
+                                WebkitTextFillColor: "transparent",
+                            }}
+                        >
+                            PayNest Reset Password
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: "#333", fontWeight: 500 }}>
+                            Smart Homes, Smarter Payments.
+                        </Typography>
+                    </Box>
 
                     <Box component="form" onSubmit={handleSubmit}>
                         <NeumorphicTextField
@@ -148,14 +189,10 @@ const ResetPassword = () => {
                             type={showPassword ? "text" : "password"}
                             value={password}
                             onChange={handlePasswordChange}
-                            margin="normal"
+                            margin="dense"
                             required
                             InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <Lock />
-                                    </InputAdornment>
-                                ),
+                                startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
                                 endAdornment: (
                                     <InputAdornment position="end">
                                         <IconButton onClick={() => setShowPassword(!showPassword)}>
@@ -165,8 +202,6 @@ const ResetPassword = () => {
                                 ),
                             }}
                         />
-
-                        {/* Password Strength Bar */}
                         {password && (
                             <Box sx={{ mt: 1 }}>
                                 <LinearProgress
@@ -178,7 +213,11 @@ const ResetPassword = () => {
                                         backgroundColor: "#d1d9e6",
                                         "& .MuiLinearProgress-bar": {
                                             backgroundColor:
-                                                passwordStrength < 50 ? "#ff4d4f" : passwordStrength < 75 ? "#faad14" : "#52c41a",
+                                                passwordStrength < 50
+                                                    ? "#ff4d4f"
+                                                    : passwordStrength < 75
+                                                        ? "#faad14"
+                                                        : "#52c41a",
                                         },
                                     }}
                                 />
@@ -194,14 +233,10 @@ const ResetPassword = () => {
                             type={showConfirmPassword ? "text" : "password"}
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
-                            margin="normal"
+                            margin="dense"
                             required
                             InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <Lock />
-                                    </InputAdornment>
-                                ),
+                                startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
                                 endAdornment: (
                                     <InputAdornment position="end">
                                         <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
@@ -212,7 +247,12 @@ const ResetPassword = () => {
                             }}
                         />
 
-                        <NeumorphicButton type="submit" fullWidth disabled={loading}>
+                        <NeumorphicButton
+                            type="submit"
+                            fullWidth
+                            disabled={loading}
+                            whileTap={{ scale: 0.97 }}
+                        >
                             {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Reset Password"}
                         </NeumorphicButton>
                     </Box>

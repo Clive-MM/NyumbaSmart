@@ -305,7 +305,6 @@ def reset_password(token):
     if new_password != confirm_password:
         return jsonify({'message': 'Passwords do not match'}), 400
 
-    # Validate password strength
     if len(new_password) < 8:
         return jsonify({'message': 'Password must be at least 8 characters long.'}), 400
     if not re.search(r'[A-Z]', new_password):
@@ -320,7 +319,8 @@ def reset_password(token):
     # Decode token
     try:
         payload = jwt.decode(
-            token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+            token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256']
+        )
         user_id = payload.get('user_id')
     except jwt.ExpiredSignatureError:
         return jsonify({'message': 'Reset link has expired.'}), 400
@@ -331,16 +331,32 @@ def reset_password(token):
     if not user:
         return jsonify({'message': 'User not found'}), 404
 
-    # 🚫 Prevent reuse of old password
     if bcrypt.check_password_hash(user.Password, new_password):
         return jsonify({'message': '⚠️ You cannot reuse your previous password. Choose a different one.'}), 400
 
-    # Update password
+    # ✅ Hash and save new password
     hashed_pw = bcrypt.generate_password_hash(new_password).decode('utf-8')
     user.Password = hashed_pw
     db.session.commit()
 
+    # ✅ Optional email notification
+    try:
+        msg = Message("🔐 Your Password Was Successfully Changed",
+                      recipients=[user.Email])
+        msg.body = f"""
+Hi {user.FullName},
+
+Your PayNest password was successfully changed. If this wasn't you, please contact our support team immediately.
+
+Best regards,  
+PayNest Security Team
+"""
+        mail.send(msg)
+    except Exception as e:
+        print("Failed to send email notification:", str(e))
+
     return jsonify({'message': '✅ Password reset successful! You can now log in.'}), 200
+
 
 # Route for creating an apartment
 
