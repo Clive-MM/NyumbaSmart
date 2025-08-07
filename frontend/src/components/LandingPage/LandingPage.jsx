@@ -6,6 +6,7 @@ import NavBar from "./NavBar";
 import Footer from "./Footer";
 import FeaturesSection from "../LandingPage/FeaturesSection";
 
+
 const heroSlides = [
     {
         url: "https://res.cloudinary.com/djydkcx01/image/upload/q_auto:best,f_auto,w_1920/ChatGPT_Image_Aug_3_2025_02_25_27_PM_rcuvaq.png",
@@ -201,6 +202,7 @@ const LandingPage = () => {
                 >
                     <FeaturesSection />
                 </motion.div>
+
             </Box>
 
             <Footer />
