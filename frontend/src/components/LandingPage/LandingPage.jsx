@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import NavBar from "./NavBar";
 import Footer from "./Footer";
 import FeaturesSection from "../LandingPage/FeaturesSection";
-import Operation from "./Operation";
+import Operation from "../LandingPage/Operation";
 
 const heroSlides = [
     {
