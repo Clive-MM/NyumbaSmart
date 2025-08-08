@@ -1,20 +1,13 @@
+// src/components/NavBar.jsx
 import React, { useState, useEffect } from "react";
 import {
-    AppBar,
-    Toolbar,
-    Typography,
-    Box,
-    IconButton,
-    Tooltip,
-
-
-    useMediaQuery,
-    InputBase,
-    Paper,
+  AppBar, Toolbar, Typography, Box, IconButton, Tooltip,
+  useMediaQuery, InputBase
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+
 import MenuIcon from "@mui/icons-material/Menu";
 import LoginIcon from "@mui/icons-material/Login";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
@@ -24,210 +17,191 @@ import SearchIcon from "@mui/icons-material/Search";
 import ContactMailIcon from "@mui/icons-material/ContactMail";
 
 const logoUrl =
-    "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
+  "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
 
-const brandColors = ["#5A0953", "#D4124E", "#E8511E", "#FEAB2B"];
+// Brand tint colors for active icons
+const brandTints = ["#FF0080", "#FF4DA6", "#FF4336", "#FFC22E", "#00B3FF"];
 
-const GradientText = styled(Typography)(() => ({
-    background: `linear-gradient(90deg, ${brandColors.join(", ")})`,
-    WebkitBackgroundClip: "text",
-    WebkitTextFillColor: "transparent",
-    fontFamily: "'Counter Stream', sans-serif",
-}));
+const GradientText = styled(Typography)({
+  background: "linear-gradient(90deg,#5A0953,#D4124E,#E8511E,#FEAB2B)",
+  WebkitBackgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+  fontFamily: "'Counter Stream', sans-serif",
+});
 
 const Search = styled("div")(({ theme }) => ({
-    position: "relative",
-    borderRadius: "12px",
-    background: "rgba(255, 255, 255, 0.2)",
-    backdropFilter: "blur(12px)",
-    boxShadow: "inset 4px 4px 8px rgba(0,0,0,0.2), inset -4px -4px 8px rgba(255,255,255,0.3)",
-    marginLeft: theme.spacing(2),
-    width: "100%",
-    maxWidth: 300,
-    transition: "all 0.3s ease",
+  position: "relative",
+  borderRadius: 12,
+  background: "rgba(255,255,255,0.25)",
+  backdropFilter: "blur(8px)",
+  boxShadow: "4px 4px 10px rgba(0,0,0,0.3), -4px -4px 10px rgba(255,255,255,0.3)",
+  marginLeft: theme.spacing(2),
+  width: "100%",
+  maxWidth: 360,
 }));
-
 const SearchIconWrapper = styled("div")(({ theme }) => ({
-    padding: theme.spacing(0, 2),
-    height: "100%",
-    position: "absolute",
-    pointerEvents: "none",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+  padding: theme.spacing(0, 2),
+  height: "100%",
+  position: "absolute",
+  pointerEvents: "none",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+}));
+const StyledInputBase = styled(InputBase)(({ theme }) => ({
+  color: "#fff",
+  width: "100%",
+  fontFamily: "'Xillian', sans-serif",
+  "& .MuiInputBase-input": {
+    padding: theme.spacing(1.2, 1, 1.2, 0),
+    paddingLeft: `calc(1em + ${theme.spacing(4)})`,
+    fontSize: "1rem",
+  },
 }));
 
-const StyledInputBase = styled(InputBase)(({ theme }) => ({
-    color: "#fff",
-    width: "100%",
-    fontFamily: "'Xillian', sans-serif",
-    "& .MuiInputBase-input": {
-        padding: theme.spacing(1.2, 1, 1.2, 0),
-        paddingLeft: `calc(1em + ${theme.spacing(4)})`,
-        fontSize: "1rem",
-    },
-}));
-// eslint-disable-next-line
-const NeumorphicPaper = styled(Paper)(() => ({
-    background: "rgba(255,255,255,0.15)",
-    backdropFilter: "blur(10px)",
-    borderRadius: "16px",
-    boxShadow: "8px 8px 16px rgba(0,0,0,0.25), -8px -8px 16px rgba(255,255,255,0.2)",
-    padding: "8px",
+// Small glassy circle style (same as Login/Register)
+const GlassCircle = styled(IconButton)(({ activecolor }) => ({
+  background: "rgba(255, 255, 255, 0.25)",
+  backdropFilter: "blur(8px)",
+  boxShadow: "4px 4px 10px rgba(0,0,0,0.3), -4px -4px 10px rgba(255,255,255,0.3)",
+  color: activecolor || "#fff",
+  padding: 12,
+  borderRadius: "50%",
+  transition: "all 0.25s ease",
+  "&:hover": {
+    transform: "scale(1.15) rotate(5deg)",
+  },
 }));
 
 const NavBar = () => {
-    const isMobile = useMediaQuery("(max-width:900px)");
-    const slogan = "Smart Homes, Smarter Payments.";
-    const [visibleText, setVisibleText] = useState("");
-    const [setDrawerOpen] = useState(false);
-    const [scrolled, setScrolled] = useState(false);
-    const navigate = useNavigate();
+  const isMobile = useMediaQuery("(max-width:900px)");
+  const slogan = "Smart Homes, Smarter Payments.";
+  const [visibleText, setVisibleText] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-    useEffect(() => {
-        let i = 0;
-        const interval = setInterval(() => {
-            if (i <= slogan.length) {
-                setVisibleText(slogan.substring(0, i));
-                i++;
-            } else {
-                clearInterval(interval);
-            }
-        }, 100);
-        return () => clearInterval(interval);
-    }, []);
+  useEffect(() => {
+    let i = 0;
+    const t = setInterval(() => {
+      if (i <= slogan.length) setVisibleText(slogan.substring(0, i++));
+      else clearInterval(t);
+    }, 100);
+    return () => clearInterval(t);
+  }, []);
 
-    useEffect(() => {
-        const handleScroll = () => {
-            setScrolled(window.scrollY > 20);
-        };
-        window.addEventListener("scroll", handleScroll);
-        return () => window.removeEventListener("scroll", handleScroll);
-    }, []);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-    const AnimatedIconButton = motion(IconButton);
+  const AnimatedIconButton = motion(IconButton);
 
-    const navLinks = [
-        { text: "Home", icon: <HomeIcon />, path: "/" },
-        { text: "Services", icon: <MiscellaneousServicesIcon />, path: "/services" },
-        { text: "Contact", icon: <ContactMailIcon />, path: "/contact" },
-    ];
+  const navLinks = [
+    { text: "Home", icon: <HomeIcon />, path: "/" },
+    { text: "Services", icon: <MiscellaneousServicesIcon />, path: "/services" },
+    { text: "Contact", icon: <ContactMailIcon />, path: "/contact" },
+  ];
 
-    return (
-        <AppBar
-            position="absolute"
-            sx={{
-                background: "transparent",
-                boxShadow: "none",
-                px: { xs: 2, sm: 3 },
-                minHeight: scrolled ? "80px" : "110px",
-                display: "flex",
-                justifyContent: "center",
-            }}
-        >
-            <Toolbar sx={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
-                {/* ✅ Logo & Slogan */}
-                <Box display="flex" alignItems="center" gap={2} sx={{ mt: 1, ml: 1 }}>
-                    <motion.div whileHover={{ rotate: 10 }}>
-                        <img
-                            src={logoUrl}
-                            alt="PayNest Logo"
-                            style={{
-                                height: 60, // ✅ Increased size
-                                width: 60,
-                                objectFit: "contain",
-                                cursor: "pointer",
-                            }}
-                            onClick={() => navigate("/")}
-                        />
-                    </motion.div>
+  return (
+    <AppBar
+      position="absolute"
+      sx={{
+        background: "transparent",
+        boxShadow: "none",
+        px: { xs: 2, sm: 3 },
+        minHeight: scrolled ? "80px" : "110px",
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <Toolbar sx={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+        {/* Logo + Slogan */}
+        <Box display="flex" alignItems="center" gap={2} sx={{ mt: 1, ml: 1 }}>
+          <motion.div whileHover={{ rotate: 10 }}>
+            <img
+              src={logoUrl}
+              alt="PayNest logo"
+              style={{ height: 60, width: 60, objectFit: "contain", cursor: "pointer" }}
+              onClick={() => navigate("/")}
+            />
+          </motion.div>
+          {!isMobile && (
+            <Box>
+              <GradientText variant="h4" sx={{ fontWeight: "bold", cursor: "pointer", fontSize: "2rem" }}>
+                PayNest
+              </GradientText>
+              <Typography
+                variant="subtitle1"
+                sx={{ fontSize: "1.2rem", fontStyle: "italic", color: "#fff", fontFamily: "'Counter Stream', sans-serif" }}
+              >
+                {visibleText}
+              </Typography>
+            </Box>
+          )}
+        </Box>
 
-                    {!isMobile && (
-                        <Box>
-                            <GradientText
-                                variant="h4"
-                                sx={{ fontWeight: "bold", cursor: "pointer", fontSize: "2rem" }} // ✅ Increased size
-                            >
-                                PayNest
-                            </GradientText>
-                            <Typography
-                                variant="subtitle1"
-                                sx={{
-                                    fontSize: "1.2rem", // ✅ Increased slogan size
-                                    fontStyle: "italic",
-                                    color: "#fff",
-                                    fontFamily: "'Counter Stream', sans-serif",
-                                }}
-                            >
-                                {visibleText}
-                            </Typography>
-                        </Box>
-                    )}
-                </Box>
+        {/* Links + Search (desktop) */}
+        {!isMobile && (
+          <Box display="flex" alignItems="center" gap={2} sx={{ ml: 2 }}>
+            {navLinks.map((link, i) => {
+              const tint = brandTints[i % brandTints.length];
+              const isActive = location.pathname === link.path;
+              return (
+                <Tooltip key={link.text} title={link.text}>
+                  <GlassCircle
+                    activecolor={isActive ? tint : "#fff"}
+                    onClick={() => navigate(link.path)}
+                  >
+                    {link.icon}
+                  </GlassCircle>
+                </Tooltip>
+              );
+            })}
+            <Search>
+              <SearchIconWrapper>
+                <SearchIcon sx={{ color: "white" }} />
+              </SearchIconWrapper>
+              <StyledInputBase placeholder="Search…" inputProps={{ "aria-label": "search" }} />
+            </Search>
+          </Box>
+        )}
 
-                {/* ✅ Nav Links + Search */}
-                {!isMobile && (
-                    <Box display="flex" alignItems="center" gap={3} sx={{ ml: 2 }}>
-                        {navLinks.map((link) => (
-                            <motion.div whileHover={{ scale: 1.1 }} key={link.text}>
-                                <Typography
-                                    onClick={() => navigate(link.path)}
-                                    sx={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 1,
-                                        cursor: "pointer",
-                                        color: "#fff",
-                                        fontFamily: "'Counter Stream', sans-serif",
-                                        fontWeight: 600,
-                                    }}
-                                >
-                                    {link.icon} {link.text}
-                                </Typography>
-                            </motion.div>
-                        ))}
-
-                        <Search>
-                            <SearchIconWrapper>
-                                <SearchIcon sx={{ color: "white" }} />
-                            </SearchIconWrapper>
-                            <StyledInputBase placeholder="Search…" />
-                        </Search>
-                    </Box>
-                )}
-
-                {/* ✅ Buttons */}
-                {isMobile ? (
-                    <IconButton onClick={() => setDrawerOpen(true)}>
-                        <MenuIcon sx={{ color: "white" }} />
-                    </IconButton>
-                ) : (
-                    <Box display="flex" gap={2} sx={{ mr: 1 }}>
-                        {[{ icon: <LoginIcon />, path: "/login" }, { icon: <PersonAddIcon />, path: "/register" }].map((btn, i) => (
-                            <Tooltip key={i} title={btn.path === "/login" ? "Login" : "Register"}>
-                                <AnimatedIconButton
-                                    whileHover={{ scale: 1.15, rotate: 5 }}
-                                    whileTap={{ scale: 0.9 }}
-                                    onClick={() => navigate(btn.path)}
-                                    sx={{
-                                        background: "rgba(255, 255, 255, 0.25)",
-                                        backdropFilter: "blur(8px)",
-                                        boxShadow:
-                                            "4px 4px 10px rgba(0,0,0,0.3), -4px -4px 10px rgba(255,255,255,0.3)",
-                                        color: i === 0 ? "#06b6d4" : "#10b981",
-                                        p: 1.5,
-                                        borderRadius: "50%",
-                                    }}
-                                >
-                                    {btn.icon}
-                                </AnimatedIconButton>
-                            </Tooltip>
-                        ))}
-                    </Box>
-                )}
-            </Toolbar>
-        </AppBar>
-    );
+        {/* Login / Register or Mobile Menu */}
+        {isMobile ? (
+          <IconButton onClick={() => setDrawerOpen(true)} aria-label="open menu">
+            <MenuIcon sx={{ color: "white" }} />
+          </IconButton>
+        ) : (
+          <Box display="flex" gap={2} sx={{ mr: 1 }}>
+            {[{ icon: <LoginIcon />, path: "/login", color: "#00B3FF" },
+              { icon: <PersonAddIcon />, path: "/register", color: "#10b981" }].map((btn, i) => (
+              <Tooltip key={i} title={btn.path === "/login" ? "Login" : "Register"}>
+                <AnimatedIconButton
+                  whileHover={{ scale: 1.15, rotate: 5 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => navigate(btn.path)}
+                  sx={{
+                    background: "rgba(255, 255, 255, 0.25)",
+                    backdropFilter: "blur(8px)",
+                    boxShadow:
+                      "4px 4px 10px rgba(0,0,0,0.3), -4px -4px 10px rgba(255,255,255,0.3)",
+                    color: btn.color,
+                    p: 1.5,
+                    borderRadius: "50%",
+                  }}
+                >
+                  {btn.icon}
+                </AnimatedIconButton>
+              </Tooltip>
+            ))}
+          </Box>
+        )}
+      </Toolbar>
+    </AppBar>
+  );
 };
 
 export default NavBar;

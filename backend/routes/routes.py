@@ -26,9 +26,9 @@ routes = Blueprint("routes", __name__)
 CORS(
     routes,
     resources={r"/*": {"origins": [
-        "http://localhost:3000",       # Local frontend
-        "http://127.0.0.1:3000",       # Alternative local frontend
-        "https://nyumbasmart.vercel.app"  # Production frontend
+        "http://localhost:3000",      
+        "http://127.0.0.1:3000",       
+        "https://nyumbasmart.vercel.app"  
     ]}},
     supports_credentials=True
 )
