@@ -4,7 +4,7 @@ import {
     Button,
     TextField,
     Typography,
-    Container,
+
     Paper,
     Snackbar,
     Alert,
@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -23,7 +23,7 @@ const ForgotPassword = () => {
     const [email, setEmail] = useState("");
     const [loading, setLoading] = useState(false);
     const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
-    const navigate = useNavigate();
+    // const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -57,9 +57,7 @@ const ForgotPassword = () => {
             sx={{
                 position: "relative",
                 minHeight: "100vh",
-                backgroundImage: `url("https://res.cloudinary.com/djydkcx01/image/upload/v1754429529/ChatGPT_Image_Aug_6_2025_12_31_51_AM_nwempw.png")`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
+                backgroundColor: "#fff", // or "white"
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",

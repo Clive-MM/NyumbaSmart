@@ -7,17 +7,9 @@ import { styled, keyframes } from "@mui/material/styles";
 import { motion, useReducedMotion } from "framer-motion";
 
 /* ---- PayNest palette ---- */
-const P = {
-  bgDeep: "#380735ff",
-  bgNavy: "#58092eff",
-  bgViolet: "#2A0C55",
-  cyan: "#00C8FF",
-  lilac: "#8A6BFF",
-  magenta: "#FF2EC4",
-  white: "#FFFFFF",
-  textStrong: "rgba(255,255,255,0.92)",
-  textSoft: "rgba(220,230,255,0.78)",
-};
+const P = " #ffffffff"
+
+  ;
 
 // Load Orbitron once
 const fontLink = document.createElement("link");
@@ -143,18 +135,20 @@ const FeaturesSection = () => {
         variant="h4"
         align="center"
         sx={{
-          fontWeight: 800,
-          fontSize: "2.8rem",
+          fontFamily: "'Orbitron', sans-serif",
+          fontWeight: 900,
+          fontSize: { xs: "2rem", md: "2.8rem" },
+          letterSpacing: 0.6,
           textTransform: "uppercase",
-          background: `linear-gradient(to right, ${P.cyan}, ${P.lilac}, ${P.magenta})`,
+          background: "linear-gradient(90deg, #FF0080, #D4124E, #FF3B3B, #2979FF, #7E00A6)",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
-          textShadow: "0 0 6px rgba(255,46,196,.45)",
           mb: 2,
         }}
       >
         From Chaos to Chill — Meet PayNest
       </Typography>
+
 
       <Typography
         variant="h6"
@@ -212,7 +206,7 @@ const FeaturesSection = () => {
                           fontWeight: 800,
                           color: P.textStrong,
                           fontFamily: "'Orbitron', sans-serif",
-                          textShadow: "0 0 3px rgba(138,107,255,.55)",
+                          textShadow: "0 0 3px rgba(236, 13, 151, 0.55)",
                         }}
                       >
                         {feature.title}
@@ -228,7 +222,7 @@ const FeaturesSection = () => {
                         fontWeight: 500,
                         fontSize: "1rem",
                         textAlign: "center",
-                        textShadow: "0 0 2px rgba(0,0,0,.6)",
+                        textShadow: "0 0 2px hsla(241, 86%, 17%, 0.60)",
                       }}
                     >
                       {feature.description}

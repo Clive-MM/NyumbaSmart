@@ -168,9 +168,7 @@ const Login = () => {
             sx={{
                 position: "relative",
                 minHeight: "100vh",
-                backgroundImage: `url("https://res.cloudinary.com/djydkcx01/image/upload/v1754418099/francesca-tosolini-tHkJAMcO3QE-unsplash_h4js1h.jpg")`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
+                backgroundColor: "#fff", // or "white"
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",

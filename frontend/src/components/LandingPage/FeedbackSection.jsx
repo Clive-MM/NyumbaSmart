@@ -19,10 +19,24 @@ const BRAND = {
 };
 const brandGradient = `linear-gradient(90deg, ${BRAND.pink}, ${BRAND.magenta}, ${BRAND.purple})`;
 
+/* Load Orbitron once (same as in Operation.jsx) */
+const ORBITRON_HREF =
+    "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&display=swap";
+(() => {
+    if (typeof document !== "undefined" && !document.head.querySelector(`link[href="${ORBITRON_HREF}"]`)) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = ORBITRON_HREF;
+        document.head.appendChild(link);
+    }
+})();
+
 /* --------- Neumorphic surfaces --------- */
-const neoBg = "rgba(245,247,250,0.85)";              // soft light surface
-const neoShadow = "12px 12px 24px rgba(0,0,0,0.08), -10px -10px 22px rgba(255,255,255,0.85)";
-const neoInset = "inset 8px 8px 16px rgba(0,0,0,0.07), inset -8px -8px 16px rgba(255,255,255,0.9)";
+const neoBg = "rgba(245,247,250,0.85)"; // soft light surface
+const neoShadow =
+    "12px 12px 24px rgba(0,0,0,0.08), -10px -10px 22px rgba(255,255,255,0.85)";
+const neoInset =
+    "inset 8px 8px 16px rgba(0,0,0,0.07), inset -8px -8px 16px rgba(255,255,255,0.9)";
 
 const cardSx = {
     p: { xs: 2.5, md: 3 },
@@ -39,12 +53,13 @@ const cardSx = {
     transition: "transform .25s ease, box-shadow .25s ease",
     "&:hover": {
         transform: "translateY(-2px)",
-        boxShadow: "14px 14px 28px rgba(0,0,0,0.1), -12px -12px 26px rgba(255,255,255,0.9)"
+        boxShadow:
+            "14px 14px 28px rgba(0,0,0,0.1), -12px -12px 26px rgba(255,255,255,0.9)",
     },
     "@keyframes floatIn": {
         from: { opacity: 0, transform: "translateY(8px)" },
-        to: { opacity: 1, transform: "translateY(0)" }
-    }
+        to: { opacity: 1, transform: "translateY(0)" },
+    },
 };
 
 /* Shared neumorphic text field style */
@@ -58,9 +73,9 @@ const neoTextField = {
         "& fieldset": { border: "1px solid rgba(0,0,0,0.06)" },
         "&.Mui-focused": {
             boxShadow: neoInset,
-            "& fieldset": { borderColor: "transparent" }
-        }
-    }
+            "& fieldset": { borderColor: "transparent" },
+        },
+    },
 };
 
 /* ---------- Feedback Form ---------- */
@@ -81,7 +96,11 @@ function FeedbackForm() {
         setLoading(true);
         try {
             await axios.post(`${API_URL}/feedback`, form);
-            setToast({ open: true, type: "success", msg: "Thanks! Your feedback was submitted." });
+            setToast({
+                open: true,
+                type: "success",
+                msg: "Thanks! Your feedback was submitted.",
+            });
             setForm({ Email: "", Subject: "", Message: "" });
             autoClose();
         } catch (err) {
@@ -98,15 +117,15 @@ function FeedbackForm() {
             <Box>
                 <Typography
                     variant="h6"
-                    sx={(theme) => ({
-                        fontFamily: theme.typography.fontFamily,   // respect theme font
+                    sx={{
+                        fontFamily: "'Orbitron', sans-serif",
                         fontWeight: 900,
                         lineHeight: 1.1,
                         letterSpacing: 0.2,
                         background: brandGradient,
                         WebkitBackgroundClip: "text",
                         WebkitTextFillColor: "transparent",
-                    })}
+                    }}
                 >
                     Say it Loud 🎤 — We’re All Ears
                 </Typography>
@@ -115,7 +134,11 @@ function FeedbackForm() {
                 </Typography>
             </Box>
 
-            <Box component="form" onSubmit={submit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box
+                component="form"
+                onSubmit={submit}
+                sx={{ display: "flex", flexDirection: "column", gap: 2 }}
+            >
                 <TextField
                     label="Email"
                     name="Email"
@@ -126,7 +149,8 @@ function FeedbackForm() {
                     fullWidth
                     sx={{
                         ...neoTextField,
-                        "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: BRAND.blue }
+                        "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+                            { borderColor: BRAND.blue },
                     }}
                 />
                 <TextField
@@ -139,7 +163,8 @@ function FeedbackForm() {
                     fullWidth
                     sx={{
                         ...neoTextField,
-                        "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: BRAND.purple }
+                        "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+                            { borderColor: BRAND.purple },
                     }}
                 />
                 <TextField
@@ -153,7 +178,8 @@ function FeedbackForm() {
                     fullWidth
                     sx={{
                         ...neoTextField,
-                        "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: BRAND.magenta }
+                        "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+                            { borderColor: BRAND.magenta },
                     }}
                 />
 
@@ -178,7 +204,11 @@ function FeedbackForm() {
                         },
                     }}
                 >
-                    {loading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : "SUBMIT FEEDBACK"}
+                    {loading ? (
+                        <CircularProgress size={18} sx={{ color: "#fff" }} />
+                    ) : (
+                        "SUBMIT FEEDBACK"
+                    )}
                 </Button>
 
                 <Collapse in={toast.open} appear>
@@ -211,7 +241,10 @@ function RatingForm() {
         }
         setLoading(true);
         try {
-            await axios.post(`${API_URL}/ratings`, { RatingValue: stars, Comment: comment || null });
+            await axios.post(`${API_URL}/ratings`, {
+                RatingValue: stars,
+                Comment: comment || null,
+            });
             setToast({ open: true, type: "success", msg: "Thanks for rating!" });
             setStars(0);
             setComment("");
@@ -230,15 +263,15 @@ function RatingForm() {
             <Box>
                 <Typography
                     variant="h6"
-                    sx={(theme) => ({
-                        fontFamily: theme.typography.fontFamily,
+                    sx={{
+                        fontFamily: "'Orbitron', sans-serif",
                         fontWeight: 900,
                         lineHeight: 1.1,
                         letterSpacing: 0.2,
                         background: "linear-gradient(90deg, #FFA000, #FF4081)",
                         WebkitBackgroundClip: "text",
                         WebkitTextFillColor: "transparent",
-                    })}
+                    }}
                 >
                     Tap Your Stars ⭐ — 5 Seconds Tops
                 </Typography>
@@ -247,7 +280,11 @@ function RatingForm() {
                 </Typography>
             </Box>
 
-            <Box component="form" onSubmit={submit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box
+                component="form"
+                onSubmit={submit}
+                sx={{ display: "flex", flexDirection: "column", gap: 2 }}
+            >
                 {/* Neumorphic rating well */}
                 <Stack
                     direction="row"
@@ -257,7 +294,7 @@ function RatingForm() {
                         p: 1.25,
                         borderRadius: 2,
                         background: "rgba(255,255,255,0.92)",
-                        boxShadow: neoInset
+                        boxShadow: neoInset,
                     }}
                 >
                     <MuiRating
@@ -281,7 +318,8 @@ function RatingForm() {
                     rows={3}
                     sx={{
                         ...neoTextField,
-                        "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: BRAND.blue }
+                        "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+                            { borderColor: BRAND.blue },
                     }}
                 />
 
@@ -306,7 +344,11 @@ function RatingForm() {
                         },
                     }}
                 >
-                    {loading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : "SUBMIT RATING"}
+                    {loading ? (
+                        <CircularProgress size={18} sx={{ color: "#fff" }} />
+                    ) : (
+                        "SUBMIT RATING"
+                    )}
                 </Button>
 
                 <Collapse in={toast.open} appear>
@@ -339,7 +381,7 @@ export default function FeedbackRatingSection() {
                 <Stack spacing={0.5} alignItems="center" sx={{ mb: 2 }}>
                     <Typography
                         variant="h5"
-                        sx={(theme) => ({ fontFamily: theme.typography.fontFamily, fontWeight: 900 })}
+                        sx={{ fontFamily: "'Orbitron', sans-serif", fontWeight: 900 }}
                     >
                         We’d love your thoughts
                     </Typography>

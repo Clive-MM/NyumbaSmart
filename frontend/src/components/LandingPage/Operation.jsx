@@ -20,17 +20,9 @@ import QueryStatsRoundedIcon from "@mui/icons-material/QueryStatsRounded";
 import NotificationsActiveRoundedIcon from "@mui/icons-material/NotificationsActiveRounded";
 
 /* PayNest palette */
-const P = {
-  bgDeep: "#380735ff",
-  bgNavy: "#58092eff",
-  bgViolet: "#2A0C55",
-  cyan: "#00C8FF",
-  lilac: "#8A6BFF",
-  magenta: "#FF2EC4",
-  white: "#FFFFFF",
-  textStrong: "rgba(255,255,255,0.92)",
-  textSoft: "rgba(220,230,255,0.78)",
-};
+const P = " #ffffffff"
+
+  ;
 
 const ACCENTS = [P.cyan, P.lilac, P.magenta];
 
@@ -62,10 +54,11 @@ const TitleWrap = styled(Box)(({ theme }) => ({
 }));
 
 const GradientText = styled(Typography)(() => ({
+  fontFamily: "'Orbitron', sans-serif",
   fontWeight: 900,
   letterSpacing: 0.6,
   textTransform: "uppercase",
-  background: `linear-gradient(90deg, ${P.cyan}, ${P.lilac}, ${P.magenta})`,
+  background: "linear-gradient(90deg, #FF0080, #D4124E, #FF3B3B, #2979FF, #7E00A6)",
   WebkitBackgroundClip: "text",
   WebkitTextFillColor: "transparent",
 }));
@@ -149,7 +142,7 @@ const ServiceCard = styled(
     background: `linear-gradient(140deg, var(--acc), rgba(255,255,255,0) 55%)`,
     WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
     WebkitMaskComposite: "xor",
-            maskComposite: "exclude",
+    maskComposite: "exclude",
     opacity: 0.5,
     transition: "opacity .25s ease",
   },
@@ -253,6 +246,7 @@ export default function Operation() {
           <GradientText variant="h3" component="h2">
             WHY CHOOSE US
           </GradientText>
+
         </TitleWrap>
 
         <motion.div
