@@ -133,8 +133,7 @@ const ResetPassword = () => {
         <Box
             sx={{
                 minHeight: "100vh",
-                backgroundImage:
-                    "url(https://res.cloudinary.com/djydkcx01/image/upload/v1754586644/ChatGPT_Image_Aug_7_2025_08_10_26_PM_ok7tfd.png)",
+                backgroundColor: "#fff", // or "white"
                 backgroundSize: "cover",
                 backgroundPosition: "center",
                 display: "flex",
