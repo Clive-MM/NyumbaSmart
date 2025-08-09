@@ -1,7 +1,12 @@
 // src/sections/Operation.jsx
 import React from "react";
 import {
-  Box, Container, Grid, Typography, Card, CardContent, Button
+  Box,
+  Container,
+  Typography,
+  Card,
+  CardContent,
+  Button,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { motion, useReducedMotion } from "framer-motion";
@@ -27,9 +32,12 @@ const P = {
   textSoft: "rgba(220,230,255,0.78)",
 };
 
+const ACCENTS = [P.cyan, P.lilac, P.magenta];
+
 /* Load Orbitron once */
 const fontLink = document.createElement("link");
-fontLink.href = "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap";
+fontLink.href =
+  "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap";
 fontLink.rel = "stylesheet";
 if (!document.head.querySelector(`link[href="${fontLink.href}"]`)) {
   document.head.appendChild(fontLink);
@@ -62,10 +70,10 @@ const GradientText = styled(Typography)(() => ({
   WebkitTextFillColor: "transparent",
 }));
 
-/* ---- Animated CTA Button (glow + shake + ripple + entrance) ---- */
+/* Animated CTA Button (glow + shake + ripple) */
 const GlowButton = styled(motion(Button))(({ theme }) => ({
   position: "relative",
-  overflow: "hidden", // for ripple
+  overflow: "hidden",
   marginTop: theme.spacing(2),
   padding: theme.spacing(1, 2.5),
   borderRadius: 12,
@@ -78,8 +86,6 @@ const GlowButton = styled(motion(Button))(({ theme }) => ({
   backgroundSize: "200% 100%",
   transition: "background-position .6s ease",
   "&:hover": { backgroundPosition: "100% 0" },
-
-  // CSS ripple on click
   "&::after": {
     content: '""',
     position: "absolute",
@@ -103,113 +109,138 @@ const GlowButton = styled(motion(Button))(({ theme }) => ({
 }));
 
 const buttonVariants = {
-  rest: { scale: 1, y: 0, filter: "drop-shadow(0 0 0 rgba(0,0,0,0))" },
+  rest: { scale: 1, y: 0 },
   hover: {
     scale: 1.04,
-    y: [0, -1.5, 0, 1.5, 0], // subtle shake
-    boxShadow:
-      "0 0 18px rgba(0,200,255,.35), 0 0 34px rgba(255,46,196,.28)",
-    filter:
-      "drop-shadow(0 0 8px rgba(0,200,255,.35)) drop-shadow(0 0 14px rgba(255,46,196,.25))",
-    transition: {
-      duration: 0.9,
-      ease: "easeInOut",
-      repeat: Infinity,
-      repeatType: "mirror",
-    },
+    y: [0, -1.5, 0, 1.5, 0],
+    boxShadow: "0 0 18px rgba(0,200,255,.35), 0 0 34px rgba(255,46,196,.28)",
+    transition: { duration: 0.9, ease: "easeInOut", repeat: Infinity, repeatType: "mirror" },
   },
   tap: { scale: 0.96 },
   in: { opacity: 0, scale: 0.96, y: 6 },
-  inShow: {
-    opacity: 1,
-    scale: 1,
-    y: 0,
-    transition: { duration: 0.5, ease: "easeOut" },
-  },
-}; // <-- important semicolon
+  inShow: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+};
 
-/* Card (compact) */
-const ServiceCard = styled(Card)(({ theme }) => ({
-  height: "100%",
-  minHeight: 200,
+/* --- Cards (smaller, standardized) --- */
+const ServiceCard = styled(
+  Card,
+  { shouldForwardProp: (p) => p !== "accent" }
+)(({ accent }) => ({
+  width: "100%",
+  maxWidth: 420,          // cap width so three fit nicely
+  minHeight: 190,
   borderRadius: 18,
+  position: "relative",
   display: "flex",
   alignItems: "stretch",
-  background:
-    "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.018))",
+  background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
   border: "1px solid rgba(138,163,255,0.16)",
   backdropFilter: "blur(10px)",
-  boxShadow: "0 10px 24px rgba(5,10,30,0.5)",
-  transition: "transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease",
+  boxShadow: "0 10px 22px rgba(5,10,30,0.5)",
+  transformStyle: "preserve-3d",
+  transition: "transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease",
+  "--acc": accent || P.cyan,
+  "&::before": {
+    content: '""',
+    position: "absolute",
+    inset: 0,
+    borderRadius: 18,
+    padding: 1,
+    background: `linear-gradient(140deg, var(--acc), rgba(255,255,255,0) 55%)`,
+    WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+    WebkitMaskComposite: "xor",
+            maskComposite: "exclude",
+    opacity: 0.5,
+    transition: "opacity .25s ease",
+  },
   "&:hover": {
-    transform: "translateY(-6px)",
+    transform: "translateY(-6px) rotateX(1deg)",
     borderColor: "rgba(255,46,196,0.36)",
-    boxShadow:
-      "0 14px 30px rgba(0,200,255,0.22), 0 6px 16px rgba(255,46,196,0.2)",
+    boxShadow: "0 14px 30px rgba(0,200,255,0.22), 0 6px 16px rgba(255,46,196,0.2)",
+    "&::before": { opacity: 1 },
   },
 }));
 
-/* Icon tile (compact) */
+/* Icon with neon ring */
 const IconWrap = styled(Box)(({ theme }) => ({
-  width: 56,
-  height: 56,
-  borderRadius: 14,
+  width: 60,
+  height: 60,
+  borderRadius: 16,
   display: "grid",
   placeItems: "center",
   margin: "0 auto",
   marginBottom: theme.spacing(1.5),
-  background: `linear-gradient(135deg, ${P.cyan} 0%, ${P.lilac} 50%, ${P.magenta} 100%)`,
+  background: `linear-gradient(135deg, ${P.cyan} 0%, ${P.lilac} 55%, ${P.magenta} 100%)`,
   color: "#0E0F1C",
   boxShadow:
-    "0 10px 22px rgba(0,200,255,0.24), 0 4px 12px rgba(255,46,196,0.18)",
+    "0 10px 24px rgba(0,200,255,0.28), 0 6px 16px rgba(255,46,196,0.22), 0 0 22px rgba(138,107,255,0.25)",
 }));
 
-/* Typography (compact for 3-per-row) */
-const TitleText = styled(Typography)(({ theme }) => ({
+/* Typography tuned for smaller cards */
+const TitleText = styled(Typography)({
   fontFamily: "'Orbitron', sans-serif",
   fontWeight: 800,
-  fontSize: "1.15rem",
+  fontSize: "1.05rem",
   lineHeight: 1.25,
-  letterSpacing: "0.45px",
+  letterSpacing: "0.4px",
   color: P.textStrong,
   textAlign: "center",
-  textShadow: "0 1px 0 rgba(0,0,0,0.25)",
-  [theme.breakpoints.down("md")]: { fontSize: "1.2rem" },
-  [theme.breakpoints.down("sm")]: { fontSize: "1.1rem" },
-}));
+});
 
-const BodyText = styled(Typography)(({ theme }) => ({
+const BodyText = styled(Typography)({
   fontFamily: "'Orbitron', sans-serif",
   fontWeight: 500,
   fontSize: "0.9rem",
   lineHeight: 1.5,
-  letterSpacing: "0.38px",
+  letterSpacing: "0.35px",
   color: P.textSoft,
   textAlign: "center",
-}));
+});
 
-/* Motion variants for cards */
+/* Motion variants */
 const containerVariants = {
   hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.08, delayChildren: 0.1 },
-  },
+  show: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
 };
 
 const cardVariants = {
-  hidden: { opacity: 0, y: 18, scale: 0.985 },
-  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.32 } },
-  hover: { y: -6, transition: { duration: 0.18 } },
+  hidden: { opacity: 0, y: 20, scale: 0.985, filter: "blur(4px)" },
+  show: { opacity: 1, y: 0, scale: 1, filter: "blur(0)", transition: { duration: 0.35 } },
+  hover: { y: -6, transition: { duration: 0.2 } },
 };
 
+/* Content */
 const SERVICES = [
-  { icon: <HomeRoundedIcon fontSize="medium" />, title: "Property & Unit Management", desc: "Manage properties and rental units." },
-  { icon: <PersonAddAlt1RoundedIcon fontSize="medium" />, title: "Tenant Onboarding & Management", desc: "Onboard and manage tenants." },
-  { icon: <ReceiptLongRoundedIcon fontSize="medium" />, title: "Billing & Rent Collection", desc: "Automate billing and track payments." },
-  { icon: <AccountBalanceWalletRoundedIcon fontSize="medium" />, title: "Landlord Expense Tracking", desc: "Record and monitor expenses." },
-  { icon: <QueryStatsRoundedIcon fontSize="medium" />, title: "Reports & Tax Filing Support", desc: "Generate reports and tax statements." },
-  { icon: <NotificationsActiveRoundedIcon fontSize="medium" />, title: "Notifications & Alerts", desc: "Send rent reminders and alerts." },
+  {
+    icon: <HomeRoundedIcon fontSize="medium" />,
+    title: "All In One Solution",
+    desc: "Everything you need to manage your properties, all in one smart platform.",
+  },
+  {
+    icon: <PersonAddAlt1RoundedIcon fontSize="medium" />,
+    title: "Time Saving and Automation",
+    desc: "Let automation handle rent tracking and billing — so you don’t have to.",
+  },
+  {
+    icon: <ReceiptLongRoundedIcon fontSize="medium" />,
+    title: "Secure, Reliable & Accessibility",
+    desc: "Bank-level security with 24/7 cloud access — your data, always safe.",
+  },
+  {
+    icon: <AccountBalanceWalletRoundedIcon fontSize="medium" />,
+    title: "Real-Time Insights",
+    desc: "Know exactly what’s happening, the moment it happens.",
+  },
+  {
+    icon: <QueryStatsRoundedIcon fontSize="medium" />,
+    title: "Reports & Tax Filing Support",
+    desc: "Generate reports that make decision-making and tax filing a breeze.",
+  },
+  {
+    icon: <NotificationsActiveRoundedIcon fontSize="medium" />,
+    title: "Notifications & Alerts",
+    desc: "Never miss a payment — smart reminders keep you in control.",
+  },
 ];
 
 export default function Operation() {
@@ -230,39 +261,55 @@ export default function Operation() {
           whileInView="show"
           viewport={{ once: true, amount: 0.25 }}
         >
-          <Grid container spacing={2} justifyContent="center" alignItems="stretch">
+          {/* CSS Grid: 1 / 2 / 3 columns */}
+          <Box
+            sx={{
+              display: "grid",
+              gap: 3, // theme spacing
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(2, 1fr)",
+                md: "repeat(3, 1fr)", // 3 horizontally on desktop
+              },
+              alignItems: "stretch",
+            }}
+          >
             {SERVICES.map((item, idx) => (
-              // 1 on mobile, 2 on tablet, **3 on desktop**
-              <Grid key={idx} item xs={12} sm={6} md={4}>
-                <motion.div
-                  variants={cardVariants}
-                  whileHover={!prefersReduced ? "hover" : undefined}
+              <motion.div
+                key={idx}
+                variants={cardVariants}
+                whileHover={!prefersReduced ? "hover" : undefined}
+                style={{ width: "100%" }}
+              >
+                <ServiceCard
+                  variant="outlined"
+                  accent={ACCENTS[idx % ACCENTS.length]}
+                  sx={{ mx: "auto" }}
                 >
-                  <ServiceCard variant="outlined">
-                    <CardContent
-                      sx={{
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        gap: 1,
-                        px: 2.25,
-                        py: 2.25,
-                        textAlign: "center",
-                      }}
-                    >
-                      <IconWrap>{item.icon}</IconWrap>
-                      <TitleText>{item.title}</TitleText>
-                      <BodyText>{item.desc}</BodyText>
-                    </CardContent>
-                  </ServiceCard>
-                </motion.div>
-              </Grid>
+                  <CardContent
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      gap: 1,
+                      px: 2,
+                      py: 2.25,
+                      height: "100%",
+                      textAlign: "center",
+                    }}
+                  >
+                    <IconWrap>{item.icon}</IconWrap>
+                    <TitleText>{item.title}</TitleText>
+                    <BodyText>{item.desc}</BodyText>
+                  </CardContent>
+                </ServiceCard>
+              </motion.div>
             ))}
-          </Grid>
+          </Box>
         </motion.div>
 
-        {/* Centered animated CTA below cards */}
+        {/* CTA below cards */}
         <Box mt={5} textAlign="center">
           <GlowButton
             component={RouterLink}

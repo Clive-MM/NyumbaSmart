@@ -161,7 +161,7 @@ const FeaturesSection = () => {
         align="center"
         sx={{ fontWeight: 600, color: P.textSoft, textShadow: "0 0 4px rgba(138,107,255,.4)" }}
       >
-        Built for Landlords. Powered by Simplicity.
+        Turning Landlord Headaches into Happy Checks.
       </Typography>
 
       <Typography
@@ -175,7 +175,7 @@ const FeaturesSection = () => {
           mb: 6,
         }}
       >
-        Because Your Property Should Work for You.
+        We Fix the Drama, You Count the Commas.
       </Typography>
 
       <motion.div
