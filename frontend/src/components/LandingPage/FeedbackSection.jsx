@@ -2,8 +2,9 @@
 import React, { useState } from "react";
 import {
     Box, Paper, Typography, TextField, Button,
-    Stack, Grid, CircularProgress, Snackbar, Alert
+    Stack, Grid, CircularProgress, Alert
 } from "@mui/material";
+import Collapse from "@mui/material/Collapse";
 import MuiRating from "@mui/material/Rating";
 import axios from "axios";
 
@@ -38,6 +39,9 @@ function FeedbackForm() {
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState({ open: false, type: "success", msg: "" });
 
+    const autoClose = () =>
+        setTimeout(() => setToast((t) => ({ ...t, open: false })), 2200);
+
     const handleChange = (e) =>
         setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -49,9 +53,11 @@ function FeedbackForm() {
             await axios.post(`${API_URL}/feedback`, form);
             setToast({ open: true, type: "success", msg: "Thanks! Your feedback was submitted." });
             setForm({ Email: "", Subject: "", Message: "" });
+            autoClose();
         } catch (err) {
             const msg = err?.response?.data?.error || "Failed to submit feedback.";
             setToast({ open: true, type: "error", msg });
+            autoClose();
         } finally {
             setLoading(false);
         }
@@ -59,15 +65,6 @@ function FeedbackForm() {
 
     return (
         <Paper elevation={0} sx={{ ...cardSx, width: "100%" }}>
-            <Snackbar
-                open={toast.open}
-                autoHideDuration={2200}
-                onClose={() => setToast((t) => ({ ...t, open: false }))}
-                anchorOrigin={{ vertical: "top", horizontal: "center" }}
-            >
-                <Alert severity={toast.type} variant="filled">{toast.msg}</Alert>
-            </Snackbar>
-
             <Box>
                 <Typography
                     variant="h6"
@@ -142,6 +139,13 @@ function FeedbackForm() {
                 >
                     {loading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : "SUBMIT FEEDBACK"}
                 </Button>
+
+                {/* Inline alert BELOW the button */}
+                <Collapse in={toast.open} appear>
+                    <Alert sx={{ mt: 1 }} severity={toast.type} variant="filled">
+                        {toast.msg}
+                    </Alert>
+                </Collapse>
             </Box>
         </Paper>
     );
@@ -154,11 +158,15 @@ function RatingForm() {
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState({ open: false, type: "success", msg: "" });
 
+    const autoClose = () =>
+        setTimeout(() => setToast((t) => ({ ...t, open: false })), 2200);
+
     const submit = async (e) => {
         e.preventDefault();
         if (loading) return;
         if (!stars) {
             setToast({ open: true, type: "warning", msg: "Please select a star rating." });
+            autoClose();
             return;
         }
         setLoading(true);
@@ -167,9 +175,11 @@ function RatingForm() {
             setToast({ open: true, type: "success", msg: "Thanks for rating!" });
             setStars(0);
             setComment("");
+            autoClose();
         } catch (err) {
             const msg = err?.response?.data?.error || "Failed to submit rating.";
             setToast({ open: true, type: "error", msg });
+            autoClose();
         } finally {
             setLoading(false);
         }
@@ -177,15 +187,6 @@ function RatingForm() {
 
     return (
         <Paper elevation={0} sx={{ ...cardSx, width: "100%" }}>
-            <Snackbar
-                open={toast.open}
-                autoHideDuration={2200}
-                onClose={() => setToast((t) => ({ ...t, open: false }))}
-                anchorOrigin={{ vertical: "top", horizontal: "center" }}
-            >
-                <Alert severity={toast.type} variant="filled">{toast.msg}</Alert>
-            </Snackbar>
-
             <Box>
                 <Typography
                     variant="h6"
@@ -251,12 +252,19 @@ function RatingForm() {
                 >
                     {loading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : "SUBMIT RATING"}
                 </Button>
+
+                {/* Inline alert BELOW the button */}
+                <Collapse in={toast.open} appear>
+                    <Alert sx={{ mt: 1 }} severity={toast.type} variant="filled">
+                        {toast.msg}
+                    </Alert>
+                </Collapse>
             </Box>
         </Paper>
     );
 }
 
-/* ---------- Parent (even horizontal occupation) ---------- */
+/* ---------- Parent ---------- */
 export default function FeedbackRatingSection() {
     return (
         <Box sx={{ position: "relative", mt: 0, mb: { xs: 3, md: 6 }, px: { xs: 1.5, md: 2 } }}>
@@ -280,8 +288,8 @@ export default function FeedbackRatingSection() {
                 <Grid
                     container
                     columns={12}
-                    columnSpacing={{ xs: 2, md: 4 }}   // only horizontal gap
-                    rowSpacing={{ xs: 3, md: 4 }}      // vertical gap
+                    columnSpacing={{ xs: 2, md: 4 }}   // horizontal gap between cards
+                    rowSpacing={{ xs: 3, md: 4 }}      // vertical gap on small screens
                     alignItems="stretch"
                     justifyContent="space-between"
                 >
