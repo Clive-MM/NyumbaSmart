@@ -6,6 +6,7 @@ import NavBar from "./NavBar";
 import Footer from "./Footer";
 import FeaturesSection from "../LandingPage/FeaturesSection";
 import Operation from "../LandingPage/Operation";
+import FeedbackSection from "../LandingPage/FeedbackSection"; // Import the FeedbackSection component
 
 /* ---- Slides (same content as before) ---- */
 const heroSlides = [
@@ -199,6 +200,9 @@ const LandingPage = () => {
       {/* The rest of your sections unchanged */}
       <FeaturesSection />
       <Operation />
+      <FeedbackSection /> {/* Add the FeedbackSection here */}
+
+      {/* Footer */}
       <Footer />
     </Box>
   );

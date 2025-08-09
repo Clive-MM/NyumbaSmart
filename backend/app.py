@@ -13,7 +13,7 @@ from models import db
 from models import (
     User, Apartment, UnitCategory, RentalUnitStatus, RentalUnit, Tenant,
     VacateNotice, TenantBill, RentPayment, LandlordExpense,
-    NotificationTag, Notification, VacateLog, TransferLog
+    NotificationTag, Notification, VacateLog, TransferLog, Feedback, Rating
 )
 from routes.routes import routes, register_mail_instance
 
@@ -24,7 +24,8 @@ load_dotenv()
 app = Flask(__name__)
 
 # ✅ Configure CORS globally
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app, resources={
+     r"/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}})
 
 # ✅ Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
@@ -55,6 +56,7 @@ jwt = JWTManager(app)
 
 # ✅ Register mail instance to routes
 register_mail_instance(mail)
+
 
 # ✅ Register blueprint
 app.register_blueprint(routes)

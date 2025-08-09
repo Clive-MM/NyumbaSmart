@@ -1,6 +1,7 @@
 from flask import current_app, Blueprint, request, jsonify
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
+from sqlalchemy import func
 from flask_mail import Message, Mail
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
@@ -16,7 +17,7 @@ from utils.cloudinary_helper import upload_to_cloudinary
 from models.models import (
     db, User, Apartment, UnitCategory, RentalUnitStatus, RentalUnit, Tenant,
     VacateLog, TransferLog, VacateNotice, SMSUsageLog, TenantBill,
-    RentPayment, LandlordExpense, Profile
+    RentPayment, LandlordExpense, Profile, Feedback, Rating
 )
 
 # ✅ Initialize Blueprint
@@ -26,9 +27,9 @@ routes = Blueprint("routes", __name__)
 CORS(
     routes,
     resources={r"/*": {"origins": [
-        "http://localhost:3000",      
-        "http://127.0.0.1:3000",       
-        "https://nyumbasmart.vercel.app"  
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://nyumbasmart.vercel.app"
     ]}},
     supports_credentials=True
 )
@@ -38,6 +39,12 @@ bcrypt = Bcrypt()
 
 # ✅ Mail instance (to be set from app.py)
 mail = None
+# Email validator
+EMAIL_RE = re.compile(
+    r"^(?=.{1,254}$)(?=.{1,64}@)"
+    r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+    r"(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}$"
+)
 
 
 def register_mail_instance(mail_instance):
@@ -2292,3 +2299,91 @@ def format_profile_response(user, profile):
         "DateOfBirth": profile.DateOfBirth.strftime("%Y-%m-%d") if profile and profile.DateOfBirth else None,
         "UpdatedAt": profile.UpdatedAt.strftime("%Y-%m-%d %H:%M:%S") if profile and profile.UpdatedAt else None
     }
+# route for enabling the user send a feedback abput the website
+
+
+@routes.route('/feedback', methods=['POST'])
+def create_feedback():
+    try:
+        data = request.get_json(silent=True) or request.form
+        email = (data.get('Email') or '').strip()
+        subject = (data.get('Subject') or '').strip()
+        message = (data.get('Message') or '').strip()
+
+        # Basic validation
+        if not EMAIL_RE.match(email):
+            return jsonify({"error": "A valid Email is required."}), 400
+        if not subject or len(subject) > 200:
+            return jsonify({"error": "Subject is required (max 200 chars)."}), 400
+        if not message:
+            return jsonify({"error": "Message is required."}), 400
+
+        fb = Feedback(Email=email, Subject=subject, Message=message)
+        db.session.add(fb)
+        db.session.commit()
+
+        # Optional: send an acknowledgment email (if mail is configured)
+        try:
+            if mail:
+                msg = Message(
+                    subject="Thanks for your feedback",
+                    recipients=[email],
+                    body=f"Hi,\n\nWe received your feedback:\n\n{message}\n\n— Team"
+                )
+                mail.send(msg)
+        except Exception:
+            # Don’t fail the request if email sending has issues
+            pass
+
+        return jsonify({
+            "message": "Thanks for your feedback!",
+            "feedback": {
+                "FeedbackID": fb.FeedbackID,
+                "Email": fb.Email,
+                "Subject": fb.Subject,
+                "Message": fb.Message,
+                "CreatedAt": fb.CreatedAt.isoformat()
+            }
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Failed to save feedback.", "details": str(e)}), 500
+
+# route for enabling the user rate the website
+
+
+@routes.route('/ratings', methods=['POST'])
+def create_rating():
+    try:
+        data = request.get_json(silent=True) or request.form
+
+        # Pull & validate rating
+        raw = data.get('RatingValue')
+        try:
+            rating_value = int(raw)
+        except (TypeError, ValueError):
+            return jsonify({"error": "RatingValue must be an integer 1–5."}), 400
+
+        if not 1 <= rating_value <= 5:
+            return jsonify({"error": "RatingValue must be between 1 and 5."}), 400
+
+        comment = (data.get('Comment') or '').strip() or None
+
+        # Save
+        rating = Rating(RatingValue=rating_value, Comment=comment)
+        db.session.add(rating)
+        db.session.commit()
+
+        return jsonify({
+            "message": "Thanks for rating!",
+            "rating": {
+                "RatingID": rating.RatingID,
+                "RatingValue": rating.RatingValue,
+                "Comment": rating.Comment,
+                "CreatedAt": rating.CreatedAt.isoformat()
+            }
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Failed to save rating.", "details": str(e)}), 500

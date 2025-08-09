@@ -343,3 +343,21 @@ class Profile(db.Model):
     # Relationship with User
     user = db.relationship(
         "User", backref=db.backref("profile", uselist=False))
+
+
+# models.py
+class Feedback(db.Model):
+    __tablename__ = 'Feedback'
+    FeedbackID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    Email = db.Column(db.String(120), nullable=False)
+    Subject = db.Column(db.String(200), nullable=False)
+    Message = db.Column(db.Text, nullable=False)
+    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Rating(db.Model):
+    __tablename__ = 'Rating'
+    RatingID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    RatingValue = db.Column(db.Integer, nullable=False)  # 1–5
+    Comment = db.Column(db.Text)  # optional
+    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
