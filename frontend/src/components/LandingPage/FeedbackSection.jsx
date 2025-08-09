@@ -1,8 +1,8 @@
 // src/components/FeedbackRatingSection.jsx
 import React, { useState } from "react";
 import {
-    Box, Paper, Typography, TextField, Button, Alert,
-    Stack, Grid, CircularProgress
+    Box, Paper, Typography, TextField, Button,
+    Stack, Grid, CircularProgress, Snackbar, Alert
 } from "@mui/material";
 import MuiRating from "@mui/material/Rating";
 import axios from "axios";
@@ -18,50 +18,55 @@ const BRAND = {
 };
 const brandGradient = `linear-gradient(90deg, ${BRAND.pink}, ${BRAND.magenta}, ${BRAND.purple})`;
 
-/* ---------- Feedback Form ---------- */
-function FeedbackForm({ onSuccess, setLoading }) {
-    const [form, setForm] = useState({ Email: "", Subject: "", Message: "" });
-    const [local, setLocal] = useState({ type: "info", msg: "", show: false });
+const cardSx = {
+    p: { xs: 2.5, md: 3 },
+    borderRadius: 4,
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    background: "rgba(255,255,255,0.55)",
+    border: "1px solid rgba(255,255,255,0.35)",
+    backdropFilter: "blur(10px)",
+    boxShadow:
+        "8px 8px 18px rgba(0,0,0,0.08), -6px -6px 16px rgba(255,255,255,0.6), inset 0 1px 0 rgba(255,255,255,0.25)",
+};
 
-    const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+/* ---------- Feedback Form ---------- */
+function FeedbackForm() {
+    const [form, setForm] = useState({ Email: "", Subject: "", Message: "" });
+    const [loading, setLoading] = useState(false);
+    const [toast, setToast] = useState({ open: false, type: "success", msg: "" });
+
+    const handleChange = (e) =>
+        setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
     const submit = async (e) => {
         e.preventDefault();
+        if (loading) return;
         setLoading(true);
-        setLocal({ ...local, show: false });
         try {
             await axios.post(`${API_URL}/feedback`, form);
-            setLocal({ type: "success", msg: "Thanks! Your feedback was submitted.", show: true });
-            onSuccess?.();
+            setToast({ open: true, type: "success", msg: "Thanks! Your feedback was submitted." });
             setForm({ Email: "", Subject: "", Message: "" });
         } catch (err) {
             const msg = err?.response?.data?.error || "Failed to submit feedback.";
-            setLocal({ type: "error", msg, show: true });
+            setToast({ open: true, type: "error", msg });
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Paper
-            elevation={0}
-            sx={{
-                p: 3,
-                borderRadius: 3,
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                background: "#eef0f5",
-                boxShadow: "8px 8px 16px #c8cdd6, -8px -8px 16px #ffffff, 0 0 18px rgba(255,0,128,0.08)",
-                transition: "transform .2s, box-shadow .2s",
-                "&:hover": {
-                    transform: "translateY(-2px)",
-                    boxShadow: "12px 12px 24px #c1c6d0, -12px -12px 24px #ffffff, 0 0 26px rgba(255,0,128,0.12)",
-                },
-            }}
-        >
-            {/* Inline alert ABOVE the form */}
+        <Paper elevation={0} sx={{ ...cardSx, width: "100%" }}>
+            <Snackbar
+                open={toast.open}
+                autoHideDuration={2200}
+                onClose={() => setToast((t) => ({ ...t, open: false }))}
+                anchorOrigin={{ vertical: "top", horizontal: "center" }}
+            >
+                <Alert severity={toast.type} variant="filled">{toast.msg}</Alert>
+            </Snackbar>
 
             <Box>
                 <Typography
@@ -114,11 +119,10 @@ function FeedbackForm({ onSuccess, setLoading }) {
                     sx={{ "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: BRAND.magenta } }}
                 />
 
-                {/* Shorter, glowing button with loading state */}
                 <Button
                     type="submit"
                     variant="contained"
-                    disabled={!!setLoading.loading}
+                    disabled={loading}
                     sx={{
                         alignSelf: "flex-start",
                         minWidth: 160,
@@ -127,7 +131,7 @@ function FeedbackForm({ onSuccess, setLoading }) {
                         fontWeight: 700,
                         background: brandGradient,
                         boxShadow: "0 6px 14px rgba(212,18,78,0.25)",
-                        animation: "glow 2.2s ease-in-out infinite",
+                        animation: loading ? "none" : "glow 2.2s ease-in-out infinite",
                         "&:hover": { background: brandGradient, filter: "brightness(1.05)" },
                         "@keyframes glow": {
                             "0%": { boxShadow: "0 6px 14px rgba(212,18,78,0.25)" },
@@ -136,66 +140,52 @@ function FeedbackForm({ onSuccess, setLoading }) {
                         },
                     }}
                 >
-                    {setLoading.loading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : "SUBMIT FEEDBACK"}
+                    {loading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : "SUBMIT FEEDBACK"}
                 </Button>
-                {local.show && (
-                    <Alert severity={local.type} onClose={() => setLocal({ ...local, show: false })}>
-                        {local.msg}
-                    </Alert>
-                )}
             </Box>
         </Paper>
     );
 }
 
 /* ---------- Rating Form ---------- */
-function RatingForm({ onSuccess, setLoading, onRated }) {
+function RatingForm() {
     const [stars, setStars] = useState(0);
     const [comment, setComment] = useState("");
-    const [local, setLocal] = useState({ type: "info", msg: "", show: false });
+    const [loading, setLoading] = useState(false);
+    const [toast, setToast] = useState({ open: false, type: "success", msg: "" });
 
     const submit = async (e) => {
         e.preventDefault();
+        if (loading) return;
         if (!stars) {
-            setLocal({ type: "warning", msg: "Please select a star rating.", show: true });
+            setToast({ open: true, type: "warning", msg: "Please select a star rating." });
             return;
         }
         setLoading(true);
-        setLocal({ ...local, show: false });
         try {
             await axios.post(`${API_URL}/ratings`, { RatingValue: stars, Comment: comment || null });
-            setLocal({ type: "success", msg: "Thanks for rating!", show: true });
+            setToast({ open: true, type: "success", msg: "Thanks for rating!" });
             setStars(0);
             setComment("");
-            onRated?.();
-            onSuccess?.();
         } catch (err) {
             const msg = err?.response?.data?.error || "Failed to submit rating.";
-            setLocal({ type: "error", msg, show: true });
+            setToast({ open: true, type: "error", msg });
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Paper
-            elevation={0}
-            sx={{
-                p: 3,
-                borderRadius: 3,
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                background: "#eef0f5",
-                boxShadow: "8px 8px 16px #c8cdd6, -8px -8px 16px #ffffff, 0 0 18px rgba(41,121,255,0.10)",
-                transition: "transform .2s, box-shadow .2s",
-                "&:hover": {
-                    transform: "translateY(-2px)",
-                    boxShadow: "12px 12px 24px #c1c6d0, -12px -12px 24px #ffffff, 0 0 26px rgba(41,121,255,0.16)",
-                },
-            }}
-        >
+        <Paper elevation={0} sx={{ ...cardSx, width: "100%" }}>
+            <Snackbar
+                open={toast.open}
+                autoHideDuration={2200}
+                onClose={() => setToast((t) => ({ ...t, open: false }))}
+                anchorOrigin={{ vertical: "top", horizontal: "center" }}
+            >
+                <Alert severity={toast.type} variant="filled">{toast.msg}</Alert>
+            </Snackbar>
+
             <Box>
                 <Typography
                     variant="h6"
@@ -238,10 +228,10 @@ function RatingForm({ onSuccess, setLoading, onRated }) {
                     sx={{ "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: BRAND.blue } }}
                 />
 
-                {/* Shorter, glowing button with loading state */}
                 <Button
                     type="submit"
                     variant="contained"
+                    disabled={loading}
                     sx={{
                         alignSelf: "flex-start",
                         minWidth: 160,
@@ -250,7 +240,7 @@ function RatingForm({ onSuccess, setLoading, onRated }) {
                         fontWeight: 700,
                         background: brandGradient,
                         boxShadow: "0 6px 14px rgba(126,0,166,0.25)",
-                        animation: "glow 2.2s ease-in-out infinite",
+                        animation: loading ? "none" : "glow 2.2s ease-in-out infinite",
                         "&:hover": { background: brandGradient, filter: "brightness(1.05)" },
                         "@keyframes glow": {
                             "0%": { boxShadow: "0 6px 14px rgba(126,0,166,0.25)" },
@@ -259,59 +249,47 @@ function RatingForm({ onSuccess, setLoading, onRated }) {
                         },
                     }}
                 >
-                    {setLoading.loading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : "SUBMIT RATING"}
+                    {loading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : "SUBMIT RATING"}
                 </Button>
-
-                {/* Inline alert BELOW the button */}
-                {local.show && (
-                    <Alert severity={local.type} onClose={() => setLocal({ ...local, show: false })}>
-                        {local.msg}
-                    </Alert>
-                )}
             </Box>
         </Paper>
     );
 }
 
-/* ---------- Parent (summary removed) ---------- */
+/* ---------- Parent (even horizontal occupation) ---------- */
 export default function FeedbackRatingSection() {
-    const [loading, setLoading] = useState(false);
-
     return (
-        <Box sx={{ position: "relative", my: 7, px: 2 }}>
-            {/* Glass wrapper */}
+        <Box sx={{ position: "relative", mt: 0, mb: { xs: 3, md: 6 }, px: { xs: 1.5, md: 2 } }}>
             <Box
                 sx={{
                     maxWidth: 1300,
                     mx: "auto",
-                    p: { xs: 2.5, md: 4 },
-                    borderRadius: 4,
-                    background: "rgba(255,255,255,0.45)",
-                    border: "1px solid rgba(255,255,255,0.35)",
+                    p: { xs: 2, md: 3 },
+                    borderRadius: 5,
+                    background: "rgba(255,255,255,0.35)",
+                    border: "1px solid rgba(255,255,255,0.3)",
                     backdropFilter: "blur(8px)",
                     position: "relative",
-                    overflow: "hidden",
-                    opacity: loading ? 0.85 : 1,
-                    transition: "opacity .2s",
+                    zIndex: 0,
                 }}
             >
-                {/* Header (kept title only; removed average stars & chip) */}
-                <Stack spacing={1} alignItems="center" sx={{ mb: 3 }}>
+                <Stack spacing={0.5} alignItems="center" sx={{ mb: 2 }}>
                     <Typography variant="h5" fontWeight={900}>We’d love your thoughts</Typography>
                 </Stack>
 
-                {/* Two cards */}
                 <Grid
                     container
-                    spacing={{ xs: 28, md: 28 }}
-                    alignItems="stretch"
                     columns={12}
+                    columnSpacing={{ xs: 2, md: 4 }}   // only horizontal gap
+                    rowSpacing={{ xs: 3, md: 4 }}      // vertical gap
+                    alignItems="stretch"
+                    justifyContent="space-between"
                 >
-                    <Grid item xs={12} md={6}>
-                        <FeedbackForm setLoading={(v) => setLoading(v)} />
+                    <Grid item xs={12} md={6} sx={{ display: "flex" }}>
+                        <FeedbackForm />
                     </Grid>
-                    <Grid item xs={12} md={6}>
-                        <RatingForm setLoading={(v) => setLoading(v)} />
+                    <Grid item xs={12} md={6} sx={{ display: "flex" }}>
+                        <RatingForm />
                     </Grid>
                 </Grid>
             </Box>
