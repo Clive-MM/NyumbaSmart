@@ -322,7 +322,7 @@ export default function Operation() {
             whileHover={!prefersReduced ? "hover" : "rest"}
             whileTap="tap"
           >
-            Get Started
+            SIGN UP HERE
           </GlowButton>
         </Box>
       </Container>
