@@ -25,6 +25,22 @@ const BRAND = {
 };
 const brandGradient = `linear-gradient(90deg, ${BRAND.pink}, ${BRAND.magenta}, ${BRAND.purple})`;
 
+// NEW: logo
+const logoUrl =
+    "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
+
+/* Load Orbitron once */
+const ORBITRON_HREF =
+    "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&display=swap";
+(() => {
+    if (typeof document !== "undefined" && !document.head.querySelector(`link[href="${ORBITRON_HREF}"]`)) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = ORBITRON_HREF;
+        document.head.appendChild(link);
+    }
+})();
+
 /* Reusable link with emoji tooltip + hover motion */
 function FooterLink({ href, label, emoji, ...props }) {
     return (
@@ -37,14 +53,8 @@ function FooterLink({ href, label, emoji, ...props }) {
                     position: "relative",
                     fontSize: 14,
                     transition: "transform .2s ease, color .2s ease",
-                    "&:hover": {
-                        transform: "translateY(-1px) scale(1.02)",
-                        color: BRAND.pink,
-                    },
-                    "&::before": {
-                        content: `"${emoji} "`,
-                        opacity: 0.9,
-                    },
+                    "&:hover": { transform: "translateY(-1px) scale(1.02)", color: BRAND.pink },
+                    "&::before": { content: `"${emoji} "`, opacity: 0.9 },
                 }}
                 {...props}
             >
@@ -93,8 +103,7 @@ export default function Footer() {
                     bgcolor: "rgba(255,255,255,0.6)",
                     borderTop: "1px solid rgba(0,0,0,0.06)",
                     backdropFilter: "blur(8px)",
-                    boxShadow:
-                        "0 -6px 18px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.5)",
+                    boxShadow: "0 -6px 18px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.5)",
                 }}
             >
                 <Box
@@ -105,54 +114,82 @@ export default function Footer() {
                         py: { xs: 3, md: 4 },
                     }}
                 >
-                    {/* TOP ROW — evenly distributed */}
+                    {/* TOP ROW */}
                     <Grid
                         container
                         columns={12}
-                        columnSpacing={{ xs: 3, md: 6 }}   // horizontal spacing between the 3 blocks
+                        columnSpacing={{ xs: 3, md: 6 }}
                         rowSpacing={{ xs: 3, md: 4 }}
                         alignItems="flex-start"
                         justifyContent="space-between"
                         sx={{ mb: { xs: 2, md: 3 } }}
                     >
-                        {/* Brand + blurb */}
+                        {/* Brand + slogan + logo (click to go Home) */}
                         <Grid item xs={12} md={4} sx={{ display: "flex" }}>
                             <Stack spacing={2} sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography
-                                    variant="h6"
+                                <MUILink
+                                    href="/"
+                                    underline="none"
+                                    color="inherit"
+                                    aria-label="Go to homepage"
                                     sx={{
-                                        fontWeight: 900,
-                                        background: brandGradient,
-                                        WebkitBackgroundClip: "text",
-                                        WebkitTextFillColor: "transparent",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 1,
+                                        cursor: "pointer",
+                                        "&:hover .brand": { filter: "brightness(1.06)" },
                                     }}
                                 >
-                                    PayNest
-                                </Typography>
+                                    <Box
+                                        component="img"
+                                        src={logoUrl}
+                                        alt="PayNest logo"
+                                        sx={{
+                                            width: 38,
+                                            height: 38,
+                                            borderRadius: 1.5,
+                                            boxShadow:
+                                                "0 6px 14px rgba(212,18,78,0.18), inset 0 0 0 1px rgba(255,255,255,0.7)",
+                                        }}
+                                    />
+                                    <Typography
+                                        className="brand"
+                                        variant="h6"
+                                        sx={{
+                                            fontFamily: "'Orbitron', sans-serif",
+                                            fontWeight: 900,
+                                            letterSpacing: 0.6,
+                                            background: brandGradient,
+                                            WebkitBackgroundClip: "text",
+                                            WebkitTextFillColor: "transparent",
+                                        }}
+                                    >
+                                        PayNest
+                                    </Typography>
+                                </MUILink>
+
                                 <Typography variant="body2" color="text.secondary">
                                     Smart Homes, Smarter Payments.
                                 </Typography>
 
                                 <Stack direction="row" spacing={1}>
-                                    {[TwitterIcon, InstagramIcon, LinkedInIcon, FacebookIcon].map(
-                                        (Icon, idx) => (
-                                            <IconButton
-                                                key={idx}
-                                                size="small"
-                                                color="inherit"
-                                                sx={{
-                                                    transition: "transform .2s, box-shadow .2s",
-                                                    "&:hover": {
-                                                        transform: "translateY(-2px)",
-                                                        boxShadow: "0 6px 14px rgba(212,18,78,0.25)",
-                                                        color: BRAND.pink,
-                                                    },
-                                                }}
-                                            >
-                                                <Icon fontSize="small" />
-                                            </IconButton>
-                                        )
-                                    )}
+                                    {[TwitterIcon, InstagramIcon, LinkedInIcon, FacebookIcon].map((Icon, idx) => (
+                                        <IconButton
+                                            key={idx}
+                                            size="small"
+                                            color="inherit"
+                                            sx={{
+                                                transition: "transform .2s, box-shadow .2s",
+                                                "&:hover": {
+                                                    transform: "translateY(-2px)",
+                                                    boxShadow: "0 6px 14px rgba(212,18,78,0.25)",
+                                                    color: BRAND.pink,
+                                                },
+                                            }}
+                                        >
+                                            <Icon fontSize="small" />
+                                        </IconButton>
+                                    ))}
                                 </Stack>
                             </Stack>
                         </Grid>
@@ -160,7 +197,10 @@ export default function Footer() {
                         {/* Quick links */}
                         <Grid item xs={12} md={4} sx={{ display: "flex" }}>
                             <Stack spacing={1.25} sx={{ flex: 1 }}>
-                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                <Typography
+                                    variant="subtitle2"
+                                    sx={{ fontFamily: "'Orbitron', sans-serif", fontWeight: 800, letterSpacing: 0.4 }}
+                                >
                                     Quick Links
                                 </Typography>
                                 <FooterLink href="/" label="Home" emoji="🏠" />
@@ -173,14 +213,13 @@ export default function Footer() {
                         {/* Contact */}
                         <Grid item xs={12} md={4} sx={{ display: "flex" }}>
                             <Stack spacing={1.25} sx={{ flex: 1 }}>
-                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                <Typography
+                                    variant="subtitle2"
+                                    sx={{ fontFamily: "'Orbitron', sans-serif", fontWeight: 800, letterSpacing: 0.4 }}
+                                >
                                     Get in touch
                                 </Typography>
-                                <FooterLink
-                                    href="mailto:support@paynest.app"
-                                    label="support@paynest.app"
-                                    emoji="✉️"
-                                />
+                                <FooterLink href="mailto:support@paynest.app" label="support@paynest.app" emoji="✉️" />
                                 <Typography variant="body2" color="text.secondary">
                                     Mon–Fri · 9:00–17:00
                                 </Typography>
@@ -190,13 +229,8 @@ export default function Footer() {
 
                     <Divider />
 
-                    {/* BOTTOM BAR — centered alignment */}
-                    <Stack
-                        spacing={1}
-                        alignItems="center"
-                        justifyContent="center"
-                        sx={{ mt: { xs: 2.5, md: 3 } }}
-                    >
+                    {/* BOTTOM BAR — centered */}
+                    <Stack spacing={1} alignItems="center" justifyContent="center" sx={{ mt: { xs: 2.5, md: 3 } }}>
                         <Typography variant="body2" color="text.secondary" align="center">
                             © {new Date().getFullYear()} PayNest. All rights reserved.
                         </Typography>
