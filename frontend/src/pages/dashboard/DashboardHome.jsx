@@ -65,7 +65,7 @@ export default function DashboardHome() {
                             maxWidth: 760,
                         }}
                     >
-                        Welcome to NyumbaSmart Dashboard! Use the side menu to navigate.
+                        Welcome to NyumbaSmart Dashboard! This is what is going on today.
                     </Typography>
 
                     {/* Thin accent rule in brand gradient */}
