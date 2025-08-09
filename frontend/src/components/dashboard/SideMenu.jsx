@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/components/SideMenu.jsx
+import React, { useEffect, useState } from "react";
 import {
     Box,
     List,
@@ -7,113 +8,215 @@ import {
     ListItemIcon,
     ListItemText,
     Tooltip,
+    Divider,
+    Typography,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { motion } from "framer-motion";
 
 import DashboardIcon from "@mui/icons-material/Dashboard";
-import PeopleIcon from "@mui/icons-material/People";
 import HomeIcon from "@mui/icons-material/Home";
-
+import PeopleIcon from "@mui/icons-material/People";
 import ReceiptIcon from "@mui/icons-material/Receipt";
 import PaymentIcon from "@mui/icons-material/Payment";
-
+import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import HistoryIcon from "@mui/icons-material/History";
-import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import MenuIcon from "@mui/icons-material/Menu";
 
-const NeumorphicBox = styled(Box)(({ isCollapsed }) => ({
-    width: isCollapsed ? 80 : 240,
-    padding: "1rem 0.5rem",
-    marginTop: "64px",
-    minHeight: "calc(100vh - 64px)",
-    background: "#e0e0e0",
-    borderRadius: "0 20px 20px 0",
-    boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
-    transition: "width 0.3s ease-in-out, box-shadow 0.3s",
-    overflow: "hidden",
-}));
+/* ---------- Assets ---------- */
+const logoUrl =
+    "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
 
-const NeumorphicListItemButton = styled(ListItemButton)(({ active }) => ({
-    borderRadius: "10px",
-    marginBottom: "8px",
-    padding: "10px 14px",
-    background: active ? "#d4d4d4" : "transparent",
-    boxShadow: active
-        ? "inset 4px 4px 6px #bebebe, inset -4px -4px 6px #ffffff"
-        : "none",
-    transition: "all 0.3s ease-in-out",
-    "&:hover": {
-        backgroundColor: "rgba(69, 107, 188, 0.15)",
-        transform: "scale(1.03)",
-    },
-}));
+/* ---------- Brand ---------- */
+const BRAND = {
+    pink: "#FF0080",
+    magenta: "#D4124E",
+    red: "#FF3B3B",
+    blue: "#2979FF",
+    purple: "#7E00A6",
+};
+const GRADIENT = `linear-gradient(180deg, ${BRAND.pink}, ${BRAND.magenta}, ${BRAND.red}, ${BRAND.blue}, ${BRAND.purple})`;
+const TEXT_GRADIENT = `linear-gradient(90deg, ${BRAND.pink}, ${BRAND.magenta}, ${BRAND.red}, ${BRAND.blue}, ${BRAND.purple})`;
 
-export default function SideMenu({ setActivePage }) {
+/* ---------- Public width constants (use these in the layout/header) ---------- */
+export const SIDEBAR_EXPANDED = 240;
+export const SIDEBAR_COLLAPSED = 80;
+
+/* ---------- Styled ---------- */
+
+/** Docked to the viewport (top-left), with rounded outer corners */
+const SidebarWrap = styled(Box, { shouldForwardProp: (p) => p !== "isCollapsed" })(
+    ({ isCollapsed }) => ({
+        position: "fixed",
+        top: 0,
+        left: 0,
+        height: "100vh",
+        width: isCollapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED,
+
+        background: "#0B1220",
+        borderRight: "1px solid rgba(255,255,255,0.06)",
+        borderRadius: "0 16px 16px 0",
+        boxShadow: "8px 0 24px rgba(0,0,0,0.18)",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+
+        transition: "width .28s ease",
+        zIndex: 10, // sits below the floating header (which should have a higher zIndex)
+    })
+);
+
+const NavButton = styled(ListItemButton, { shouldForwardProp: (p) => p !== "active" })(
+    ({ active }) => ({
+        position: "relative",
+        borderRadius: 12,
+        padding: "12px 12px",
+        margin: "4px 8px",
+        color: "#E5E7EB",
+        background: active ? "rgba(255,255,255,0.04)" : "transparent",
+        "&:hover": { background: "rgba(255,255,255,0.06)" },
+    })
+);
+
+const ActiveBar = styled(motion.span)({
+    position: "absolute",
+    left: 6,
+    top: 8,
+    bottom: 8,
+    width: 4,
+    borderRadius: 4,
+    background: GRADIENT,
+    boxShadow: "0 0 14px rgba(255,0,128,0.35)",
+});
+
+const iconSx = { color: "#F8FAFC", opacity: 0.9, fontSize: 22 };
+
+const BrandName = styled(Typography)({
+    fontWeight: 900,
+    letterSpacing: 0.3,
+    background: TEXT_GRADIENT,
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+});
+
+/**
+ * SideMenu
+ * @param {{ setActivePage: (page: string) => void, onWidthChange?: (w:number)=>void }} props
+ */
+export default function SideMenu({ setActivePage, onWidthChange }) {
     const [activePage, setActive] = useState("dashboard");
     const [collapsed, setCollapsed] = useState(false);
 
-    const menuItems = [
-        { text: "", icon: <MenuIcon />, page: "toggle" }, // ✅ Collapse Button First
-        { text: "Dashboard", icon: <DashboardIcon />, page: "dashboard" },
-        { text: "Properties", icon: <HomeIcon />, page: "properties" },
-        { text: "Tenants", icon: <PeopleIcon />, page: "tenants" },
-        { text: "Billing", icon: <ReceiptIcon />, page: "billing" },
-        { text: "Payments", icon: <PaymentIcon />, page: "payments" },
-        { text: "Expenses", icon: <AttachMoneyIcon />, page: "expenses" },
-        { text: "Reports", icon: <AssessmentIcon />, page: "reports" },
-        { text: "History Logs", icon: <HistoryIcon />, page: "historylogs" },
+    // Expose current width to parent (so header/main can animate/resize)
+    useEffect(() => {
+        onWidthChange?.(collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED);
+    }, [collapsed, onWidthChange]);
 
+    const toggleCollapsed = () => setCollapsed((v) => !v);
+
+    const menuItems = [
+        { text: "Dashboard", icon: <DashboardIcon sx={iconSx} />, page: "dashboard" },
+        { text: "Properties", icon: <HomeIcon sx={iconSx} />, page: "properties" },
+        { text: "Tenants", icon: <PeopleIcon sx={iconSx} />, page: "tenants" },
+        { text: "Billing", icon: <ReceiptIcon sx={iconSx} />, page: "billing" },
+        { text: "Payments", icon: <PaymentIcon sx={iconSx} />, page: "payments" },
+        { text: "Expenses", icon: <AttachMoneyIcon sx={iconSx} />, page: "expenses" },
+        { text: "Reports", icon: <AssessmentIcon sx={iconSx} />, page: "reports" },
+        { text: "History Logs", icon: <HistoryIcon sx={iconSx} />, page: "historylogs" },
     ];
 
     return (
-        <NeumorphicBox isCollapsed={collapsed}>
-            <List>
-                {menuItems.map((item, index) => (
-                    <Tooltip
-                        key={index}
-                        title={collapsed && item.text ? item.text : ""}
-                        placement="right"
-                        arrow
-                    >
-                        <ListItem disablePadding>
-                            <motion.div
-                                whileHover={{ scale: 1.03 }}
-                                whileTap={{ scale: 0.97 }}
-                                style={{ width: "100%" }}
-                            >
-                                <NeumorphicListItemButton
-                                    active={activePage === item.page ? 1 : 0}
-                                    onClick={() => {
-                                        if (item.page === "toggle") {
-                                            setCollapsed(!collapsed); // ✅ Collapse/Expand
-                                        } else {
-                                            setActive(item.page);
-                                            setActivePage(item.page);
-                                        }
-                                    }}
-                                >
-                                    <ListItemIcon sx={{ color: "#456BBC", minWidth: 40 }}>
-                                        {item.icon}
-                                    </ListItemIcon>
+        <SidebarWrap isCollapsed={collapsed}>
+            {/* Brand header — also the collapse/expand toggle */}
+            <Tooltip title={collapsed ? "Expand" : "Collapse"} arrow placement="right">
+                <Box
+                    role="button"
+                    tabIndex={0}
+                    onClick={toggleCollapsed}
+                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && toggleCollapsed()}
+                    sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.25,
+                        px: 1.5,
+                        py: 1.25,
+                        mt: 1, // slight inset from the very top
+                        borderBottom: "1px solid rgba(255,255,255,0.06)",
+                        cursor: "pointer",
+                        userSelect: "none",
+                    }}
+                >
+                    <Box
+                        component={motion.img}
+                        whileHover={{ scale: 1.05, rotate: 2 }}
+                        whileTap={{ scale: 0.96 }}
+                        src={logoUrl}
+                        alt="PayNest"
+                        sx={{
+                            width: 36,
+                            height: 36,
+                            objectFit: "contain",
+                            borderRadius: 1,
+                            background: "rgba(255,255,255,0.06)",
+                            p: 0.5,
+                            boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
+                            mx: collapsed ? "auto" : 0,
+                        }}
+                    />
+                    {!collapsed && (
+                        <BrandName variant="h6" sx={{ fontSize: 18 }}>
+                            PayNest
+                        </BrandName>
+                    )}
+                </Box>
+            </Tooltip>
 
-                                    {!collapsed && item.text && (
-                                        <ListItemText
-                                            primary={item.text}
-                                            primaryTypographyProps={{
-                                                fontSize: "0.95rem",
-                                                fontWeight: 500,
-                                                color: "#333",
-                                            }}
-                                        />
-                                    )}
-                                </NeumorphicListItemButton>
-                            </motion.div>
-                        </ListItem>
-                    </Tooltip>
-                ))}
+            <Divider sx={{ borderColor: "rgba(255,255,255,0.06)", mx: 1, my: 1 }} />
+
+            {/* Navigation */}
+            <List sx={{ py: 0 }}>
+                {menuItems.map((item) => {
+                    const active = activePage === item.page;
+
+                    const button = (
+                        <NavButton
+                            active={active ? 1 : 0}
+                            onClick={() => {
+                                setActive(item.page);
+                                setActivePage(item.page);
+                            }}
+                        >
+                            {active && (
+                                <ActiveBar
+                                    layoutId="activeBar"
+                                    initial={{ opacity: 0.6 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                                />
+                            )}
+
+                            <ListItemIcon sx={{ minWidth: 36 }}>{item.icon}</ListItemIcon>
+
+                            {!collapsed && (
+                                <ListItemText
+                                    primary={item.text}
+                                    primaryTypographyProps={{
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        color: active ? "#FFFFFF" : "#E5E7EB",
+                                    }}
+                                />
+                            )}
+                        </NavButton>
+                    );
+
+                    return (
+                        <Tooltip key={item.page} title={collapsed ? item.text : ""} placement="right" arrow>
+                            <ListItem disablePadding>{button}</ListItem>
+                        </Tooltip>
+                    );
+                })}
             </List>
-        </NeumorphicBox>
+        </SidebarWrap>
     );
 }
