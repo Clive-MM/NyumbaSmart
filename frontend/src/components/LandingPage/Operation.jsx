@@ -29,8 +29,7 @@ const P = {
 
 /* Load Orbitron once */
 const fontLink = document.createElement("link");
-fontLink.href =
-  "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap";
+fontLink.href = "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap";
 fontLink.rel = "stylesheet";
 if (!document.head.querySelector(`link[href="${fontLink.href}"]`)) {
   document.head.appendChild(fontLink);
@@ -63,7 +62,10 @@ const GradientText = styled(Typography)(() => ({
   WebkitTextFillColor: "transparent",
 }));
 
-const GlowButton = styled(Button)(({ theme }) => ({
+/* ---- Animated CTA Button (glow + shake + ripple + entrance) ---- */
+const GlowButton = styled(motion(Button))(({ theme }) => ({
+  position: "relative",
+  overflow: "hidden", // for ripple
   marginTop: theme.spacing(2),
   padding: theme.spacing(1, 2.5),
   borderRadius: 12,
@@ -73,11 +75,58 @@ const GlowButton = styled(Button)(({ theme }) => ({
   background: `linear-gradient(90deg, ${P.cyan}, ${P.lilac}, ${P.magenta})`,
   color: "#0e1020",
   boxShadow: `0 10px 24px rgba(0,200,255,0.24), 0 4px 12px rgba(138,107,255,0.2)`,
-  "&:hover": {
-    transform: "translateY(-1px)",
-    background: `linear-gradient(90deg, ${P.cyan}, ${P.magenta})`,
+  backgroundSize: "200% 100%",
+  transition: "background-position .6s ease",
+  "&:hover": { backgroundPosition: "100% 0" },
+
+  // CSS ripple on click
+  "&::after": {
+    content: '""',
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    width: 0,
+    height: 0,
+    transform: "translate(-50%, -50%)",
+    borderRadius: "50%",
+    background:
+      "radial-gradient(circle, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.25) 40%, rgba(255,255,255,0) 70%)",
+    opacity: 0,
+    pointerEvents: "none",
+  },
+  "&:active::after": {
+    width: "220%",
+    height: "220%",
+    opacity: 0,
+    transition: "width .5s ease, height .5s ease, opacity .6s ease",
   },
 }));
+
+const buttonVariants = {
+  rest: { scale: 1, y: 0, filter: "drop-shadow(0 0 0 rgba(0,0,0,0))" },
+  hover: {
+    scale: 1.04,
+    y: [0, -1.5, 0, 1.5, 0], // subtle shake
+    boxShadow:
+      "0 0 18px rgba(0,200,255,.35), 0 0 34px rgba(255,46,196,.28)",
+    filter:
+      "drop-shadow(0 0 8px rgba(0,200,255,.35)) drop-shadow(0 0 14px rgba(255,46,196,.25))",
+    transition: {
+      duration: 0.9,
+      ease: "easeInOut",
+      repeat: Infinity,
+      repeatType: "mirror",
+    },
+  },
+  tap: { scale: 0.96 },
+  in: { opacity: 0, scale: 0.96, y: 6 },
+  inShow: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: "easeOut" },
+  },
+}; // <-- important semicolon
 
 /* Card (compact) */
 const ServiceCard = styled(Card)(({ theme }) => ({
@@ -139,7 +188,7 @@ const BodyText = styled(Typography)(({ theme }) => ({
   textAlign: "center",
 }));
 
-/* Motion variants */
+/* Motion variants for cards */
 const containerVariants = {
   hidden: { opacity: 0 },
   show: {
@@ -147,6 +196,7 @@ const containerVariants = {
     transition: { staggerChildren: 0.08, delayChildren: 0.1 },
   },
 };
+
 const cardVariants = {
   hidden: { opacity: 0, y: 18, scale: 0.985 },
   show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.32 } },
@@ -172,9 +222,6 @@ export default function Operation() {
           <GradientText variant="h3" component="h2">
             WHY CHOOSE US
           </GradientText>
-          <GlowButton size="medium" component={RouterLink} to="/register">
-            Get Started
-          </GlowButton>
         </TitleWrap>
 
         <motion.div
@@ -183,10 +230,9 @@ export default function Operation() {
           whileInView="show"
           viewport={{ once: true, amount: 0.25 }}
         >
-          {/* spacing trimmed to 2 for denser grid */}
           <Grid container spacing={2} justifyContent="center" alignItems="stretch">
             {SERVICES.map((item, idx) => (
-              // 1 col on mobile, 2 on tablet, **3 on desktop**
+              // 1 on mobile, 2 on tablet, **3 on desktop**
               <Grid key={idx} item xs={12} sm={6} md={4}>
                 <motion.div
                   variants={cardVariants}
@@ -215,6 +261,23 @@ export default function Operation() {
             ))}
           </Grid>
         </motion.div>
+
+        {/* Centered animated CTA below cards */}
+        <Box mt={5} textAlign="center">
+          <GlowButton
+            component={RouterLink}
+            to="/register"
+            size="large"
+            variants={buttonVariants}
+            initial="in"
+            whileInView="inShow"
+            viewport={{ once: true, amount: 0.4 }}
+            whileHover={!prefersReduced ? "hover" : "rest"}
+            whileTap="tap"
+          >
+            Get Started
+          </GlowButton>
+        </Box>
       </Container>
     </Section>
   );
