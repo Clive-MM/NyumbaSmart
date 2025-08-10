@@ -142,15 +142,13 @@ const Register = () => {
     return (
         <Box
             sx={{
+                position: "relative",
                 minHeight: "100vh",
-                backgroundImage: "url(https://res.cloudinary.com/djydkcx01/image/upload/v1754579128/ChatGPT_Image_Aug_7_2025_06_00_21_PM_itikc7.png)",
-                backgroundSize: "cover",
-                backgroundPosition: "center",
+                backgroundColor: "#fff", // or "white"
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
-                px: 2,
-                overflow: "hidden", // prevent page scrollbars
+                overflow: "hidden",
             }}
         >
             <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>

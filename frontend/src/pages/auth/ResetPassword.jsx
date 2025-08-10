@@ -106,6 +106,7 @@ const ResetPassword = () => {
 
         try {
             setLoading(true);
+            // eslint-disable-next-line
             const response = await axios.post(`${API_URL}/reset-password/${token}`, {
                 new_password: password,
                 confirm_password: confirmPassword,

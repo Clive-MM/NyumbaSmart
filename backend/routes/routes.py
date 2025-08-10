@@ -1,7 +1,7 @@
 from flask import current_app, Blueprint, request, jsonify
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
-from sqlalchemy import func
+from sqlalchemy import func, case
 from flask_mail import Message, Mail
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
@@ -417,27 +417,56 @@ def create_apartment():
 def get_my_apartments():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-
-    # Ensure only landlords can access this route
     if not user or not user.IsAdmin:
         return jsonify({"message": "Unauthorized. Only landlords can view their apartments."}), 403
 
-    # Fetch apartments belonging to this landlord
-    apartments = Apartment.query.filter_by(UserID=user.UserID).all()
+    q = (
+        db.session.query(
+            Apartment.ApartmentID,
+            Apartment.ApartmentName,
+            Apartment.Location,
+            Apartment.Description,
+            Apartment.CreatedAt,
+            func.count(RentalUnit.UnitID).label('total_units'),
+            func.sum(case((RentalUnitStatus.StatusName == 'Occupied', 1), else_=0)).label(
+                'occupied_units'),
+            func.sum(case((RentalUnitStatus.StatusName == 'Vacant', 1), else_=0)).label(
+                'vacant_units'),
+            func.sum(case((RentalUnitStatus.StatusName == 'Reserved', 1), else_=0)).label(
+                'reserved_units'),
+        )
+        .outerjoin(RentalUnit, RentalUnit.ApartmentID == Apartment.ApartmentID)
+        .outerjoin(RentalUnitStatus, RentalUnitStatus.StatusID == RentalUnit.StatusID)
+        .filter(Apartment.UserID == user.UserID)
+        .group_by(
+            Apartment.ApartmentID, Apartment.ApartmentName,
+            Apartment.Location, Apartment.Description, Apartment.CreatedAt
+        )
+        .order_by(Apartment.CreatedAt.desc())
+    )
 
-    apartment_list = []
-    for apt in apartments:
-        apartment_list.append({
-            "ApartmentID": apt.ApartmentID,
-            "ApartmentName": apt.ApartmentName,
-            "Location": apt.Location,
-            "Description": apt.Description,
-            "CreatedAt": apt.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
+    apartments = []
+    for r in q.all():
+        total = int(r.total_units or 0)
+        vac = int(r.vacant_units or 0)
+        apartments.append({
+            "ApartmentID": r.ApartmentID,
+            "ApartmentName": r.ApartmentName,
+            "Location": r.Location,
+            "Description": r.Description,
+            "CreatedAt": r.CreatedAt.strftime('%Y-%m-%d %H:%M:%S') if r.CreatedAt else None,
+            "Stats": {
+                "TotalUnits": total,
+                "OccupiedUnits": int(r.occupied_units or 0),
+                "VacantUnits": vac,
+                "ReservedUnits": int(r.reserved_units or 0),
+                "VacancyRate": round((vac/total)*100, 1) if total else 0.0
+            }
         })
 
     return jsonify({
-        "message": f"✅ Found {len(apartment_list)} apartment(s) for landlord {user.FullName}.",
-        "Apartments": apartment_list
+        "message": f"✅ Found {len(apartments)} apartment(s) for landlord {user.FullName}.",
+        "Apartments": apartments
     }), 200
 
 # route for updating the details of an apartment
