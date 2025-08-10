@@ -325,7 +325,7 @@ export default function Header({
                         </div>
                     </SearchWrap>
 
-                    {/* Type selector */}
+
 
                 </Box>
 
