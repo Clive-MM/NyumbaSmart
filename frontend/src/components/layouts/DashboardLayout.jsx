@@ -2,15 +2,16 @@
 import React, { useState } from "react";
 import { Box } from "@mui/material";
 
-// Header exports height/top so we can reserve space beneath it
-import Header, { HEADER_HEIGHT, HEADER_TOP } from "../dashboard/Header";
+// Header now only exports HEADER_HEIGHT (top margin = 0 inside Header)
+import Header, { HEADER_HEIGHT } from "../dashboard/Header";
 
-// SideMenu exposes its expanded/collapsed widths and notifies on change
+// Sidebar reports its live width
 import SideMenu, {
     SIDEBAR_EXPANDED,
     SIDEBAR_COLLAPSED,
 } from "../dashboard/SideMenu";
 
+// Pages
 import Profile from "../../pages/dashboard/Profile";
 import Billing from "../../pages/dashboard/Billing";
 import Expenses from "../../pages/dashboard/Expenses";
@@ -26,8 +27,14 @@ import DashboardHome from "../../pages/dashboard/DashboardHome";
 export default function DashboardLayout() {
     const [activePage, setActivePage] = useState("dashboard");
 
-    // keep current sidebar width in sync with SideMenu (expanded by default)
+    // Track the current sidebar width (expanded by default)
     const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_EXPANDED);
+
+    // Header sits flush to the top; reserve just its height
+    const CONTENT_OFFSET = HEADER_HEIGHT + 8; // + progress rail
+
+    // Keep body padding in sync with Header's side gap (16px)
+    const SIDE_GAP_PX = 16;
 
     const renderContent = () => {
         switch (activePage) {
@@ -56,18 +63,15 @@ export default function DashboardLayout() {
         }
     };
 
-    // space reserved for the fixed, rounded header
-    const CONTENT_OFFSET = HEADER_TOP + HEADER_HEIGHT + 8; // 16 + 72 + 8 = 96px
-
     return (
-        <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#F7FAFC" }}>
-            {/* Sidebar — reports width changes to parent */}
+        <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+            {/* Sidebar */}
             <SideMenu
                 setActivePage={setActivePage}
                 onWidthChange={(w) => setSidebarWidth(w ?? SIDEBAR_COLLAPSED)}
             />
 
-            {/* Header — sized/positioned using the live sidebar width */}
+            {/* Header (fixed, uses live sidebar width) */}
             <Header
                 sidebarWidth={sidebarWidth}
                 onOpenSettings={() => setActivePage("settings")}
@@ -78,14 +82,14 @@ export default function DashboardLayout() {
                 }}
             />
 
-            {/* Main content — shifts right by sidebar width and down by header height */}
+            {/* Main content */}
             <Box
                 component="main"
                 sx={{
                     flex: 1,
                     ml: `${sidebarWidth}px`,
                     pt: `${CONTENT_OFFSET}px`,
-                    px: { xs: 2, md: 3 },
+                    px: `${SIDE_GAP_PX}px`, // keep same side gap as Header
                     transition: "margin-left .28s ease, padding-top .2s ease",
                 }}
             >
