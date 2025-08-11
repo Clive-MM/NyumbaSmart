@@ -1,7 +1,9 @@
+// src/pages/Tenants.jsx
 import React from "react";
 import {
     Box, Typography, Paper, Button, Table, TableHead, TableRow, TableCell,
-    TableBody, IconButton, Chip, Tooltip, TextField, MenuItem, Stack, Divider, List, ListItem, ListItemText
+    TableBody, IconButton, Chip, Tooltip, TextField, MenuItem, Stack,
+    Divider, List, ListItem, ListItemText, InputAdornment
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { motion } from "framer-motion";
@@ -11,52 +13,58 @@ import EmailIcon from "@mui/icons-material/Email";
 import PaymentIcon from "@mui/icons-material/Payment";
 import SearchIcon from "@mui/icons-material/Search";
 
-/* ---------- Brand ---------- */
+/* ---------- PayNest Brand + Fonts (match Properties / Billing) ---------- */
 const BRAND = {
-    bg: "#0b0b0f",
-    card: "#15151b",
-    cardAlt: "#1a1a1f",
-    text: "#EDEDF1",
-    subtext: "rgba(237,237,241,0.72)",
-    accentA: "#FF0080",
-    accentB: "#7E00A6",
-    danger: "#FF4D4F",
-    warning: "#FFB020",
-    success: "#2ECC71",
-    border: "rgba(255,255,255,0.08)"
+    start: "#FF0080",
+    end: "#7E00A6",
+    gradient: "linear-gradient(90deg,#FF0080 0%, #7E00A6 100%)",
+    glow: "0 14px 30px rgba(255,0,128,.22), 0 8px 20px rgba(126,0,166,.18)"
 };
-
-/* ---------- Fonts (same as Properties.jsx) ---------- */
 const FONTS = {
     display: `"Cinzel", ui-serif, Georgia, serif`,
     subhead: `"Nunito", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial`,
     number: `"Sora", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial`,
 };
 
-/* ---------- Reusable UI ---------- */
-const MotionPaper = styled(motion.div)({
-    background: BRAND.cardAlt,
-    borderRadius: 12,
+/* ---------- Soft neumorphic card (same base as other pages) ---------- */
+const softCard = {
+    p: 2,
+    borderRadius: 3,
+    color: "#fff",
+    background: "#0e0a17",
+    boxShadow:
+        "9px 9px 18px rgba(0,0,0,.55), -9px -9px 18px rgba(255,255,255,.03), inset 0 0 0 rgba(255,255,255,0)",
+    border: "1px solid rgba(255,255,255,0.06)",
+    transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
+    "&:hover": {
+        transform: "translateY(-3px)",
+        boxShadow: "12px 12px 24px rgba(0,0,0,.6), -12px -12px 24px rgba(255,255,255,.035)",
+        borderColor: "transparent",
+        background:
+            "linear-gradient(#0e0a17,#0e0a17) padding-box, " + BRAND.gradient + " border-box",
+        filter: "drop-shadow(0 18px 28px rgba(255,0,128,.16))",
+    },
+};
+
+/* ---------- Reusable UI (styled to PayNest) ---------- */
+const MotionCard = styled(motion.div)({
+    ...softCard,
     padding: 16,
-    border: `1px solid ${BRAND.border}`,
-    boxShadow: "0 4px 14px rgba(0,0,0,0.35)"
 });
 const kpiHover = {
-    whileHover: {
-        scale: 1.02,
-        boxShadow: `0 0 0 1px ${BRAND.border}, 0 0 18px ${BRAND.accentA}55, 0 0 36px ${BRAND.accentB}33`
-    },
+    whileHover: { scale: 1.02 },
     transition: { type: "spring", stiffness: 220, damping: 18 }
 };
 const BrandButton = styled(Button)({
-    background: `linear-gradient(90deg, ${BRAND.accentA}, ${BRAND.accentB})`,
+    background: BRAND.gradient,
     color: "#fff",
-    fontWeight: 700,
+    fontWeight: 800,
     textTransform: "none",
     paddingInline: 16,
-    boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+    borderRadius: 12,
+    boxShadow: "none",
     fontFamily: FONTS.subhead,
-    "&:hover": { filter: "brightness(1.05)" }
+    "&:hover": { boxShadow: BRAND.glow }
 });
 const HoverRow = styled(TableRow)({
     transition: "background 180ms ease, transform 180ms ease",
@@ -64,20 +72,20 @@ const HoverRow = styled(TableRow)({
 });
 const StatusChip = ({ value }) => {
     const map = {
-        Overdue: { color: BRAND.danger, bg: "rgba(255,77,79,0.12)" },
-        Vacating: { color: BRAND.warning, bg: "rgba(255,176,32,0.12)" },
-        Paid: { color: BRAND.success, bg: "rgba(46,204,113,0.12)" },
-        Active: { color: BRAND.text, bg: "rgba(255,255,255,0.08)" }
+        Paid: "rgba(110,231,183,.15)",
+        Overdue: "rgba(251,113,133,.15)",
+        Vacating: "rgba(253,230,138,.15)",
+        Active: "rgba(167,139,250,.15)",
     };
-    const s = map[value] || map.Active;
+    const bg = map[value] || map.Active;
     return (
         <Chip
             label={value}
             size="small"
             sx={{
-                color: s.color,
-                background: s.bg,
-                border: "1px solid rgba(255,255,255,0.08)",
+                color: "#fff",
+                background: bg,
+                border: "1px solid rgba(255,255,255,0.14)",
                 fontWeight: 700,
                 fontFamily: FONTS.subhead
             }}
@@ -85,7 +93,7 @@ const StatusChip = ({ value }) => {
     );
 };
 
-/* ---------- Tiny sparkline (SVG) ---------- */
+/* ---------- Tiny sparkline (unchanged) ---------- */
 const Sparkline = ({ data = [9, 7, 6, 6, 5, 6, 7, 8, 9], w = 200, h = 44 }) => {
     const max = Math.max(...data);
     const min = Math.min(...data);
@@ -96,18 +104,11 @@ const Sparkline = ({ data = [9, 7, 6, 6, 5, 6, 7, 8, 9], w = 200, h = 44 }) => {
     }).join(" ");
     return (
         <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-            <polyline
-                points={points}
-                fill="none"
-                stroke="url(#g)"
-                strokeWidth="2.2"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-            />
+            <polyline points={points} fill="none" stroke="url(#g)" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
             <defs>
                 <linearGradient id="g" x1="0" x2="1" y1="0" y2="0">
-                    <stop offset="0%" stopColor={BRAND.accentA} />
-                    <stop offset="100%" stopColor={BRAND.accentB} />
+                    <stop offset="0%" stopColor={BRAND.start} />
+                    <stop offset="100%" stopColor={BRAND.end} />
                 </linearGradient>
             </defs>
         </svg>
@@ -118,7 +119,6 @@ const Sparkline = ({ data = [9, 7, 6, 6, 5, 6, 7, 8, 9], w = 200, h = 44 }) => {
 const Tenants = () => {
     const monthLabel = "Aug 2025";
 
-    // DISPLAY ORDER -> EXACT AS REQUESTED
     const kpisOrdered = [
         { key: "total", title: "Total Tenants", value: "128", short: "Tenants" },
         { key: "tenantsPerApt", title: "Tenants per Apartments", value: "Oasis 64 • Safari 64", short: "Tenants / Apt", isSquare: true },
@@ -134,13 +134,11 @@ const Tenants = () => {
         { key: "avg", title: "Avg Rent / Tenant", value: "KES 52,000", short: "Avg Rent" }
     ];
 
-    // Vertical list data for square card
     const tenantsPerApt = [
         { name: "Oasis", count: 64 },
         { name: "Safari", count: 64 },
     ];
 
-    // Table data (mock)
     const tenants = [
         { name: "Courtney Hunt", unit: "Unit A-10", apartment: "Oasis Residences", phone: "(515) 555-1211", status: "Overdue", onTime: "56%", balance: "KES 164,000", nextDue: "12/08/2025" },
         { name: "Marvin Jacobs", unit: "Unit B-3", apartment: "Oasis Residences", phone: "(902) 123-466", status: "Vacating", onTime: "100%", balance: "KES 0", nextDue: "01/09/2025" },
@@ -148,12 +146,19 @@ const Tenants = () => {
     ];
 
     return (
-        <Box sx={{ background: BRAND.bg, minHeight: "100vh", p: { xs: 2, md: 3 } }}>
+        <Box sx={{ background: "#0b0714", minHeight: "100vh", p: { xs: 2, md: 3 } }}>
             {/* Header */}
             <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
                 <Typography
                     variant="h4"
-                    sx={{ color: BRAND.text, fontWeight: 800, letterSpacing: 0.3, fontFamily: FONTS.display }}
+                    sx={{
+                        fontWeight: 800,
+                        background: BRAND.gradient,
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        fontFamily: FONTS.display,
+                        letterSpacing: .5
+                    }}
                 >
                     Tenants
                 </Typography>
@@ -163,7 +168,7 @@ const Tenants = () => {
                 </Stack>
             </Box>
 
-            {/* KPI GRID - dense packing, no gaps */}
+            {/* KPI GRID */}
             <Box
                 sx={{
                     display: "grid",
@@ -179,50 +184,29 @@ const Tenants = () => {
                     if (k.key === "tenantsPerApt") height = 180;
 
                     return (
-                        <MotionPaper
-                            key={k.key}
-                            {...kpiHover}
-                            style={{ gridColumn: col.md ? undefined : undefined }}
-                            sx={{
-                                gridColumn: col,
-                                height,
-                                display: "flex",
-                                flexDirection: "column",
-                                justifyContent: "space-between"
-                            }}
-                        >
-                            <Typography sx={{ color: BRAND.subtext, fontSize: 13, fontFamily: FONTS.subhead }}>
+                        <MotionCard key={k.key} {...kpiHover} style={{ gridColumn: col.md ? undefined : undefined }} sx={{ gridColumn: col, height, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                            <Typography sx={{ opacity: .85, fontSize: 13, fontFamily: FONTS.subhead }}>
                                 {k.title}
                             </Typography>
 
                             {k.key === "tenantsPerApt" ? (
-                                <Paper
-                                    variant="outlined"
-                                    sx={{
-                                        mt: 1,
-                                        p: 1,
-                                        background: BRAND.card,
-                                        borderColor: BRAND.border,
-                                        borderRadius: 1.5,
-                                        height: "100%"
-                                    }}
-                                >
+                                <Paper elevation={0} sx={{ ...softCard, p: 1.25, borderRadius: 2, height: "100%" }}>
                                     <List dense disablePadding sx={{ maxHeight: 120, overflowY: "auto" }}>
                                         {tenantsPerApt.map((a, i) => (
                                             <ListItem
                                                 key={i}
                                                 sx={{
-                                                    py: 0.5,
-                                                    "&:not(:last-of-type)": { borderBottom: `1px dashed ${BRAND.border}` }
+                                                    py: .5,
+                                                    "&:not(:last-of-type)": { borderBottom: "1px dashed rgba(255,255,255,0.08)" }
                                                 }}
                                             >
                                                 <ListItemText
-                                                    primaryTypographyProps={{ sx: { color: BRAND.text, fontWeight: 800, fontFamily: FONTS.subhead } }}
-                                                    secondaryTypographyProps={{ sx: { color: BRAND.subtext, fontFamily: FONTS.subhead } }}
+                                                    primaryTypographyProps={{ sx: { color: "#fff", fontWeight: 800, fontFamily: FONTS.subhead } }}
+                                                    secondaryTypographyProps={{ sx: { color: "rgba(255,255,255,0.72)", fontFamily: FONTS.subhead } }}
                                                     primary={`${a.name}`}
                                                     secondary="Apartments"
                                                 />
-                                                <Typography sx={{ color: BRAND.text, fontWeight: 900, fontFamily: FONTS.number }}>
+                                                <Typography sx={{ color: "#fff", fontWeight: 900, fontFamily: FONTS.number }}>
                                                     {a.count}
                                                 </Typography>
                                             </ListItem>
@@ -231,60 +215,52 @@ const Tenants = () => {
                                 </Paper>
                             ) : (
                                 <>
-                                    <Typography sx={{ color: BRAND.text, fontSize: 26, fontWeight: 800, mt: 0.5, fontFamily: FONTS.number }}>
+                                    <Typography sx={{ color: "#fff", fontSize: 26, fontWeight: 800, mt: 0.5, fontFamily: FONTS.number }}>
                                         {k.value}
                                     </Typography>
-                                    <Typography sx={{ color: BRAND.subtext, fontSize: 12, mt: 0.25, fontFamily: FONTS.subhead }}>
+                                    <Typography sx={{ color: "rgba(255,255,255,0.72)", fontSize: 12, mt: 0.25, fontFamily: FONTS.subhead }}>
                                         {k.short}
                                     </Typography>
-                                    {k.spark && (
-                                        <Box mt={1}>
-                                            <Sparkline />
-                                        </Box>
-                                    )}
+                                    {k.spark && <Box mt={1}><Sparkline /></Box>}
                                 </>
                             )}
-                        </MotionPaper>
+                        </MotionCard>
                     );
                 })}
             </Box>
 
             {/* Filters */}
-            <Paper
-                sx={{
-                    background: BRAND.card,
-                    border: `1px solid ${BRAND.border}`,
-                    p: 2,
-                    borderRadius: 2,
-                    mb: 2
-                }}
-                component={motion.div}
-                whileHover={{ boxShadow: `0 0 0 1px ${BRAND.border}, 0 0 14px ${BRAND.accentB}33` }}
-            >
+            <Paper elevation={0} sx={{ ...softCard, p: 2, borderRadius: 2, mb: 2 }}>
                 <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems="center">
                     <TextField
                         size="small"
                         placeholder="Search tenant, phone, unit…"
-                        InputProps={{ startAdornment: <SearchIcon sx={{ mr: 1, opacity: 0.6 }} /> }}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon sx={{ opacity: 0.7 }} />
+                                </InputAdornment>
+                            ),
+                        }}
                         sx={{
                             flex: 1,
-                            "& .MuiInputBase-root": { color: BRAND.text, background: BRAND.cardAlt, borderRadius: 1.5 },
-                            "& fieldset": { borderColor: BRAND.border },
+                            "& .MuiInputBase-root": { color: "#fff", background: "#0e0a17", borderRadius: 1.5 },
+                            "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
                             "& .MuiInputBase-input": { fontFamily: FONTS.subhead }
                         }}
                     />
-                    <TextField size="small" select label="Apartment" defaultValue="" sx={{ minWidth: 180 }}>
+                    <TextField size="small" select label="Apartment" defaultValue="" sx={{ minWidth: 180, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" }, "& .MuiInputBase-root": { color: "#fff" } }}>
                         <MenuItem value="">All</MenuItem>
                         <MenuItem value="Oasis Residences">Oasis Residences</MenuItem>
                         <MenuItem value="Safari Apartments">Safari Apartments</MenuItem>
                     </TextField>
-                    <TextField size="small" select label="Status" defaultValue="" sx={{ minWidth: 160 }}>
+                    <TextField size="small" select label="Status" defaultValue="" sx={{ minWidth: 160, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" }, "& .MuiInputBase-root": { color: "#fff" } }}>
                         <MenuItem value="">All</MenuItem>
                         <MenuItem value="Paid">Paid</MenuItem>
                         <MenuItem value="Overdue">Overdue</MenuItem>
                         <MenuItem value="Vacating">Vacating</MenuItem>
                     </TextField>
-                    <TextField size="small" select label="Payment" defaultValue="" sx={{ minWidth: 160 }}>
+                    <TextField size="small" select label="Payment" defaultValue="" sx={{ minWidth: 160, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" }, "& .MuiInputBase-root": { color: "#fff" } }}>
                         <MenuItem value="">Any</MenuItem>
                         <MenuItem value="On-time ≥ 90%">On-time ≥ 90%</MenuItem>
                         <MenuItem value="On-time &lt; 90%">On-time &lt; 90%</MenuItem>
@@ -293,53 +269,47 @@ const Tenants = () => {
             </Paper>
 
             {/* Table */}
-            <Paper
-                sx={{
-                    background: BRAND.card,
-                    border: `1px solid ${BRAND.border}`,
-                    borderRadius: 2,
-                    overflow: "hidden"
-                }}
-            >
-                <Table>
+            <Paper elevation={0} sx={{ ...softCard, borderRadius: 2, overflow: "hidden" }}>
+                <Table
+                    sx={{
+                        "& th": { color: "rgba(255,255,255,0.8)", fontWeight: 700, fontFamily: FONTS.subhead, background: "#0e0a17" },
+                        "& td": { color: "#fff", fontFamily: FONTS.subhead, borderColor: "rgba(255,255,255,0.08)" },
+                        "& th, & td": { borderColor: "rgba(255,255,255,0.08)" }
+                    }}
+                >
                     <TableHead>
                         <TableRow>
                             {["Name", "Rental Unit", "Apartment", "Phone", "Status", "On-time %", "Balance", "Next Due", "Actions"].map((h) => (
-                                <TableCell
-                                    key={h}
-                                    sx={{ color: BRAND.subtext, fontWeight: 700, background: BRAND.card, fontFamily: FONTS.subhead }}
-                                >
-                                    {h}
-                                </TableCell>
+                                <TableCell key={h}>{h}</TableCell>
                             ))}
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {tenants.map((t, idx) => (
                             <HoverRow key={idx}>
-                                <TableCell sx={{ color: BRAND.text, fontWeight: 600, fontFamily: FONTS.subhead }}>{t.name}</TableCell>
-                                <TableCell sx={{ color: BRAND.text, fontFamily: FONTS.subhead }}>{t.unit}</TableCell>
-                                <TableCell sx={{ color: BRAND.text, whiteSpace: "nowrap", fontFamily: FONTS.subhead }}>{t.apartment}</TableCell>
-                                <TableCell sx={{ color: BRAND.text, fontFamily: FONTS.subhead }}>{t.phone}</TableCell>
+                                <TableCell sx={{ fontWeight: 600 }}>{t.name}</TableCell>
+                                <TableCell>{t.unit}</TableCell>
+                                <TableCell sx={{ whiteSpace: "nowrap" }}>{t.apartment}</TableCell>
+                                <TableCell>{t.phone}</TableCell>
                                 <TableCell><StatusChip value={t.status} /></TableCell>
-                                <TableCell sx={{ color: BRAND.text, fontFamily: FONTS.subhead }}>{t.onTime}</TableCell>
-                                <TableCell sx={{ color: t.balance !== "KES 0" ? BRAND.danger : BRAND.text, fontWeight: 700, fontFamily: FONTS.number }}>
+                                <TableCell>{t.onTime}</TableCell>
+                                <TableCell sx={{ color: t.balance !== "KES 0" ? "#FB7185" : "#fff", fontWeight: 800, fontFamily: FONTS.number }}>
                                     {t.balance}
                                 </TableCell>
-                                <TableCell sx={{ color: BRAND.text, fontFamily: FONTS.subhead }}>{t.nextDue}</TableCell>
+                                <TableCell>{t.nextDue}</TableCell>
                                 <TableCell sx={{ whiteSpace: "nowrap" }}>
                                     <Tooltip title="View Profile">
-                                        <IconButton size="small" sx={{ color: BRAND.text }}>
+                                        <IconButton size="small" sx={{ color: "#fff" }}>
                                             <VisibilityIcon fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Send Reminder">
-                                        <IconButton size="small" sx={{ color: BRAND.text }}>
+                                        <IconButton size="small" sx={{ color: "#fff" }}>
                                             <EmailIcon fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Record Payment">
-                                        <IconButton size="small" sx={{ color: BRAND.text }}>
+                                        <IconButton size="small" sx={{ color: "#fff" }}>
                                             <PaymentIcon fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
@@ -349,12 +319,12 @@ const Tenants = () => {
                     </TableBody>
                 </Table>
 
-                <Divider sx={{ borderColor: BRAND.border }} />
+                <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
                 <Box p={1.5} display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography sx={{ color: BRAND.subtext, fontSize: 12, fontFamily: FONTS.subhead }}>4 Filters</Typography>
+                    <Typography sx={{ color: "rgba(255,255,255,0.72)", fontSize: 12, fontFamily: FONTS.subhead }}>4 Filters</Typography>
                     <Stack direction="row" spacing={1}>
-                        <Chip size="small" label="Status" sx={{ color: BRAND.text, background: BRAND.cardAlt, fontFamily: FONTS.subhead }} />
-                        <Chip size="small" label="Payment" sx={{ color: BRAND.text, background: BRAND.cardAlt, fontFamily: FONTS.subhead }} />
+                        <Chip size="small" label="Status" sx={{ color: "#fff", background: "#0e0a17", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
+                        <Chip size="small" label="Payment" sx={{ color: "#fff", background: "#0e0a17", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
                     </Stack>
                 </Box>
             </Paper>
