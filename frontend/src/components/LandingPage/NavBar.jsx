@@ -21,21 +21,16 @@ const logoUrl =
 /* Brand palette */
 const BRAND = {
   pink: "#FF0080",
-  magenta: "#D4124E", // default icon color
+  magenta: "#D4124E",
   red: "#FF3B3B",
   blue: "#2979FF",
   purple: "#7E00A6",
+  ink: "#0B0E14",
 };
 
-/* Hover gradient (requested mix) */
-const hoverMix = "linear-gradient(90deg, #035A52, #D8E267, #BDF806)";
-
-/* Helper css for gradient-colored icons/text */
-const gradientTextCss = {
-  background: hoverMix,
-  WebkitBackgroundClip: "text",
-  WebkitTextFillColor: "transparent",
-};
+/* Header glass gradient */
+const headerGradient =
+  "linear-gradient(90deg, rgba(10,8,16,.75), rgba(12,10,22,.65) 40%, rgba(8,10,18,.75))";
 
 /* Brand wordmark */
 const GradientText = styled(Typography)({
@@ -45,9 +40,10 @@ const GradientText = styled(Typography)({
   fontFamily: "'Counter Stream', sans-serif",
 });
 
-/* Slogan (readable on white) */
+/* Slogan */
 const SloganText = styled(Typography)({
-  background: "linear-gradient(90deg,#FF0080,#D4124E,#FF3B3B,#2979FF,#7E00A6)",
+  background:
+    "linear-gradient(90deg,#FF0080,#D4124E,#FF3B3B,#2979FF,#7E00A6)",
   WebkitBackgroundClip: "text",
   WebkitTextFillColor: "transparent",
   fontFamily: "'Counter Stream', sans-serif",
@@ -55,14 +51,14 @@ const SloganText = styled(Typography)({
   fontWeight: 600,
 });
 
-/* Search styles (white chip) */
+/* Search (glass chip) */
 const Search = styled("div")(({ theme }) => ({
   position: "relative",
-  borderRadius: 12,
-  background: "#fff",
-  border: "1px solid rgba(0,0,0,0.06)",
+  borderRadius: 14,
+  background: "rgba(255,255,255,.96)",
+  border: "1px solid rgba(6,8,12,.06)",
   backdropFilter: "blur(8px)",
-  boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
+  boxShadow: "0 10px 22px rgba(0,0,0,0.10)",
   marginLeft: theme.spacing(2),
   width: "100%",
   maxWidth: 360,
@@ -77,39 +73,57 @@ const SearchIconWrapper = styled("div")(({ theme }) => ({
   justifyContent: "center",
 }));
 const StyledInputBase = styled(InputBase)(({ theme }) => ({
-  color: "#111827",
+  color: "#0F172A",
   width: "100%",
   fontFamily: "'Xillian', sans-serif",
   "& .MuiInputBase-input": {
-    padding: theme.spacing(1.2, 1, 1.2, 0),
+    padding: theme.spacing(1.25, 1, 1.25, 0),
     paddingLeft: `calc(1em + ${theme.spacing(4)})`,
     fontSize: "1rem",
   },
   "& .MuiInputBase-input::placeholder": {
-    color: "rgba(17,24,39,0.55)",
+    color: "rgba(15,23,42,0.55)",
   },
 }));
 
-/* Round icon buttons (white background friendly) */
+/* Round icon chips — high contrast + neon ring on hover */
 const GlassCircle = styled(IconButton)(({ activecolor }) => ({
-  background: "#fff",
-  border: "1px solid rgba(0,0,0,0.06)",
+  height: 56,
+  width: 56,
+  background: "rgba(255,255,255,.98)",
+  border: "1px solid rgba(6,8,12,.06)",
   backdropFilter: "blur(8px)",
-  boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
+  boxShadow:
+    "0 6px 14px rgba(0,0,0,0.12), inset 0 -1px 0 rgba(255,255,255,.35)",
   color: activecolor || BRAND.magenta,
-  padding: 12,
   borderRadius: "50%",
-  transition: "all 0.25s ease",
-  "&:hover": {
-    transform: "scale(1.15) rotate(5deg)",
+  transition: "all .22s ease",
+  outline: "none",
+  "& .MuiSvgIcon-root": {
+    fontSize: 24,
+    transition: "color .2s ease, transform .2s ease, filter .2s ease",
   },
+  "&:hover": {
+    transform: "translateY(-2px)",
+    boxShadow:
+      `0 0 0 2px rgba(255,255,255,.8),
+       0 8px 22px rgba(212,18,78,.25),
+       0 12px 28px rgba(69,107,188,.22)`,
+  },
+  // make icon VERY visible on hover (solid color + glow)
   "&:hover .MuiSvgIcon-root": {
-    ...gradientTextCss,
-    color: "transparent",
+    color: BRAND.magenta,
+    filter: "drop-shadow(0 0 6px rgba(212,18,78,.55))",
+    transform: "scale(1.06)",
+  },
+  // focus ring
+  "&:focus-visible": {
+    boxShadow:
+      "0 0 0 3px rgba(255,255,255,.9), 0 0 0 6px rgba(212,18,78,.35)",
   },
 }));
 
-/* New: Animated pill CTA (smaller on mobile via sx overrides) */
+/* Animated CTA pill */
 const AuthPill = styled(motion(Button))({
   borderRadius: 999,
   padding: "10px 18px",
@@ -117,13 +131,14 @@ const AuthPill = styled(motion(Button))({
   textTransform: "none",
   letterSpacing: 0.3,
   color: "#fff",
-  background: "linear-gradient(90deg, #D4124E, #E8511E, #FF0080, #456BBC)",
+  background:
+    "linear-gradient(90deg, #D4124E, #E8511E, #FF0080, #456BBC)",
   boxShadow: "0 10px 22px rgba(0,0,0,0.18)",
   backdropFilter: "blur(6px)",
   outline: "none",
   "&:hover": {
     transform: "scale(1.06)",
-    boxShadow: "0 16px 36px rgba(0,0,0,0.22)",
+    boxShadow: "0 18px 36px rgba(0,0,0,0.28)",
   },
   "&:focus-visible": {
     outline: "2px solid rgba(255,0,128,.6)",
@@ -156,7 +171,6 @@ const NavBar = () => {
 
   const AnimatedIconButton = motion(IconButton);
 
-  // Home = route; Services = #features; Contact = #feedback
   const navLinks = [
     { text: "Home", icon: <HomeIcon />, kind: "route", to: "/" },
     { text: "Services", icon: <HomeRepairServiceRoundedIcon />, kind: "anchor", to: "features" },
@@ -185,9 +199,8 @@ const NavBar = () => {
     }
   };
 
-  // gradient tooltip title node
   const tip = (label) => (
-    <Typography sx={{ fontWeight: 700, ...gradientTextCss }}>
+    <Typography sx={{ fontWeight: 700, color: BRAND.magenta }}>
       {label}
     </Typography>
   );
@@ -196,8 +209,12 @@ const NavBar = () => {
     <AppBar
       position="absolute"
       sx={{
-        background: "transparent",
-        boxShadow: "none",
+        background: headerGradient,
+        borderBottom: "1px solid rgba(255,255,255,.06)",
+        backdropFilter: "blur(10px)",
+        boxShadow: scrolled
+          ? "0 10px 28px rgba(0,0,0,.28)"
+          : "0 6px 18px rgba(0,0,0,.18)",
         px: { xs: 2, sm: 3 },
         minHeight: scrolled ? "80px" : "110px",
         display: "flex",
@@ -243,8 +260,10 @@ const NavBar = () => {
                     tooltip: {
                       sx: {
                         bgcolor: "#fff",
-                        border: "1px solid rgba(0,0,0,0.06)",
-                        boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
+                        color: BRAND.magenta,
+                        border: "1px solid rgba(6,8,12,.08)",
+                        boxShadow: "0 8px 22px rgba(0,0,0,.12)",
+                        fontWeight: 700,
                       },
                     },
                   }}
@@ -252,6 +271,7 @@ const NavBar = () => {
                   <GlassCircle
                     activecolor={isActive ? BRAND.magenta : undefined}
                     onClick={() => handleNav(link)}
+                    aria-label={link.text}
                   >
                     {link.icon}
                   </GlassCircle>
@@ -267,11 +287,11 @@ const NavBar = () => {
           </Box>
         )}
 
-        {/* Right side: Mobile menu + Auth pill (smaller on mobile), Desktop: Auth pill */}
+        {/* Right side */}
         <Box display="flex" alignItems="center" gap={isMobile ? 1.5 : 2} sx={{ mr: 1 }}>
           {isMobile && (
-            <IconButton aria-label="open menu">
-              <MenuIcon sx={{ color: "#374151" }} />
+            <IconButton aria-label="open menu" sx={{ color: "#E5E7EB" }}>
+              <MenuIcon />
             </IconButton>
           )}
 
@@ -290,7 +310,6 @@ const NavBar = () => {
               ],
             }}
             transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-            // Slightly smaller on mobile, same brand look
             sx={{
               px: isMobile ? 2 : 2.5,
               py: isMobile ? 0.75 : 1,

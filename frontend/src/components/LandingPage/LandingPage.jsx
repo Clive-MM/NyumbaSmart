@@ -9,17 +9,28 @@ import FeaturesSection from "../LandingPage/FeaturesSection";
 import Operation from "../LandingPage/Operation";
 import FeedbackSection from "../LandingPage/FeedbackSection";
 
-/* ---- Brand colors / gradient for headings ---- */
+/* ---- PayNest brand ---- */
 const BRAND = {
   pink: "#FF0080",
   magenta: "#D4124E",
   red: "#FF3B3B",
   blue: "#2979FF",
   purple: "#7E00A6",
+  text: "rgba(235,235,235,.96)",
+  soft: "rgba(220,220,220,.8)",
 };
+
 const headingGradient = `linear-gradient(90deg, ${BRAND.pink}, ${BRAND.magenta}, ${BRAND.red}, ${BRAND.blue}, ${BRAND.purple})`;
 
-/* Load Orbitron once (same heading vibe as Features/Feedback) */
+/* Dark brand background — same family as your other modules */
+const BRAND_BG = `
+  radial-gradient(1200px 600px at 8% -10%, rgba(255,0,128,.14), transparent 60%),
+  radial-gradient(1100px 520px at 108% 6%, rgba(69,107,188,.12), transparent 60%),
+  radial-gradient(900px 500px at 50% 110%, rgba(126,0,166,.10), transparent 60%),
+  linear-gradient(180deg, #0b0d13 0%, #0a0220 50%, #07080d 100%)
+`;
+
+/* Load Orbitron once */
 const orbitronHref =
   "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&display=swap";
 (() => {
@@ -31,7 +42,7 @@ const orbitronHref =
   }
 })();
 
-/* ---- Slides (keep text content/rotation; backgrounds removed) ---- */
+/* Slides */
 const heroSlides = [
   {
     title: "Manage Properties Like a Pro",
@@ -53,11 +64,10 @@ const heroSlides = [
   },
 ];
 
-const LandingPage = () => {
+export default function LandingPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const navigate = useNavigate();
 
-  // Rotate slide *text* every 10s
   useEffect(() => {
     if (!heroSlides.length) return;
     const id = setInterval(() => {
@@ -66,7 +76,6 @@ const LandingPage = () => {
     return () => clearInterval(id);
   }, []);
 
-  // Smooth scroll to hash targets (/#features or /#feedback)
   useEffect(() => {
     const hash = window.location.hash;
     if (hash && hash.length > 1) {
@@ -94,12 +103,17 @@ const LandingPage = () => {
         p: 0,
         overflowX: "hidden",
         position: "relative",
-        backgroundColor: "#FFFFFF", // pure white page background
+        color: BRAND.text,
+        /* ← Brand background applied globally */
+        backgroundImage: BRAND_BG,
+        backgroundAttachment: { xs: "scroll", md: "fixed" },
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "cover",
       }}
     >
       <NavBar />
 
-      {/* HERO (now on white background; only text animates/rotates) */}
+      {/* HERO on dark background */}
       <Box
         sx={{
           width: "100%",
@@ -107,8 +121,7 @@ const LandingPage = () => {
           display: "grid",
           placeItems: "center",
           position: "relative",
-          backgroundColor: "#FFFFFF",
-          pt: { xs: 10, md: 12 }, // space under navbar
+          pt: { xs: 10, md: 12 },
           pb: { xs: 6, md: 8 },
         }}
       >
@@ -121,7 +134,6 @@ const LandingPage = () => {
           style={{ width: "100%" }}
         >
           <Box sx={{ textAlign: "center", px: 2, maxWidth: 1000, mx: "auto" }}>
-            {/* Heading with Orbitron + brand gradient (same vibe as Feedback/Features) */}
             <Typography
               component="h1"
               sx={{
@@ -138,13 +150,12 @@ const LandingPage = () => {
               {currentSlide.title}
             </Typography>
 
-            {/* Subheading/question in strong PayNest color */}
             <Typography
               variant="h6"
               sx={{
                 fontFamily: "'Orbitron', sans-serif",
-                fontWeight: 600,
-                color: BRAND.magenta,
+                fontWeight: 700,
+                color: BRAND.pink,
                 mb: 1.5,
                 fontSize: { xs: "1.05rem", sm: "1.2rem" },
               }}
@@ -152,7 +163,6 @@ const LandingPage = () => {
               {currentSlide.question}
             </Typography>
 
-            {/* Body copy: readable on white */}
             <Typography
               variant="body1"
               sx={{
@@ -160,8 +170,8 @@ const LandingPage = () => {
                 mx: "auto",
                 mb: 3,
                 fontSize: { xs: "0.98rem", sm: "1.06rem" },
-                lineHeight: 1.6,
-                color: "#333",
+                lineHeight: 1.65,
+                color: BRAND.soft,     // readable on dark
               }}
             >
               {currentSlide.answer}
@@ -180,10 +190,10 @@ const LandingPage = () => {
                 textTransform: "uppercase",
                 fontFamily: "'Orbitron', sans-serif",
                 background: headingGradient,
-                boxShadow: "0 8px 22px rgba(212,18,78,0.18)",
+                boxShadow: "0 10px 28px rgba(255,0,128,0.18)",
                 "&:hover": {
-                  filter: "brightness(1.05)",
-                  boxShadow: "0 10px 28px rgba(212,18,78,0.24)",
+                  filter: "brightness(1.06)",
+                  boxShadow: "0 14px 36px rgba(255,0,128,0.26)",
                 },
               }}
             >
@@ -193,7 +203,7 @@ const LandingPage = () => {
         </motion.div>
       </Box>
 
-      {/* Anchor targets (IDs) for navbar scroll */}
+      {/* We’ll restyle these sections next; leaving them as-is for now */}
       <Box id="features">
         <FeaturesSection />
       </Box>
@@ -207,6 +217,4 @@ const LandingPage = () => {
       <Footer />
     </Box>
   );
-};
-
-export default LandingPage;
+}
