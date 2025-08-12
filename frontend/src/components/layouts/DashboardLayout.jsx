@@ -2,10 +2,7 @@
 import React, { useState } from "react";
 import { Box } from "@mui/material";
 
-// Header now only exports HEADER_HEIGHT (top margin = 0 inside Header)
 import Header, { HEADER_HEIGHT } from "../dashboard/Header";
-
-// Sidebar reports its live width
 import SideMenu, {
     SIDEBAR_EXPANDED,
     SIDEBAR_COLLAPSED,
@@ -26,14 +23,9 @@ import DashboardHome from "../../pages/dashboard/DashboardHome";
 
 export default function DashboardLayout() {
     const [activePage, setActivePage] = useState("dashboard");
-
-    // Track the current sidebar width (expanded by default)
     const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_EXPANDED);
 
-    // Header sits flush to the top; reserve just its height
-    const CONTENT_OFFSET = HEADER_HEIGHT + 8; // + progress rail
-
-    // Keep body padding in sync with Header's side gap (16px)
+    const CONTENT_OFFSET = HEADER_HEIGHT + 8;
     const SIDE_GAP_PX = 16;
 
     const renderContent = () => {
@@ -75,6 +67,7 @@ export default function DashboardLayout() {
             <Header
                 sidebarWidth={sidebarWidth}
                 onOpenSettings={() => setActivePage("settings")}
+                onOpenProfile={() => setActivePage("profile")}
                 onLogout={() => {
                     localStorage.removeItem("token");
                     localStorage.removeItem("user");
@@ -89,7 +82,7 @@ export default function DashboardLayout() {
                     flex: 1,
                     ml: `${sidebarWidth}px`,
                     pt: `${CONTENT_OFFSET}px`,
-                    px: `${SIDE_GAP_PX}px`, // keep same side gap as Header
+                    px: `${SIDE_GAP_PX}px`,
                     transition: "margin-left .28s ease, padding-top .2s ease",
                 }}
             >

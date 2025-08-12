@@ -240,21 +240,21 @@ function RegisterForm({ onSuccess, onBackToLogin }) {
     <FormCard as={motion.div} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
       <Box component="form" onSubmit={handleSubmit}>
         <NInput fullWidth label="Full Name" value={formData.full_name}
-          onChange={(e)=>setFormData({ ...formData, full_name: e.target.value })} />
+          onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} />
         <NInput fullWidth label="Email" type="email" value={formData.email}
-          onChange={(e)=>setFormData({ ...formData, email: e.target.value })}
-          InputProps={{ startAdornment: <InputAdornment position="start"><Email/></InputAdornment> }} />
+          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }} />
         <NInput fullWidth label="Phone Number" value={formData.phone} onChange={handlePhone}
           error={phoneError} helperText={phoneError ? "Use 2547XXXXXXXX" : ""}
-          InputProps={{ startAdornment: <InputAdornment position="start"><Phone/></InputAdornment> }} />
-        <NInput fullWidth type={showPassword?"text":"password"} label="Password" value={formData.password}
+          InputProps={{ startAdornment: <InputAdornment position="start"><Phone /></InputAdornment> }} />
+        <NInput fullWidth type={showPassword ? "text" : "password"} label="Password" value={formData.password}
           onChange={handlePassword}
           InputProps={{
-            startAdornment: <InputAdornment position="start"><Lock/></InputAdornment>,
+            startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton onClick={()=>setShowPassword(p=>!p)}>
-                  {showPassword? <VisibilityOff/> : <Visibility/>}
+                <IconButton onClick={() => setShowPassword(p => !p)}>
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>
             )
@@ -268,25 +268,25 @@ function RegisterForm({ onSuccess, onBackToLogin }) {
               sx={{
                 height: 6, borderRadius: 5, backgroundColor: BRAND.insetDark,
                 "& .MuiLinearProgress-bar": {
-                  backgroundColor: strength<50? "#ff4d4f" : strength<75? "#faad14" : "#52c41a"
+                  backgroundColor: strength < 50 ? "#ff4d4f" : strength < 75 ? "#faad14" : "#52c41a"
                 }
               }}
             />
             <Typography variant="caption" sx={{ color: BRAND.subtext }}>
-              {strength<50? "Weak" : strength<75? "Medium" : "Strong"}
+              {strength < 50 ? "Weak" : strength < 75 ? "Medium" : "Strong"}
             </Typography>
           </Box>
         )}
 
-        <NInput fullWidth type={formData.showConfirm?"text":"password"} label="Confirm Password"
+        <NInput fullWidth type={formData.showConfirm ? "text" : "password"} label="Confirm Password"
           value={formData.confirm_password}
-          onChange={(e)=>setFormData({ ...formData, confirm_password: e.target.value })}
+          onChange={(e) => setFormData({ ...formData, confirm_password: e.target.value })}
           InputProps={{
-            startAdornment: <InputAdornment position="start"><Lock/></InputAdornment>,
+            startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton onClick={()=>setFormData(s=>({ ...s, showConfirm: !s.showConfirm }))}>
-                  {formData.showConfirm? <VisibilityOff/> : <Visibility/>}
+                <IconButton onClick={() => setFormData(s => ({ ...s, showConfirm: !s.showConfirm }))}>
+                  {formData.showConfirm ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>
             )
@@ -294,14 +294,14 @@ function RegisterForm({ onSuccess, onBackToLogin }) {
 
         <FormControlLabel
           control={<Checkbox checked={formData.terms}
-          onChange={(e)=>setFormData({ ...formData, terms: e.target.checked })} />}
+            onChange={(e) => setFormData({ ...formData, terms: e.target.checked })} />}
           label={<Typography variant="body2" sx={{ color: BRAND.subtext }}>
             I agree to the Terms & Privacy Policy
           </Typography>}
         />
 
         <NButton whileTap={{ scale: 0.97 }} type="submit" fullWidth disabled={loading}>
-          {loading? <CircularProgress size={20} sx={{ color: "#fff" }}/> : "Register"}
+          {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Register"}
         </NButton>
 
         <Button onClick={onBackToLogin} fullWidth sx={{ mt: 1, color: BRAND.blue }}>
@@ -370,15 +370,15 @@ function LoginForm({ onSuccess }) {
       <Box component="form" onSubmit={handleSubmit}>
         <NInput fullWidth label="Email" name="email" type="email" value={formData.email}
           onChange={handleChange}
-          InputProps={{ startAdornment: <InputAdornment position="start"><Email/></InputAdornment> }} />
-        <NInput fullWidth label="Password" name="password" type={showPassword?"text":"password"}
+          InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }} />
+        <NInput fullWidth label="Password" name="password" type={showPassword ? "text" : "password"}
           value={formData.password} onChange={handleChange}
           InputProps={{
-            startAdornment: <InputAdornment position="start"><Lock/></InputAdornment>,
+            startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton onClick={()=>setShowPassword(p=>!p)}>
-                  {showPassword? <VisibilityOff/> : <Visibility/>}
+                <IconButton onClick={() => setShowPassword(p => !p)}>
+                  {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>
             )
@@ -388,7 +388,7 @@ function LoginForm({ onSuccess }) {
           label={<Typography variant="body2" sx={{ color: BRAND.subtext }}>Remember Me</Typography>}
         />
         <NButton whileTap={{ scale: 0.97 }} type="submit" fullWidth disabled={loading}>
-          {loading? <CircularProgress size={20} sx={{ color: "#fff" }}/> : (<><LoginIcon/> Login</>)}
+          {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : (<><LoginIcon /> Login</>)}
         </NButton>
         <Typography variant="body2" align="center" sx={{ mt: 1.5 }}>
           <Link to="/forgot-password" style={{ color: BRAND.blue, textDecoration: "none" }}>
@@ -482,7 +482,7 @@ export default function AuthDoubleSliderRefined() {
             <OverlayPanel>
               <Box textAlign="center">
                 <Typography variant="h4" fontWeight={900}>
-                 Landlords, Let’s Make It Pay.
+                  Landlords, Let’s Make It Pay.
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 1, color: BRAND.subtext }}>
                   Your smart hub for rent, bills, and peace of mind.

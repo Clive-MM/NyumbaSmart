@@ -331,15 +331,37 @@ class Profile(db.Model):
     UserID = db.Column(db.Integer, db.ForeignKey(
         "Users.UserID"), unique=True, nullable=False)
 
+    # Existing
     ProfilePicture = db.Column(db.String(300))
     Address = db.Column(db.String(200))
     NationalID = db.Column(db.String(50))
     KRA_PIN = db.Column(db.String(50))
     Bio = db.Column(db.Text)
     DateOfBirth = db.Column(db.Date)
+
+    # New (what you chose)
+    DisplayName = db.Column(db.String(120))
+    SupportEmail = db.Column(db.String(120))
+    SupportPhone = db.Column(db.String(20))
+
+    MpesaPaybill = db.Column(db.String(20))
+    MpesaTill = db.Column(db.String(20))
+    MpesaAccountName = db.Column(db.String(120))
+
+    BankName = db.Column(db.String(120))
+    BankBranch = db.Column(db.String(120))
+    AccountName = db.Column(db.String(120))
+    AccountNumber = db.Column(db.String(40))
+
+    City = db.Column(db.String(100))
+    County = db.Column(db.String(100))
+    PostalCode = db.Column(db.String(20))
+
     UpdatedAt = db.Column(
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    user = db.relationship(
+        "User", backref=db.backref("profile", uselist=False))
     # Relationship with User
     user = db.relationship(
         "User", backref=db.backref("profile", uselist=False))

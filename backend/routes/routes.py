@@ -56,19 +56,123 @@ def register_mail_instance(mail_instance):
     mail = mail_instance
 
 
+KRA_RE = re.compile(r'^[A-Z]\d{9}[A-Z]$')
+
+
+def normalize_phone(phone: str) -> str:
+    if not phone:
+        return ""
+    p = re.sub(r'\D', '', phone.strip())
+    if p.startswith('0'):         # 07xx → 2547xx
+        p = '254' + p[1:]
+    if p.startswith('7') and len(p) == 9:  # 7xx… → 2547xx…
+        p = '254' + p
+    return p
+
+
+def validate_profile_payload(d: dict) -> list[str]:
+    """Return list of validation error strings (empty = OK)."""
+    errors = []
+
+    kra = (d.get("KRA_PIN") or "").strip().upper()
+    if kra and not KRA_RE.match(kra):
+        errors.append("KRA_PIN must match format (e.g., A123456789B).")
+
+    nid = (d.get("NationalID") or "").strip()
+    if nid and not re.fullmatch(r"\d{6,8}", nid):
+        errors.append("NationalID must be 6–8 digits.")
+
+    paybill = (d.get("MpesaPaybill") or "").strip()
+    if paybill and not re.fullmatch(r"\d{5,6}", paybill):
+        errors.append("MpesaPaybill must be 5–6 digits.")
+
+    till = (d.get("MpesaTill") or "").strip()
+    if till and not re.fullmatch(r"\d{4,8}", till):
+        errors.append("MpesaTill must be 4–8 digits.")
+
+    dob = (d.get("DateOfBirth") or "").strip()
+    if dob:
+        try:
+            dt = datetime.strptime(dob, "%Y-%m-%d").date()
+            if dt > datetime.utcnow().date():
+                errors.append("DateOfBirth cannot be in the future.")
+        except ValueError:
+            errors.append("DateOfBirth must be YYYY-MM-DD.")
+    return errors
+
+
+def profile_completeness(profile, user) -> int:
+    """8-point score focusing on what drives automation & reporting."""
+    score, req = 0, 8
+    if (profile.DisplayName or user.FullName):
+        score += 1
+    if (profile.SupportEmail or user.Email):
+        score += 1
+    if profile.Address:
+        score += 1
+    if profile.ProfilePicture:
+        score += 1
+    if profile.KRA_PIN and KRA_RE.match(profile.KRA_PIN):
+        score += 1
+    if profile.NationalID and re.fullmatch(r"\d{6,8}", profile.NationalID):
+        score += 1
+    if (profile.MpesaPaybill or profile.MpesaTill):
+        score += 1
+    if (profile.City and profile.County):
+        score += 1
+    return round((score/req)*100)
+
+
+def profile_next_steps(p) -> list[str]:
+    steps = []
+    if not (p.KRA_PIN and KRA_RE.match(p.KRA_PIN)):
+        steps.append("Add a valid KRA PIN to enable KRA-ready reports.")
+    if not (p.MpesaPaybill or p.MpesaTill):
+        steps.append("Add your M-Pesa Paybill/Till to reconcile payments.")
+    if not p.ProfilePicture:
+        steps.append("Upload a logo/photo to brand statements and receipts.")
+    if not (p.City and p.County):
+        steps.append("Add your City & County for official notices.")
+    return steps[:3]
+
+
 def serialize_profile(user, profile):
     return {
         "UserID": user.UserID,
         "FullName": user.FullName,
         "Email": user.Email,
         "Phone": user.Phone,
+
         "ProfilePicture": profile.ProfilePicture if profile else None,
         "Address": profile.Address if profile else "",
         "NationalID": profile.NationalID if profile else "",
-        "KRA_PIN": profile.KRA_PIN if profile else "",
+        "KRA_PIN": (profile.KRA_PIN or "") if profile else "",
         "Bio": profile.Bio if profile else "",
         "DateOfBirth": profile.DateOfBirth.strftime("%Y-%m-%d") if profile and profile.DateOfBirth else None,
-        "UpdatedAt": profile.UpdatedAt.strftime("%Y-%m-%d %H:%M:%S") if profile and profile.UpdatedAt else None
+
+        # New fields
+        "DisplayName": profile.DisplayName if profile else user.FullName,
+        "SupportEmail": profile.SupportEmail if profile else user.Email,
+        "SupportPhone": profile.SupportPhone if profile else (normalize_phone(user.Phone) if user.Phone else ""),
+
+        "MpesaPaybill": profile.MpesaPaybill if profile else "",
+        "MpesaTill": profile.MpesaTill if profile else "",
+        "MpesaAccountName": profile.MpesaAccountName if profile else "",
+
+        "BankName": profile.BankName if profile else "",
+        "BankBranch": profile.BankBranch if profile else "",
+        "AccountName": profile.AccountName if profile else "",
+        "AccountNumber": profile.AccountNumber if profile else "",
+
+        "City": profile.City if profile else "",
+        "County": profile.County if profile else "",
+        "PostalCode": profile.PostalCode if profile else "",
+
+        "UpdatedAt": profile.UpdatedAt.strftime("%Y-%m-%d %H:%M:%S") if profile and profile.UpdatedAt else None,
+
+        # Smart extras
+        "completeness": profile_completeness(profile, user) if profile else 25,
+        "next_steps": profile_next_steps(profile) if profile else ["Complete your profile to personalize statements."]
     }
 
 
@@ -2199,24 +2303,29 @@ def upload_file():
 def create_profile():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-
     if not user:
         return jsonify({"message": "User not found"}), 404
 
     if Profile.query.filter_by(UserID=user_id).first():
         return jsonify({"message": "Profile already exists. Use PUT to update."}), 400
 
-    data = request.form
-    file = request.files.get("ProfilePicture")
+    data = request.form.to_dict()
+    errors = validate_profile_payload(data)
+    if errors:
+        return jsonify({"message": "Validation failed", "errors": errors}), 400
 
+    # Normalize phone
+    if data.get("SupportPhone"):
+        data["SupportPhone"] = normalize_phone(data["SupportPhone"])
+
+    # Date
     dob = None
     if data.get("DateOfBirth"):
-        try:
-            dob = datetime.strptime(data.get("DateOfBirth"), "%Y-%m-%d").date()
-        except ValueError:
-            return jsonify({"message": "Invalid DateOfBirth format. Use YYYY-MM-DD."}), 400
+        dob = datetime.strptime(data["DateOfBirth"], "%Y-%m-%d").date()
 
+    # Image
     profile_pic_url = None
+    file = request.files.get("ProfilePicture")
     if file:
         try:
             upload_result = cloudinary.uploader.upload(
@@ -2231,9 +2340,26 @@ def create_profile():
         ProfilePicture=profile_pic_url,
         Address=data.get("Address"),
         NationalID=data.get("NationalID"),
-        KRA_PIN=data.get("KRA_PIN"),
+        KRA_PIN=(data.get("KRA_PIN") or "").strip().upper() or None,
         Bio=data.get("Bio"),
-        DateOfBirth=dob
+        DateOfBirth=dob,
+
+        DisplayName=data.get("DisplayName") or user.FullName,
+        SupportEmail=data.get("SupportEmail") or user.Email,
+        SupportPhone=data.get("SupportPhone"),
+
+        MpesaPaybill=data.get("MpesaPaybill"),
+        MpesaTill=data.get("MpesaTill"),
+        MpesaAccountName=data.get("MpesaAccountName"),
+
+        BankName=data.get("BankName"),
+        BankBranch=data.get("BankBranch"),
+        AccountName=data.get("AccountName"),
+        AccountNumber=data.get("AccountNumber"),
+
+        City=data.get("City"),
+        County=data.get("County"),
+        PostalCode=data.get("PostalCode"),
     )
 
     db.session.add(profile)
@@ -2244,6 +2370,7 @@ def create_profile():
         "profile": serialize_profile(user, profile)
     }), 201
 
+
 # ✅ Update Profile
 
 
@@ -2252,7 +2379,6 @@ def create_profile():
 def update_profile():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-
     if not user:
         return jsonify({"message": "User not found"}), 404
 
@@ -2260,32 +2386,46 @@ def update_profile():
     if not profile:
         return jsonify({"message": "Profile not found. Please create one first."}), 404
 
-    data = request.form
+    data = request.form.to_dict()
+    errors = validate_profile_payload(data)
+    if errors:
+        return jsonify({"message": "Validation failed", "errors": errors}), 400
+
+    # Normalize phone if provided
+    if data.get("SupportPhone"):
+        data["SupportPhone"] = normalize_phone(data["SupportPhone"])
+
+    # Date
+    if "DateOfBirth" in data:
+        if data["DateOfBirth"]:
+            profile.DateOfBirth = datetime.strptime(
+                data["DateOfBirth"], "%Y-%m-%d").date()
+        else:
+            profile.DateOfBirth = None
+
+    # Image
     file = request.files.get("ProfilePicture")
-
-    dob = profile.DateOfBirth
-    if data.get("DateOfBirth"):
-        try:
-            dob = datetime.strptime(data.get("DateOfBirth"), "%Y-%m-%d").date()
-        except ValueError:
-            return jsonify({"message": "Invalid DateOfBirth format. Use YYYY-MM-DD."}), 400
-
-    profile_pic_url = profile.ProfilePicture
     if file:
         try:
             upload_result = cloudinary.uploader.upload(
                 file, folder="profile_pictures")
-            profile_pic_url = upload_result.get(
+            profile.ProfilePicture = upload_result.get(
                 "secure_url") or upload_result.get("url")
         except Exception as e:
             return jsonify({"message": "Image upload failed", "error": str(e)}), 500
 
-    profile.Address = data.get("Address", profile.Address)
-    profile.NationalID = data.get("NationalID", profile.NationalID)
-    profile.KRA_PIN = data.get("KRA_PIN", profile.KRA_PIN)
-    profile.Bio = data.get("Bio", profile.Bio)
-    profile.DateOfBirth = dob
-    profile.ProfilePicture = profile_pic_url
+    # Update simple fields if provided
+    for fld in [
+        "Address", "NationalID", "Bio", "DisplayName", "SupportEmail", "SupportPhone",
+        "MpesaPaybill", "MpesaTill", "MpesaAccountName", "BankName", "BankBranch",
+        "AccountName", "AccountNumber", "City", "County", "PostalCode"
+    ]:
+        if fld in data:
+            setattr(profile, fld, (data[fld].strip() if isinstance(
+                data[fld], str) else data[fld]) or None)
+
+    if "KRA_PIN" in data:
+        profile.KRA_PIN = (data["KRA_PIN"] or "").strip().upper() or None
 
     db.session.commit()
 
@@ -2301,33 +2441,162 @@ def update_profile():
 def get_profile():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-
     if not user:
         return jsonify({"message": "User not found"}), 404
 
     profile = Profile.query.filter_by(UserID=user_id).first()
-
     if not profile:
+        # Keep 404 to match your current frontend’s “create flow”
         return jsonify({"message": "Profile not found"}), 404
 
-    return jsonify(format_profile_response(user, profile)), 200
+    return jsonify(serialize_profile(user, profile)), 200
 
 
 # ✅ Helper function to format profile response
-def format_profile_response(user, profile):
-    return {
-        "UserID": user.UserID,
-        "FullName": user.FullName,
-        "Email": user.Email,
-        "Phone": user.Phone,
-        "ProfilePicture": profile.ProfilePicture if profile else None,
-        "Address": profile.Address if profile else "",
-        "NationalID": profile.NationalID if profile else "",
-        "KRA_PIN": profile.KRA_PIN if profile else "",
-        "Bio": profile.Bio if profile else "",
-        "DateOfBirth": profile.DateOfBirth.strftime("%Y-%m-%d") if profile and profile.DateOfBirth else None,
-        "UpdatedAt": profile.UpdatedAt.strftime("%Y-%m-%d %H:%M:%S") if profile and profile.UpdatedAt else None
+# ✅ Partial update (JSON) — great for autosave
+@routes.route("/profile", methods=["PATCH"])
+@jwt_required()
+def patch_profile():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    profile = Profile.query.filter_by(UserID=user_id).first()
+    if not profile:
+        return jsonify({"message": "Profile not found. Please create one first."}), 404
+
+    data = request.get_json(silent=True) or {}
+
+    # Validate payload (re-uses same rules you added)
+    errors = validate_profile_payload(data)
+    if errors:
+        return jsonify({"message": "Validation failed", "errors": errors}), 400
+
+    # Normalize phone if present
+    if "SupportPhone" in data and data["SupportPhone"]:
+        data["SupportPhone"] = normalize_phone(str(data["SupportPhone"]))
+
+    # Allowed fields to patch (strings/numbers)
+    PATCHABLE_FIELDS = {
+        "Address", "NationalID", "KRA_PIN", "Bio",
+        "DisplayName", "SupportEmail", "SupportPhone",
+        "MpesaPaybill", "MpesaTill", "MpesaAccountName",
+        "BankName", "BankBranch", "AccountName", "AccountNumber",
+        "City", "County", "PostalCode"
     }
+
+    # Apply scalar fields if provided
+    for key, val in data.items():
+        if key in PATCHABLE_FIELDS:
+            if key == "KRA_PIN":
+                # store normalized uppercase or NULL
+                setattr(profile, key, (str(val).strip().upper() or None))
+            else:
+                setattr(profile, key, (str(val).strip()
+                        if isinstance(val, str) else val) or None)
+
+    # Handle DateOfBirth separately (YYYY-MM-DD or null to clear)
+    if "DateOfBirth" in data:
+        dob_raw = data["DateOfBirth"]
+        if dob_raw:
+            try:
+                profile.DateOfBirth = datetime.strptime(
+                    dob_raw, "%Y-%m-%d").date()
+            except ValueError:
+                return jsonify({"message": "DateOfBirth must be YYYY-MM-DD."}), 400
+        else:
+            profile.DateOfBirth = None
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Saved",
+        "profile": serialize_profile(user, profile)
+    }), 200
+
+# ✅ Upload/replace profile avatar (one-shot; multipart/form-data)
+
+
+@routes.route("/profile/avatar", methods=["POST"])
+@jwt_required()
+def upload_profile_avatar():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    # Accept either "file" or "ProfilePicture" for convenience
+    file = request.files.get("file") or request.files.get("ProfilePicture")
+    if not file:
+        return jsonify({"message": "No file provided. Use field name 'file' or 'ProfilePicture'."}), 400
+
+    # Optional: quick content-type guard
+    ct = (file.mimetype or "").lower()
+    if not ct.startswith("image/"):
+        return jsonify({"message": "Invalid file type. Please upload an image."}), 400
+
+    # Upload to Cloudinary
+    try:
+        # If you prefer the helper:
+        # from utils.cloudinary_helper import upload_to_cloudinary
+        # up = upload_to_cloudinary(file, folder="profile_pictures")
+        # url = up["url"]
+
+        up = cloudinary.uploader.upload(file, folder="profile_pictures")
+        url = up.get("secure_url") or up.get("url")
+        if not url:
+            return jsonify({"message": "Image upload failed: missing URL from provider."}), 500
+    except Exception as e:
+        return jsonify({"message": "Image upload failed", "error": str(e)}), 500
+
+    # Upsert profile (create if first-time)
+    profile = Profile.query.filter_by(UserID=user_id).first()
+    if not profile:
+        profile = Profile(UserID=user_id)
+        db.session.add(profile)
+
+    profile.ProfilePicture = url
+    db.session.commit()
+
+    return jsonify({
+        "message": "✅ Avatar updated",
+        "url": url,
+        "profile": serialize_profile(user, profile)
+    }), 200
+
+
+# Profile picture uploading route
+@routes.route("/profile/avatar", methods=["POST"])
+@jwt_required()
+def upload_avatar():
+    user_id = get_jwt_identity()
+    profile = Profile.query.filter_by(UserID=user_id).first()
+    if not profile:
+        return jsonify({"message": "Profile not found. Create it first."}), 404
+
+    file = request.files.get("avatar") or request.files.get("ProfilePicture")
+    if not file:
+        return jsonify({"message": "No avatar file provided."}), 400
+
+    try:
+        up = cloudinary.uploader.upload(file, folder="profile_pictures")
+        url = up.get("secure_url") or up.get("url")
+        if not url:
+            return jsonify({"message": "Upload succeeded, but no URL returned."}), 500
+
+        profile.ProfilePicture = url
+        db.session.commit()
+
+        # return the whole profile so UI can refresh
+        user = User.query.get(user_id)
+        return jsonify({"message": "✅ Avatar updated.", "profile": serialize_profile(user, profile)}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Avatar upload failed.", "error": str(e)}), 500
+
+
 # route for enabling the user send a feedback abput the website
 
 

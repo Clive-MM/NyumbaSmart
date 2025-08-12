@@ -1,8 +1,11 @@
-// src/components/Header.jsx
-import React, { useEffect, useState } from "react";
-import { AppBar, Toolbar, Box, IconButton, Badge, Avatar, useMediaQuery } from "@mui/material";
+// src/components/dashboard/Header.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import {
+    AppBar, Toolbar, Box, IconButton, Badge, Avatar, useMediaQuery
+} from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { keyframes } from "@emotion/react";
+import { useTheme } from "@mui/material/styles";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import SettingsIcon from "@mui/icons-material/Settings";
 
@@ -10,8 +13,7 @@ const BRAND = { pink: "#FF0080", magenta: "#D4124E", red: "#FF3B3B", blue: "#297
 const brandGradient = `linear-gradient(90deg, ${BRAND.pink}, ${BRAND.magenta}, ${BRAND.red}, ${BRAND.blue}, ${BRAND.purple})`;
 
 export const HEADER_HEIGHT = 72;
-export const HEADER_TOP = 0;            // flush to top
-export const HEADER_SIDE_GAP = 20;      // match main content padding (p=3)
+export const HEADER_SIDE_GAP = 16;
 
 const glareSweep = keyframes`
   0% { transform: translateX(-120%) rotate(18deg); opacity: 0; }
@@ -20,25 +22,27 @@ const glareSweep = keyframes`
 `;
 
 const GlassBar = styled(AppBar, {
-    shouldForwardProp: (p) => !["sidebarwidth", "collapsed", "hidden", "darkmode"].includes(p),
-})(({ sidebarwidth, collapsed, hidden, darkmode, theme }) => ({
+    shouldForwardProp: (p) => !["sidebarwidth", "collapsed", "hidden", "darkmode", "overlay", "sidegap"].includes(p),
+})(({ sidebarwidth, collapsed, hidden, darkmode, overlay, sidegap, theme }) => ({
     position: "fixed",
-    top: HEADER_TOP,
-    left: sidebarwidth + HEADER_SIDE_GAP,
-    // subtract 2px for the 1px border on left & right so it matches content width perfectly
-    width: `calc(100% - ${sidebarwidth}px - ${HEADER_SIDE_GAP * 2}px - 2px)`,
+    top: 0,
+    left: overlay ? sidegap : sidebarwidth + sidegap,
+    width: overlay
+        ? `calc(100% - ${sidegap * 2}px - 2px)`
+        : `calc(100% - ${sidebarwidth}px - ${sidegap * 2}px - 2px)`,
     height: collapsed ? 56 : HEADER_HEIGHT,
     background: darkmode ? "linear-gradient(90deg, rgba(11,11,15,0.95), rgba(16,16,22,0.92))" : "rgba(255,255,255,0.88)",
     color: darkmode ? "#EDEDF1" : "#0F172A",
     backdropFilter: "saturate(120%) blur(10px)",
     border: `1px solid ${darkmode ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.06)"}`,
-    borderRadius: 0, // square edges
-    boxShadow: darkmode ? (collapsed ? "0 10px 24px rgba(0,0,0,0.45)" : "0 14px 34px rgba(0,0,0,0.55)")
+    borderRadius: 0,
+    boxShadow: darkmode
+        ? (collapsed ? "0 10px 24px rgba(0,0,0,0.45)" : "0 14px 34px rgba(0,0,0,0.55)")
         : (collapsed ? "0 10px 24px rgba(17,24,39,0.06)" : "0 12px 30px rgba(17,24,39,0.08)"),
     zIndex: theme.zIndex.appBar + 1,
     overflow: "hidden",
     transition: "height .25s ease, transform .28s ease, width .2s ease, left .2s ease, box-shadow .2s ease, border-radius .2s ease",
-    transform: hidden ? `translate3d(0,-${HEADER_HEIGHT + HEADER_TOP + 12}px,0)` : "translateZ(0)",
+    transform: hidden ? `translate3d(0,-${HEADER_HEIGHT + 12}px,0)` : "translateZ(0)",
     "&::before": {
         content: '""', position: "absolute", top: -40, bottom: -40, left: 0, width: "40%",
         background: "linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,.35), rgba(255,255,255,0))",
@@ -88,13 +92,48 @@ const LogoutChip = styled("button", { shouldForwardProp: (p) => p !== "darkmode"
     "&:active": { transform: "scale(0.98)" },
 }));
 
-export default function Header({ mode = "dark", sidebarWidth = 240, onLogout = () => { }, onOpenSettings = () => { } }) {
-    const darkmode = mode === "dark";
+const getInitials = (name = "") =>
+    name
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((s) => s[0]?.toUpperCase() || "")
+        .join("");
+
+export default function Header({
+    sidebarWidth = 240,
+    sideGap = HEADER_SIDE_GAP,
+    overlay = false,
+    onLogout = () => { },
+    onOpenSettings = () => { },
+    onOpenNotifications = () => { },
+    onOpenProfile = () => { },          // <-- NEW: parent switches to Profile page
+    user: userProp,
+    notificationCount: notifProp,
+}) {
+    const theme = useTheme();
+    const darkmode = theme.palette.mode === "dark";
     const isSm = useMediaQuery("(max-width:900px)");
 
+    const user = useMemo(() => {
+        if (userProp) return userProp;
+        try {
+            const raw = localStorage.getItem("user");
+            return raw ? JSON.parse(raw) : null;
+        } catch {
+            return null;
+        }
+    }, [userProp]);
+
+    const initials = useMemo(() => getInitials(user?.FullName || "Pay Nest"), [user]);
     const [hidden, setHidden] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [notifCount, setNotifCount] = useState(notifProp ?? 0);
+
+    useEffect(() => {
+        if (typeof notifProp === "number") setNotifCount(notifProp);
+    }, [notifProp]);
 
     useEffect(() => {
         let lastY = window.scrollY, expandTimer;
@@ -113,31 +152,59 @@ export default function Header({ mode = "dark", sidebarWidth = 240, onLogout = (
         window.addEventListener("scroll", onScroll, { passive: true });
         window.addEventListener("resize", onResize);
         onScroll();
-        return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onResize); clearTimeout(expandTimer); };
+        return () => {
+            window.removeEventListener("scroll", onScroll);
+            window.removeEventListener("resize", onResize);
+            clearTimeout(expandTimer);
+        };
     }, [hidden]);
 
     return (
-        <GlassBar elevation={0} sidebarwidth={sidebarWidth} collapsed={collapsed} hidden={hidden} darkmode={darkmode}>
+        <GlassBar
+            elevation={0}
+            sidebarwidth={sidebarWidth}
+            collapsed={collapsed}
+            hidden={hidden}
+            darkmode={darkmode}
+            overlay={overlay}
+            sidegap={sideGap}
+        >
             <Toolbar sx={{ minHeight: collapsed ? 56 : HEADER_HEIGHT, px: 2, gap: 12 }}>
                 <Box sx={{ flex: 1 }} />
+
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
-                    <GlassIcon aria-label="notifications" darkmode={darkmode}>
-                        <Badge badgeContent={3} color="error">
+                    <GlassIcon aria-label="notifications" darkmode={darkmode} onClick={onOpenNotifications}>
+                        <Badge badgeContent={notifCount} color="error" max={99}>
                             <NotificationsIcon sx={{ color: BRAND.magenta }} />
                         </Badge>
                     </GlassIcon>
+
                     <GlassIcon aria-label="settings" onClick={onOpenSettings} darkmode={darkmode}>
                         <SettingsIcon sx={{ color: BRAND.purple }} />
                     </GlassIcon>
-                    <GlassIcon aria-label="profile" darkmode={darkmode}>
-                        <Avatar sx={{ width: 30, height: 30, background: brandGradient, boxShadow: "0 6px 16px rgba(0,0,0,0.6)", fontSize: 13, fontWeight: 800, color: "#fff" }}>
-                            HM
+
+                    {/* Avatar now directly opens Profile panel */}
+                    <GlassIcon aria-label="profile" darkmode={darkmode} onClick={onOpenProfile}>
+                        <Avatar
+                            src={user?.ProfilePicture || undefined}
+                            sx={{
+                                width: 30, height: 30,
+                                background: user?.ProfilePicture ? undefined : brandGradient,
+                                boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
+                                fontSize: 13, fontWeight: 800, color: "#fff",
+                            }}
+                        >
+                            {!user?.ProfilePicture && initials}
                         </Avatar>
                     </GlassIcon>
+
                     {!isSm && <LogoutChip onClick={onLogout} darkmode={darkmode}>Logout</LogoutChip>}
                 </Box>
             </Toolbar>
-            <ProgressRail darkmode={darkmode}><ProgressBar style={{ width: `${progress}%` }} /></ProgressRail>
+
+            <ProgressRail darkmode={darkmode}>
+                <ProgressBar style={{ width: `${progress}%` }} />
+            </ProgressRail>
         </GlassBar>
     );
 }
