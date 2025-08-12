@@ -201,7 +201,7 @@ export default function Footer() {
                 <FooterLink href="/" label="Home" emoji="🏠" />
                 <FooterLink href="#features" label="Features" emoji="✨" />
                 <FooterLink href="#services" label="Services" emoji="🧰" />
-                <FooterLink href="#contact" label="Contact" emoji="📬" />
+               
               </Stack>
             </Grid>
 
@@ -233,11 +233,11 @@ export default function Footer() {
             <Typography variant="body2" sx={{ color: BRAND.textSoft }} align="center">
               © {new Date().getFullYear()} PayNest. All rights reserved.
             </Typography>
-            <Stack direction="row" spacing={2}>
+            {/* <Stack direction="row" spacing={2}>
               <FooterLink href="/privacy" label="Privacy" emoji="🔒" />
               <FooterLink href="/terms" label="Terms" emoji="📄" />
               <FooterLink href="/cookies" label="Cookies" emoji="🍪" />
-            </Stack>
+            </Stack> */}
           </Stack>
         </Box>
       </Box>
