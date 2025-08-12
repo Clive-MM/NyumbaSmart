@@ -2,19 +2,18 @@
 import React, { useState, useEffect } from "react";
 import {
   AppBar, Toolbar, Typography, Box, IconButton, Tooltip,
-  useMediaQuery, InputBase
+  useMediaQuery, InputBase, Button
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import MenuIcon from "@mui/icons-material/Menu";
-import LoginIcon from "@mui/icons-material/Login";
-import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import HomeIcon from "@mui/icons-material/Home";
 import HomeRepairServiceRoundedIcon from "@mui/icons-material/HomeRepairServiceRounded";
 import SearchIcon from "@mui/icons-material/Search";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 
 const logoUrl =
   "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
@@ -91,10 +90,7 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   },
 }));
 
-/* Round icon buttons (white background friendly)
-   - Default icon color: brand magenta
-   - On hover: icon turns to gradient (hoverMix)
-*/
+/* Round icon buttons (white background friendly) */
 const GlassCircle = styled(IconButton)(({ activecolor }) => ({
   background: "#fff",
   border: "1px solid rgba(0,0,0,0.06)",
@@ -107,18 +103,38 @@ const GlassCircle = styled(IconButton)(({ activecolor }) => ({
   "&:hover": {
     transform: "scale(1.15) rotate(5deg)",
   },
-  // gradient color the SVG icon on hover
   "&:hover .MuiSvgIcon-root": {
     ...gradientTextCss,
-    color: "transparent", // ensure the gradient shows
+    color: "transparent",
   },
 }));
+
+/* New: Animated pill CTA (smaller on mobile via sx overrides) */
+const AuthPill = styled(motion(Button))({
+  borderRadius: 999,
+  padding: "10px 18px",
+  fontWeight: 800,
+  textTransform: "none",
+  letterSpacing: 0.3,
+  color: "#fff",
+  background: "linear-gradient(90deg, #D4124E, #E8511E, #FF0080, #456BBC)",
+  boxShadow: "0 10px 22px rgba(0,0,0,0.18)",
+  backdropFilter: "blur(6px)",
+  outline: "none",
+  "&:hover": {
+    transform: "scale(1.06)",
+    boxShadow: "0 16px 36px rgba(0,0,0,0.22)",
+  },
+  "&:focus-visible": {
+    outline: "2px solid rgba(255,0,128,.6)",
+    outlineOffset: "2px",
+  },
+});
 
 const NavBar = () => {
   const isMobile = useMediaQuery("(max-width:900px)");
   const slogan = "Smart Homes, Smarter Payments.";
   const [visibleText, setVisibleText] = useState("");
-  // const [setDrawerOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -222,7 +238,7 @@ const NavBar = () => {
               return (
                 <Tooltip
                   key={link.text}
-                  title={tip(link.text)} // gradient text in tooltip
+                  title={tip(link.text)}
                   componentsProps={{
                     tooltip: {
                       sx: {
@@ -251,53 +267,39 @@ const NavBar = () => {
           </Box>
         )}
 
-        {/* Login / Register or Mobile Menu */}
-        {isMobile ? (
-          <IconButton aria-label="open menu">
-            <MenuIcon sx={{ color: "#374151" }} />
-          </IconButton>
-        ) : (
-          <Box display="flex" gap={2} sx={{ mr: 1 }}>
-            {[{ icon: <LoginIcon />, path: "/login", label: "Login" },
-            { icon: <PersonAddIcon />, path: "/register", label: "Register" }].map((btn) => (
-              <Tooltip
-                key={btn.path}
-                title={tip(btn.label)}
-                componentsProps={{
-                  tooltip: {
-                    sx: {
-                      bgcolor: "#fff",
-                      border: "1px solid rgba(0,0,0,0.06)",
-                      boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
-                    },
-                  },
-                }}
-              >
-                <AnimatedIconButton
-                  whileHover={{ scale: 1.15, rotate: 5 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => navigate(btn.path)}
-                  sx={{
-                    background: "#fff",
-                    border: "1px solid rgba(0,0,0,0.06)",
-                    backdropFilter: "blur(8px)",
-                    boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
-                    color: BRAND.magenta, // default brand color
-                    p: 1.5,
-                    borderRadius: "50%",
-                    // gradient icon on hover
-                    "&:hover .MuiSvgIcon-root": {
-                      ...gradientTextCss,
-                      color: "transparent",
-                    },
-                  }}
-                >
-                  {btn.icon}
-                </AnimatedIconButton>
-              </Tooltip>
-            ))}
-          </Box>
-        )}
+        {/* Right side: Mobile menu + Auth pill (smaller on mobile), Desktop: Auth pill */}
+        <Box display="flex" alignItems="center" gap={isMobile ? 1.5 : 2} sx={{ mr: 1 }}>
+          {isMobile && (
+            <IconButton aria-label="open menu">
+              <MenuIcon sx={{ color: "#374151" }} />
+            </IconButton>
+          )}
+
+          <AuthPill
+            startIcon={<AccountCircleIcon />}
+            onClick={() => navigate("/login")}
+            aria-label="Login or Register"
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.96 }}
+            animate={{
+              scale: [1, 1.035, 1],
+              boxShadow: [
+                "0 10px 22px rgba(0,0,0,0.18)",
+                "0 12px 30px rgba(255, 0, 128, 0.25)",
+                "0 10px 22px rgba(0,0,0,0.18)",
+              ],
+            }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+            // Slightly smaller on mobile, same brand look
+            sx={{
+              px: isMobile ? 2 : 2.5,
+              py: isMobile ? 0.75 : 1,
+              fontSize: isMobile ? ".95rem" : "1rem",
+            }}
+          >
+            Get started
+          </AuthPill>
+        </Box>
       </Toolbar>
     </AppBar>
   );

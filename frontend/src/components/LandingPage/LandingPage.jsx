@@ -170,7 +170,7 @@ const LandingPage = () => {
             <Button
               variant="contained"
               size="large"
-              onClick={() => navigate("/register")}
+              onClick={() => navigate("/login")}
               sx={{
                 px: 4,
                 py: 1.3,

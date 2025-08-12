@@ -307,7 +307,7 @@ export default function Operation() {
         <Box mt={5} textAlign="center">
           <GlowButton
             component={RouterLink}
-            to="/register"
+            to="/login"
             size="large"
             variants={buttonVariants}
             initial="in"
