@@ -482,12 +482,12 @@ export default function AuthDoubleSliderRefined() {
             <OverlayPanel>
               <Box textAlign="center">
                 <Typography variant="h4" fontWeight={900}>
-                  Start your journey
+                 Landlords, Let’s Make It Pay.
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 1, color: BRAND.subtext }}>
-                  Don't have an account yet? Join and start your journey.
+                  Your smart hub for rent, bills, and peace of mind.
                 </Typography>
-                <OverlayButton onClick={() => setRightActive(true)}>Go to Register</OverlayButton>
+                <OverlayButton onClick={() => setRightActive(true)}>REGISTER HERE</OverlayButton>
               </Box>
             </OverlayPanel>
           </Overlay>
