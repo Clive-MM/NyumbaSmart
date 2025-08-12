@@ -24,7 +24,11 @@ const BRAND = {
     insetDark: "#07080d",
 };
 const headingGradient = `linear-gradient(90deg, ${BRAND.magenta}, ${BRAND.blue}, ${BRAND.pink})`;
-
+const FONTS = {
+    display: `"Cinzel", ui-serif, Georgia, serif`,
+    subhead: `"Nunito", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial`,
+    number: `"Sora", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial`,
+};
 /* ---------- Card ---------- */
 const FormCard = styled(Box)({
     maxWidth: 980,
@@ -319,19 +323,22 @@ export default function Profile() {
                 <Typography
                     variant="h6"
                     sx={{
-                        fontWeight: 900,
+                        // Original styles
                         textAlign: "center",
-                        background: headingGradient,
+                        mb: 1,
+
+                        // Styles from the "Billing" component
+                        fontWeight: 800,
+                        background: BRAND.gradient, // Using BRAND.gradient for the background
                         WebkitBackgroundClip: "text",
                         WebkitTextFillColor: "transparent",
-                        mb: 1,
+                        fontFamily: FONTS.display, // Added fontFamily for "Cinzel"
+                        letterSpacing: .5,       // Added letterSpacing
                     }}
                 >
-                    Your Profile
+                    PROFILE
                 </Typography>
-                <Typography variant="body2" sx={{ color: BRAND.subtext, textAlign: "center", mb: 2 }}>
-                    Keep your info fresh. This helps with receipts, billing, and tenant comms.
-                </Typography>
+
 
                 {/* Avatar */}
                 <Box sx={{ textAlign: "center", mb: 1 }}>
