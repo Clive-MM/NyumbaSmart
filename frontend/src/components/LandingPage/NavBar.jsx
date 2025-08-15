@@ -174,7 +174,7 @@ const NavBar = () => {
   const navLinks = [
     { text: "Home", icon: <HomeIcon />, kind: "route", to: "/" },
     { text: "Services", icon: <HomeRepairServiceRoundedIcon />, kind: "anchor", to: "features" },
-    { text: "Contact", icon: <SupportAgentRoundedIcon />, kind: "anchor", to: "feedback" },
+    { text: "Contact Us", icon: <SupportAgentRoundedIcon />, kind: "anchor", to: "feedback" },
   ];
 
   const scrollToId = (id) => {
