@@ -1,7 +1,13 @@
 // src/components/LandingPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Box, Typography, Button } from "@mui/material";
-import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
+import {
+  Box,
+  Typography,
+  Button,
+  useMediaQuery,
+  useTheme,
+} from "@mui/material";
+import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
 import NavBar from "./NavBar";
@@ -21,7 +27,6 @@ const BRAND = {
   soft: "rgba(220,220,220,.85)",
 };
 const headingGradient = `linear-gradient(90deg, ${BRAND.pink}, ${BRAND.magenta}, ${BRAND.red}, ${BRAND.blue}, ${BRAND.purple})`;
-
 const BRAND_BG = `
   radial-gradient(1200px 600px at 8% -10%, rgba(255,0,128,.14), transparent 60%),
   radial-gradient(1100px 520px at 108% 6%, rgba(69,107,188,.12), transparent 60%),
@@ -29,31 +34,32 @@ const BRAND_BG = `
   linear-gradient(180deg, #0b0d13 0%, #0a0220 50%, #07080d 100%)
 `;
 
-/* Load Orbitron once */
-const orbitronHref =
+/* Orbitron once */
+const ORBITRON_URL =
   "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&display=swap";
-(() => {
-  if (typeof document !== "undefined" && !document.head.querySelector(`link[href="${orbitronHref}"]`)) {
+function ensureOrbitronLoaded() {
+  if (typeof document === "undefined") return;
+  if (!document.head.querySelector('link[data-orbitron="true"]')) {
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = orbitronHref;
+    link.href = ORBITRON_URL;
+    link.setAttribute("data-orbitron", "true");
     document.head.appendChild(link);
   }
-})();
+}
 
-/* Cloudinary quality helpers (keeps images sharp without manual editing) */
-const cld = (url, { w, h, dpr = 2 } = {}) => {
-  // inject f_auto,q_auto and optional size/dpr into Cloudinary URL
-  if (!url.includes("res.cloudinary.com")) return url;
+/* Cloudinary helper */
+function cld(url, { w, h, dpr = 2 } = {}) {
+  if (!url || !url.includes("res.cloudinary.com")) return url;
   const sep = url.includes("/upload/") ? "/upload/" : "/image/upload/";
   const [a, b] = url.split(sep);
   const pieces = ["f_auto", "q_auto", `dpr_${dpr}`];
   if (w) pieces.push(`w_${w}`);
   if (h) pieces.push(`h_${h}`, "c_fill");
   return `${a}${sep}${pieces.join(",")}/${b}`;
-};
+}
 
-/* Slides with your images */
+/* Slides */
 const RAW_SLIDES = [
   {
     title: "Manage Properties Like a Pro",
@@ -61,7 +67,7 @@ const RAW_SLIDES = [
     answer:
       "PayNest provides an all-in-one platform to automate tenant management and rent collection.",
     image:
-      "https://res.cloudinary.com/djydkcx01/image/upload/v1755080475/Apartment_Design_rctd0r.jpg",
+      "https://res.cloudinary.com/djydkcx01/image/upload/v1755257904/ChatGPT_Image_Aug_15_2025_02_38_01_PM_deljba.png",
   },
   {
     title: "Hassle-Free Rent Payments",
@@ -77,59 +83,83 @@ const RAW_SLIDES = [
     answer:
       "Real-time reports on earnings, expenses, and occupancy make it simple to track profits, reduce costs, and handle taxes.",
     image:
-      "https://res.cloudinary.com/djydkcx01/image/upload/v1755088543/ChatGPT_Image_Aug_13_2025_03_35_18_PM_h5in8v.png",
+      "https://res.cloudinary.com/djydkcx01/image/upload/v1755241333/ChatGPT_Image_Aug_15_2025_10_01_33_AM_gznw5f.png",
   },
 ];
 
+const SLIDE_MS = 6000; // autoplay cadence
+
 export default function LandingPage() {
   const navigate = useNavigate();
-  const [idx, setIdx] = useState(0);
 
-  // Build responsive sources (hero ~2400w for clarity, cards ~420w)
+  // Responsive decisions (card size & spacing)
+  const theme = useTheme();
+  const xs = useMediaQuery(theme.breakpoints.down("sm"));   // <600
+  const mdUp = useMediaQuery(theme.breakpoints.up("md"));   // >=900
+
+  // Card size: phone / tablet / desktop
+  const cardSize = xs ? 140 : mdUp ? 210 : 170;
+  const gapX = Math.round(cardSize * 1.1); // horizontal step
+  const stepY1 = Math.round(cardSize * 0.08);
+  const stepY2 = Math.round(cardSize * 0.16);
+  const rowWidth = gapX * 2 + cardSize; // 3 cards in stepped row
+
+  const [active, setActive] = useState(0);
+  const [, setLoaded] = useState({}); // only setter needed (preload registry)
+  const timerRef = useRef(null);
+
+  useEffect(() => ensureOrbitronLoaded(), []);
+
+  // Optimized sources
   const slides = useMemo(
     () =>
       RAW_SLIDES.map((s) => ({
         ...s,
-        heroSrc: cld(s.image, { w: 2400, dpr: 2 }),
-        cardSrc: cld(s.image, { w: 420, dpr: 2 }),
+        heroSrc: cld(s.image, { w: 1920, dpr: 2 }),
+        cardSrc: cld(s.image, { w: 640, dpr: 2 }),
       })),
     []
   );
 
-  // Preload the next hero image for crisp transitions
+  // Preload heroes so background never flashes
   useEffect(() => {
-    const next1 = slides[(idx + 1) % slides.length]?.heroSrc;
-    if (!next1) return;
-    const img = new Image();
-    img.decoding = "async";
-    img.loading = "eager";
-    img.src = next1;
-  }, [idx, slides]);
+    slides.forEach((s) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.loading = "eager";
+      img.src = s.heroSrc;
+      const done = () =>
+        setLoaded((m) => (m?.[s.heroSrc] ? m : { ...m, [s.heroSrc]: true }));
+      if (img.complete) done();
+      else if (img.decode) img.decode().then(done).catch(() => (img.onload = done));
+      else img.onload = done;
+    });
+  }, [slides, setLoaded]);
 
-  // Auto-rotate hero + cards
+  // Autoplay single-cycle timeout (robust in StrictMode)
   useEffect(() => {
-    const t = setInterval(() => {
-      setIdx((p) => (p + 1) % slides.length);
-    }, 8000);
-    return () => clearInterval(t);
-  }, [slides.length]);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setActive((p) => (p + 1) % slides.length);
+    }, SLIDE_MS);
+    return () => timerRef.current && clearTimeout(timerRef.current);
+  }, [active, slides.length]);
 
-  const active = slides[idx];
-  const thumbs = [
-    slides[idx],
-    slides[(idx + 1) % slides.length],
-    slides[(idx + 2) % slides.length],
-  ];
+  // Order of the 3 cards: active, next, next2
+  const order = [active, (active + 1) % slides.length, (active + 2) % slides.length];
 
-  // Subtle parallax on scroll (tiny translateY)
-  const { scrollY } = useScroll();
-  const yParallax = useTransform(scrollY, [0, 400], [0, 18]); // 18px drift
+  // Layout targets depend on cardSize
+  const roleLayout = {
+    lead: { x: 0, y: 0, scale: 1.0, z: 3, shadow: "0 14px 40px rgba(0,0,0,.35)" },
+    mid:  { x: gapX, y: stepY1, scale: 0.92, z: 2, shadow: "0 12px 32px rgba(0,0,0,.30)" },
+    tail: { x: gapX * 2, y: stepY2, scale: 0.84, z: 1, shadow: "0 10px 26px rgba(0,0,0,.25)" },
+  };
 
   return (
     <Box
       sx={{
         width: "100%",
-        minHeight: "100vh",
+        minHeight: "100svh",
         overflowX: "hidden",
         position: "relative",
         color: BRAND.text,
@@ -145,22 +175,21 @@ export default function LandingPage() {
       <Box
         sx={{
           width: "100%",
-          minHeight: "82vh",
+          minHeight: { xs: "92svh", md: "95svh" },
           position: "relative",
           display: "grid",
           placeItems: "center",
-          pt: { xs: 10, md: 12 },
-          pb: { xs: 6, md: 8 },
+          pt: { xs: 7, sm: 8, md: 10 },
+          pb: { xs: 5, sm: 6, md: 8 },
+          overflow: "hidden",
         }}
       >
-        {/* Full-bleed hero with SOFT crossfade + Ken Burns (no darkening/blur) */}
-        <AnimatePresence mode="wait">
+        {/* Background = first card (active) */}
+        <AnimatePresence mode="popLayout">
           <motion.img
-            key={active.heroSrc}
-            src={active.heroSrc}
+            key={slides[active]?.heroSrc}
+            src={slides[active]?.heroSrc}
             alt=""
-            width="100%"
-            height="100%"
             decoding="async"
             loading="eager"
             style={{
@@ -169,87 +198,68 @@ export default function LandingPage() {
               width: "100%",
               height: "100%",
               objectFit: "cover",
-              objectPosition: "center",
-              imageRendering: "crisp-edges", // fallback
-              WebkitImageSmoothing: "antialiased",
-              willChange: "transform, opacity",
+              filter: "brightness(.82) contrast(1.08) saturate(1.05)",
             }}
-            initial={{ opacity: 0, scale: 1.02, x: -6 }}
-            animate={{ opacity: 1, scale: 1.06, x: 0, y: yParallax }}
-            exit={{ opacity: 0, scale: 1.02, x: 6 }}
-            transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ opacity: 0, scale: 1.02 }}
+            animate={{ opacity: 1, scale: 1.06 }}
+            exit={{ opacity: 0, scale: 1.01 }}
+            transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
           />
         </AnimatePresence>
 
-        {/* (Keep) bottom-left readability veil — made lighter to preserve sharpness */}
+        {/* Copy block */}
         <Box
           sx={{
             position: "absolute",
-            left: 0,
-            bottom: 0,
-            width: "60%",
-            maxWidth: 860,
-            height: "55%",
-            background:
-              "linear-gradient(180deg, rgba(0,0,0,0.28) 0%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0) 100%)",
-            maskImage:
-              "linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,.65) 78%, rgba(0,0,0,0) 100%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        {/* LOWER-LEFT: Title / Question / Answer (unchanged position) */}
-        <Box
-          sx={{
-            position: "absolute",
-            left: { xs: 16, sm: 28, md: 40 },
-            bottom: { xs: 16, sm: 28, md: 40 },
-            maxWidth: { xs: 520, md: 640 },
-            pr: 2,
+            left: { xs: 14, sm: 24, md: 40 },
+            bottom: { xs: 18, sm: 28, md: 44 },
+            maxWidth: { xs: 520, sm: 600, md: 720 },
+            pr: 1,
             textAlign: "left",
+            zIndex: 4,
           }}
         >
           <Typography
             component="h1"
             sx={{
-              fontFamily: "'Orbitron', sans-serif",
+              fontFamily: "'Orbitron', system-ui, sans-serif",
               fontWeight: 900,
-              fontSize: { xs: "2rem", sm: "2.6rem", md: "3rem" },
-              lineHeight: 1.1,
-              mb: 1,
+              fontSize: { xs: "1.9rem", sm: "2.6rem", md: "3.4rem" },
+              lineHeight: 1.06,
+              mb: 1.0,
               background: headingGradient,
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
-              textShadow: "0 4px 22px rgba(0,0,0,.35)", // subtle readability polish
+              textShadow: "0 4px 22px rgba(0,0,0,.35)",
             }}
           >
-            {active.title}
+            {slides[active]?.title}
           </Typography>
 
           <Typography
             sx={{
-              fontFamily: "'Orbitron', sans-serif",
+              fontFamily: "'Orbitron', system-ui, sans-serif",
               fontWeight: 700,
               color: BRAND.pink,
-              fontSize: { xs: "1.05rem", sm: "1.2rem" },
-              mb: 1.2,
+              fontSize: { xs: "0.98rem", sm: "1.1rem", md: "1.18rem" },
+              mb: 1.1,
               textShadow: "0 3px 16px rgba(0,0,0,.35)",
             }}
           >
-            {active.question}
+            {slides[active]?.question}
           </Typography>
 
           <Typography
             sx={{
               color: BRAND.soft,
-              fontSize: { xs: "0.98rem", sm: "1.06rem" },
-              lineHeight: 1.65,
-              mb: 2,
-              maxWidth: 720,
+              fontSize: { xs: "0.95rem", sm: "1rem", md: "1.08rem" },
+              lineHeight: 1.7,
+              mb: 2.0,
+              maxWidth: 760,
               textShadow: "0 2px 14px rgba(0,0,0,.30)",
             }}
           >
-            {active.answer}
+            {slides[active]?.answer}
           </Typography>
 
           <Button
@@ -257,18 +267,17 @@ export default function LandingPage() {
             size="large"
             onClick={() => navigate("/login")}
             sx={{
-              px: 3.5,
-              py: 1.15,
-              borderRadius: "26px",
+              px: { xs: 3, md: 3.75 },
+              py: { xs: 1, md: 1.25 },
+              borderRadius: "28px",
               fontWeight: 800,
               textTransform: "uppercase",
-              fontFamily: "'Orbitron', sans-serif",
+              fontFamily: "'Orbitron', system-ui, sans-serif",
               background: headingGradient,
-              boxShadow: "0 10px 28px rgba(255,0,128,0.18)",
-              transition: "transform .25s ease, box-shadow .25s ease",
+              boxShadow: "0 12px 30px rgba(255,0,128,0.2)",
               "&:hover": {
                 transform: "translateY(-3px)",
-                boxShadow: "0 16px 42px rgba(255,0,128,0.26)",
+                boxShadow: "0 18px 46px rgba(255,0,128,0.28)",
               },
             }}
           >
@@ -276,41 +285,46 @@ export default function LandingPage() {
           </Button>
         </Box>
 
-        {/* BOTTOM-RIGHT: 3 glassy cards, auto-sliding with smooth entrance */}
+        {/* Horizontal cards (auto only; no drag, no arrows) */}
         <Box
           sx={{
             position: "absolute",
-            right: { xs: 16, sm: 24, md: 40 },
-            bottom: { xs: 16, sm: 24, md: 40 },
-            display: "flex",
-            gap: { xs: 1.5, md: 2 },
-            alignItems: "flex-end",
+            right: { xs: 10, sm: 16, md: 40 },
+            bottom: { xs: 14, sm: 20, md: 44 },
+            width: rowWidth,
+            height: cardSize + stepY2 + 20,
+            zIndex: 5,
           }}
         >
-          <AnimatePresence initial={false}>
-            {thumbs.map((s, n) => (
+          {order.map((slideIdx, i) => {
+            const role = i === 0 ? "lead" : i === 1 ? "mid" : "tail";
+            const target = roleLayout[role];
+            const card = slides[slideIdx];
+
+            return (
               <motion.div
-                key={`${idx}-${n}-${s.cardSrc}`}
-                initial={{ opacity: 0, y: 26, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.96 }}
-                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                key={`${active}-${role}-${card.cardSrc}`}
+                initial={false}
+                animate={{
+                  x: target.x,
+                  y: target.y,
+                  scale: target.scale,
+                  zIndex: target.z,
+                }}
+                transition={{ type: "spring", stiffness: 260, damping: 28 }}
                 style={{
-                  width: 180,
-                  height: 180,
+                  position: "absolute",
+                  width: cardSize,
+                  height: cardSize,
                   borderRadius: 22,
-                  backgroundImage: `url(${s.cardSrc})`,
+                  backgroundImage: `url(${card.cardSrc})`,
                   backgroundSize: "cover",
                   backgroundPosition: "center",
-                  imageRendering: "crisp-edges",
-                  boxShadow:
-                    "0 14px 40px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.06)",
-                  position: "relative",
+                  boxShadow: target.shadow,
+                  cursor: "default",
                   overflow: "hidden",
-                  willChange: "transform, opacity",
                 }}
               >
-                {/* glass layer for modern feel */}
                 <div
                   style={{
                     position: "absolute",
@@ -321,8 +335,8 @@ export default function LandingPage() {
                   }}
                 />
               </motion.div>
-            ))}
-          </AnimatePresence>
+            );
+          })}
         </Box>
       </Box>
 
