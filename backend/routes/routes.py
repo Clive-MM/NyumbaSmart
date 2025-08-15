@@ -646,7 +646,7 @@ def view_apartment(apartment_id):
             "Label": unit.Label,
             "Description": unit.Description,
             "MonthlyRent": unit.MonthlyRent,
-            "AdditionalBills": unit.AdditionalBills,
+            # "AdditionalBills": unit.AdditionalBills,
             "Status": unit.status.StatusName if unit.status else None,
             "Category": unit.category.CategoryName if unit.category else None,
             "CreatedAt": unit.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
@@ -801,7 +801,7 @@ def create_rental_unit():
     label = data.get('Label')
     description = data.get('Description')
     monthly_rent = data.get('MonthlyRent')
-    additional_bills = data.get('AdditionalBills', 0.0)
+    # additional_bills = data.get('AdditionalBills', 0.0)
     status_id = data.get('StatusID')  # Typically Vacant by default
     category_id = data.get('CategoryID')
 
@@ -820,7 +820,7 @@ def create_rental_unit():
         Label=label,
         Description=description,
         MonthlyRent=monthly_rent,
-        AdditionalBills=additional_bills,
+        # AdditionalBills=additional_bills,
         StatusID=status_id,
         CategoryID=category_id
     )
@@ -834,7 +834,7 @@ def create_rental_unit():
             "UnitID": rental_unit.UnitID,
             "Label": rental_unit.Label,
             "MonthlyRent": rental_unit.MonthlyRent,
-            "AdditionalBills": rental_unit.AdditionalBills,
+            # "AdditionalBills": rental_unit.AdditionalBills,
             "CategoryID": rental_unit.CategoryID,
             "StatusID": rental_unit.StatusID,
             "ApartmentID": rental_unit.ApartmentID,
@@ -869,7 +869,7 @@ def update_rental_unit(unit_id):
     unit.Label = data.get('Label', unit.Label)
     unit.Description = data.get('Description', unit.Description)
     unit.MonthlyRent = data.get('MonthlyRent', unit.MonthlyRent)
-    unit.AdditionalBills = data.get('AdditionalBills', unit.AdditionalBills)
+    # unit.AdditionalBills = data.get('AdditionalBills', unit.AdditionalBills)
     unit.StatusID = data.get('StatusID', unit.StatusID)
     unit.CategoryID = data.get('CategoryID', unit.CategoryID)
 
@@ -882,7 +882,7 @@ def update_rental_unit(unit_id):
             "Label": unit.Label,
             "Description": unit.Description,
             "MonthlyRent": unit.MonthlyRent,
-            "AdditionalBills": unit.AdditionalBills,
+            # "AdditionalBills": unit.AdditionalBills,
             "StatusID": unit.StatusID,
             "CategoryID": unit.CategoryID,
             "ApartmentID": unit.ApartmentID,
@@ -1244,21 +1244,17 @@ def transfer_tenant_by_id(id):
     if new_unit.StatusID != 1:
         return jsonify({"message": "New unit is not vacant."}), 400
 
-    # 1. Vacate old unit
     old_unit.StatusID = 1
     old_unit.CurrentTenantID = None
 
-    # 2. Update tenant
     tenant.RentalUnitID = new_unit_id
     tenant.MoveInDate = new_move_in
     tenant.MoveOutDate = None
     tenant.Status = 'Active'
 
-    # 3. Occupy new unit
     new_unit.StatusID = 2
     new_unit.CurrentTenantID = tenant.TenantID
 
-    # 4. Log transfer
     log = TransferLog(
         TenantID=tenant.TenantID,
         OldUnitID=old_unit.UnitID,
@@ -1269,7 +1265,6 @@ def transfer_tenant_by_id(id):
     db.session.add(log)
     db.session.flush()  # ✅ Ensures log.TransferDate and ID are populated before access
 
-    # 5. Commit all changes
     db.session.commit()
 
     # 6. Optional: Send SMS notification to the tenant (commented out)

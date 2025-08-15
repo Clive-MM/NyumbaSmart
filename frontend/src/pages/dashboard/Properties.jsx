@@ -1,24 +1,28 @@
 // src/pages/Properties.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     Box, Paper, Typography, Grid, Chip, Button, IconButton, Tooltip,
     Snackbar, Alert, Divider, Table, TableHead, TableRow, TableCell, TableBody,
-    CircularProgress, Stack
+    CircularProgress, Stack, Dialog, DialogTitle, DialogContent, DialogActions,
+    TextField, LinearProgress, MenuItem
 } from "@mui/material";
+
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import EditIcon from "@mui/icons-material/Edit";
+import AddHomeWorkIcon from "@mui/icons-material/AddHomeWork";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import HomeWorkIcon from "@mui/icons-material/HomeWork";
 import PeopleIcon from "@mui/icons-material/People";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
-import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import RequestQuoteOutlinedIcon from "@mui/icons-material/RequestQuoteOutlined";
 import LocalAtmOutlinedIcon from "@mui/icons-material/LocalAtmOutlined";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
+
 import axios from "axios";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import dayjs from "dayjs";
@@ -53,7 +57,6 @@ const softCard = {
     borderRadius: 3,
     color: "#fff",
     background: "#0e0a17",
-    // dual soft shadows for dark neumorphism
     boxShadow:
         "9px 9px 18px rgba(0,0,0,.55), -9px -9px 18px rgba(255,255,255,.03), inset 0 0 0 rgba(255,255,255,0)",
     border: "1px solid rgba(255,255,255,0.06)",
@@ -63,7 +66,6 @@ const softCard = {
         boxShadow:
             "12px 12px 24px rgba(0,0,0,.6), -12px -12px 24px rgba(255,255,255,.035)",
         borderColor: "transparent",
-        // brand ring & glow
         outline: "1px solid transparent",
         background:
             "linear-gradient(#0e0a17,#0e0a17) padding-box, " + BRAND.gradient + " border-box",
@@ -72,7 +74,521 @@ const softCard = {
     }
 };
 
-// small square KPI (top row)
+// ---- Reusable TextField styling (dark + neumorphism + visible labels) ----
+const fieldNeumorphSx = {
+    "& .MuiInputLabel-root": {
+        color: "rgba(255,255,255,0.92)",
+        fontFamily: FONTS.subhead
+    },
+    "& .MuiInputBase-input": {
+        color: "#fff",
+        fontFamily: FONTS.subhead
+    },
+    "& .MuiInputBase-input::placeholder": {
+        color: "rgba(255,255,255,0.7)",
+        opacity: 1
+    },
+    "& .MuiOutlinedInput-root": {
+        background: "rgba(255,255,255,0.03)",
+        borderRadius: 2,
+        boxShadow: "inset 6px 6px 12px rgba(0,0,0,.45), inset -6px -6px 12px rgba(255,255,255,.03)",
+    },
+    "& .MuiOutlinedInput-notchedOutline": {
+        borderColor: "rgba(255,255,255,0.22)"
+    },
+    "&:hover .MuiOutlinedInput-notchedOutline": {
+        borderColor: "rgba(255,255,255,0.45)"
+    },
+    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+        borderColor: BRAND.start
+    }
+};
+
+/* -------------------------- Reusable Confirm Dialog -------------------------- */
+function ConfirmDialog({ open, title, content, onCancel, onConfirm, confirmText = "Confirm", loading = false }) {
+    return (
+        <Dialog
+            open={open}
+            onClose={loading ? undefined : onCancel}
+            fullWidth
+            maxWidth="sm"
+            sx={{
+                "& .MuiDialog-container": { justifyContent: { md: "flex-end" } },
+                "& .MuiDialog-paper": { mr: { md: 3 }, borderRadius: 3, width: { md: "min(680px, 96vw)" } }
+            }}
+            PaperProps={{ sx: { ...softCard, p: 0 } }}
+        >
+            <DialogTitle sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>{title}</DialogTitle>
+            <DialogContent sx={{ pt: .5 }}>
+                <Typography variant="body2" sx={{ opacity: .9, fontFamily: FONTS.subhead }}>{content}</Typography>
+            </DialogContent>
+            <DialogActions sx={{ p: 2 }}>
+                <Button onClick={onCancel} disabled={loading} sx={{ textTransform: "none" }}>Cancel</Button>
+                <Button
+                    onClick={onConfirm}
+                    disabled={loading}
+                    variant="contained"
+                    sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                >
+                    {loading ? "Working…" : confirmText}
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+}
+
+/* ------------------------------ Add Apartment ------------------------------ */
+function AddApartmentDialog({ open, onClose, onCreated, api }) {
+    const [form, setForm] = React.useState({ ApartmentName: "", Location: "", Description: "" });
+    const [saving, setSaving] = React.useState(false);
+    const [errors, setErrors] = React.useState({});
+    const [confirmOpen, setConfirmOpen] = React.useState(false);
+
+    useEffect(() => {
+        if (!open) setForm({ ApartmentName: "", Location: "", Description: "" });
+    }, [open]);
+
+    const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+    const validate = () => {
+        const e = {};
+        if (!form.ApartmentName.trim()) e.ApartmentName = "Apartment name is required";
+        if (!form.Location.trim()) e.Location = "Location is required";
+        setErrors(e);
+        return Object.keys(e).length === 0;
+    };
+
+    const requestSave = () => {
+        if (!validate()) return;
+        setConfirmOpen(true);
+    };
+
+    const handleSave = async () => {
+        try {
+            setSaving(true);
+            const { data } = await api.post("/apartments/create", form);
+            onCreated?.(data);
+            setForm({ ApartmentName: "", Location: "", Description: "" });
+            onClose?.();
+        } catch (err) {
+            const msg = err?.response?.data?.message || "Failed to create apartment.";
+            onCreated?.({ error: msg });
+        } finally {
+            setSaving(false);
+            setConfirmOpen(false);
+        }
+    };
+
+    return (
+        <>
+            <Dialog
+                open={open}
+                onClose={saving ? undefined : onClose}
+                fullWidth
+                maxWidth="md"
+                sx={{
+                    "& .MuiDialog-container": { justifyContent: { md: "flex-end" } },
+                    "& .MuiDialog-paper": {
+                        mr: { md: 3 },
+                        borderRadius: 3,
+                        width: { md: "min(900px, 96vw)" }
+                    }
+                }}
+                PaperProps={{ sx: { ...softCard, p: 0 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>Add Property</DialogTitle>
+                <DialogContent sx={{ pt: 0.5, overflow: "visible" }}>
+                    <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                            <TextField
+                                fullWidth label="Apartment Name" name="ApartmentName"
+                                placeholder="e.g., Blue House Apartment"
+                                value={form.ApartmentName} onChange={onChange}
+                                error={!!errors.ApartmentName} helperText={errors.ApartmentName}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                        <Grid item xs={12}>
+                            <TextField
+                                fullWidth label="Location" name="Location"
+                                placeholder="e.g., Kileleshwa, Nairobi"
+                                value={form.Location} onChange={onChange}
+                                error={!!errors.Location} helperText={errors.Location}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                        <Grid item xs={12}>
+                            <TextField
+                                fullWidth multiline minRows={3}
+                                label="Description (optional)" name="Description"
+                                placeholder="Short description of the property"
+                                value={form.Description} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                    </Grid>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>Cancel</Button>
+                    <Button
+                        onClick={requestSave}
+                        disabled={saving}
+                        variant="contained"
+                        sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                    >
+                        {saving ? "Saving…" : "Create Apartment"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <ConfirmDialog
+                open={confirmOpen}
+                onCancel={() => setConfirmOpen(false)}
+                onConfirm={handleSave}
+                loading={saving}
+                title="Create this apartment?"
+                content={`Name: ${form.ApartmentName || "—"} • Location: ${form.Location || "—"}`}
+                confirmText="Create"
+            />
+        </>
+    );
+}
+
+/* ------------------------------ Edit Apartment ----------------------------- */
+function EditApartmentDialog({ open, onClose, apartment, api, onUpdated }) {
+    const [form, setForm] = React.useState({ ApartmentName: "", Location: "", Description: "" });
+    const [saving, setSaving] = React.useState(false);
+    const [confirmOpen, setConfirmOpen] = React.useState(false);
+
+    React.useEffect(() => {
+        if (open && apartment) {
+            setForm({
+                ApartmentName: apartment.ApartmentName || "",
+                Location: apartment.Location || "",
+                Description: apartment.Description || "",
+            });
+        }
+        if (!open) {
+            setForm({ ApartmentName: "", Location: "", Description: "" });
+        }
+    }, [open, apartment]);
+
+    const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+    const requestSave = () => setConfirmOpen(true);
+
+    const handleSave = async () => {
+        try {
+            setSaving(true);
+            const { data } = await api.put(`/apartments/update/${apartment.ApartmentID}`, form);
+            onUpdated?.(data?.Apartment, data?.message);
+            onClose?.();
+        } catch (err) {
+            onUpdated?.(null, err?.response?.data?.message || "Failed to update apartment.");
+        } finally {
+            setSaving(false);
+            setConfirmOpen(false);
+        }
+    };
+
+    return (
+        <>
+            <Dialog
+                open={open}
+                onClose={saving ? undefined : onClose}
+                fullWidth
+                maxWidth="md"
+                sx={{
+                    "& .MuiDialog-container": { justifyContent: { md: "flex-end" } },
+                    "& .MuiDialog-paper": { mr: { md: 3 }, borderRadius: 3, width: { md: "min(900px, 96vw)" } }
+                }}
+                PaperProps={{ sx: { ...softCard, p: 0 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>
+                    Edit Apartment — {apartment?.ApartmentName}
+                </DialogTitle>
+                <DialogContent sx={{ pt: 0.5, overflow: "visible" }}>
+                    <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                            <TextField
+                                fullWidth label="Apartment Name" name="ApartmentName"
+                                placeholder="e.g., Blue House Apartment"
+                                value={form.ApartmentName} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                        <Grid item xs={12}>
+                            <TextField
+                                fullWidth label="Location" name="Location"
+                                placeholder="e.g., Kileleshwa, Nairobi"
+                                value={form.Location} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                        <Grid item xs={12}>
+                            <TextField
+                                fullWidth multiline minRows={3}
+                                label="Description (optional)" name="Description"
+                                placeholder="Short description"
+                                value={form.Description} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                    </Grid>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>Cancel</Button>
+                    <Button
+                        onClick={requestSave}
+                        disabled={saving}
+                        variant="contained"
+                        sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                    >
+                        {saving ? "Saving…" : "Save Changes"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <ConfirmDialog
+                open={confirmOpen}
+                onCancel={() => setConfirmOpen(false)}
+                onConfirm={handleSave}
+                loading={saving}
+                title="Save apartment changes?"
+                content={`Name: ${form.ApartmentName || "—"} • Location: ${form.Location || "—"}`}
+                confirmText="Save"
+            />
+        </>
+    );
+}
+
+/* -------------------------------- Add Units -------------------------------- */
+function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
+    const defaults = {
+        prefix: "",
+        startAt: 1,
+        count: 1,
+        pad: 0,
+        MonthlyRent: "",
+        CategoryID: "",
+        StatusID: "",
+        Description: "",
+    };
+    const [form, setForm] = React.useState(defaults);
+    const [cats, setCats] = React.useState([]);
+    const [statuses, setStatuses] = React.useState([]);
+    const [saving, setSaving] = React.useState(false);
+    const [confirmOpen, setConfirmOpen] = React.useState(false);
+
+    useEffect(() => { if (!open) setForm(defaults); }, [open]); // clear on close
+
+    const onChange = (e) => {
+        const { name, value } = e.target;
+        setForm((f) => ({ ...f, [name]: value }));
+    };
+
+    useEffect(() => {
+        if (!open) return;
+        (async () => {
+            try {
+                const [cRes, sRes] = await Promise.all([
+                    api.get("/unit-categories"),
+                    api.get("/rental-unit-statuses"),
+                ]);
+                setCats(cRes.data?.UnitCategories || []);
+                const sts = (sRes.data?.RentalUnitStatuses || []);
+                setStatuses(sts);
+                const vacant = sts.find((x) => x.StatusName?.toLowerCase() === "vacant");
+                setForm((f) => ({ ...f, StatusID: f.StatusID || vacant?.StatusID || "" }));
+            } catch { /* ignore */ }
+        })();
+    }, [open]); // eslint-disable-line
+
+    const labelsPreview = useMemo(() => {
+        const start = Number(form.startAt) || 1;
+        const count = Math.max(1, Number(form.count) || 1);
+        const pad = Math.max(0, Number(form.pad) || 0);
+        const first = `${form.prefix || ""}${String(start).padStart(pad, "0")}`;
+        const last = `${form.prefix || ""}${String(start + count - 1).padStart(pad, "0")}`;
+        return { first, last, count };
+    }, [form.prefix, form.startAt, form.count, form.pad]);
+
+    const requestCreate = () => {
+        if (!form.MonthlyRent || !form.CategoryID || !form.StatusID) return;
+        const { first, last, count } = labelsPreview;
+        setConfirmOpen(true);
+    };
+
+    const handleCreate = async () => {
+        const start = Number(form.startAt) || 1;
+        const count = Math.max(1, Number(form.count) || 1);
+        const pad = Math.max(0, Number(form.pad) || 0);
+
+        const labels = Array.from({ length: count }, (_, i) => {
+            const n = start + i;
+            const suffix = pad > 0 ? String(n).padStart(pad, "0") : String(n);
+            return `${form.prefix || ""}${suffix}`;
+        });
+
+        // Build payloads WITHOUT AdditionalBills (column not in your model)
+        const payloads = labels.map((Label) => ({
+            ApartmentID: apartment.ApartmentID,
+            Label,
+            MonthlyRent: Number(form.MonthlyRent),
+            CategoryID: Number(form.CategoryID),
+            StatusID: Number(form.StatusID),
+            Description: form.Description || "",
+        }));
+
+        try {
+            setSaving(true);
+            const results = await Promise.allSettled(payloads.map((p) => api.post("/rental-units/create", p)));
+            const ok = results.filter((r) => r.status === "fulfilled").length;
+            const fail = results.length - ok;
+            onDone?.({ ok, fail, total: results.length, labels });
+            onClose?.();
+        } finally {
+            setSaving(false);
+            setConfirmOpen(false);
+        }
+    };
+
+    return (
+        <>
+            <Dialog
+                open={open}
+                onClose={saving ? undefined : onClose}
+                fullWidth
+                maxWidth="md"
+                sx={{
+                    "& .MuiDialog-container": { justifyContent: { md: "flex-end" } },
+                    "& .MuiDialog-paper": { mr: { md: 3 }, borderRadius: 3, width: { md: "min(920px, 96vw)" } }
+                }}
+                PaperProps={{ sx: { ...softCard, p: 0 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>
+                    Add Units — {apartment?.ApartmentName}
+                </DialogTitle>
+
+                <DialogContent sx={{ pt: 0.5, overflow: "visible" }}>
+                    {/* Row 1: Prefix | Start | Count | Pad | Category */}
+                    <Grid container spacing={2}>
+                        <Grid item xs={12} sm={3}>
+                            <TextField
+                                fullWidth label="Prefix" name="prefix"
+                                placeholder="e.g., A- or BlkB-"
+                                value={form.prefix} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={2}>
+                            <TextField
+                                fullWidth label="Start at" name="startAt" type="number"
+                                placeholder="e.g., 1"
+                                value={form.startAt} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={2}>
+                            <TextField
+                                fullWidth label="Count" name="count" type="number"
+                                placeholder="How many?"
+                                value={form.count} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={2}>
+                            <TextField
+                                fullWidth label="Pad" name="pad" type="number"
+                                placeholder="Digits (0 for none)"
+                                value={form.pad} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={3}>
+                            <TextField
+                                select fullWidth label="Category" name="CategoryID"
+                                placeholder="Select category"
+                                value={form.CategoryID} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            >
+                                {cats.map((c) => (
+                                    <MenuItem key={c.CategoryID} value={c.CategoryID}>{c.CategoryName}</MenuItem>
+                                ))}
+                            </TextField>
+                        </Grid>
+                    </Grid>
+
+                    <Typography variant="caption" sx={{ display: "block", mt: 1, opacity: 0.9, fontFamily: FONTS.subhead }}>
+                        Example: {labelsPreview.first} … {labelsPreview.last} ({labelsPreview.count} unit{labelsPreview.count > 1 ? "s" : ""})
+                    </Typography>
+
+                    {/* Row 2: Monthly Rent | Status */}
+                    <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                        <Grid item xs={12} sm={6}>
+                            <TextField
+                                fullWidth label="Monthly Rent" name="MonthlyRent" type="number"
+                                placeholder="e.g., 25000"
+                                value={form.MonthlyRent} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField
+                                select fullWidth label="Status" name="StatusID"
+                                placeholder="Select status"
+                                value={form.StatusID} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            >
+                                {statuses.map((s) => (
+                                    <MenuItem key={s.StatusID} value={s.StatusID}>{s.StatusName}</MenuItem>
+                                ))}
+                            </TextField>
+                        </Grid>
+
+                        {/* Row 3: Description */}
+                        <Grid item xs={12}>
+                            <TextField
+                                fullWidth multiline minRows={3}
+                                label="Description (optional)" name="Description"
+                                placeholder="Any notes that apply to all generated units"
+                                value={form.Description} onChange={onChange}
+                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                            />
+                        </Grid>
+                    </Grid>
+                </DialogContent>
+
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={requestCreate}
+                        disabled={saving}
+                        variant="contained"
+                        startIcon={<AddHomeWorkIcon />}
+                        sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                    >
+                        {saving ? "Creating…" : "Create Units"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <ConfirmDialog
+                open={confirmOpen}
+                onCancel={() => setConfirmOpen(false)}
+                onConfirm={handleCreate}
+                loading={saving}
+                title="Create these units?"
+                content={`Apartment: ${apartment?.ApartmentName || "—"} • Range: ${labelsPreview.first} … ${labelsPreview.last} (${labelsPreview.count}) • Rent: ${form.MonthlyRent || "—"}`}
+                confirmText="Create Units"
+            />
+        </>
+    );
+}
+
+/* -------------------------- KPI & Donut Components -------------------------- */
 function KpiCard({ icon, label, value, sublabel }) {
     return (
         <Paper elevation={0} sx={{ ...softCard, height: 120 }}>
@@ -94,22 +610,9 @@ function KpiCard({ icon, label, value, sublabel }) {
     );
 }
 
-// wide rectangular KPI (second row)
-function RectCard({ icon, label, value, help }) {
+function RectCard({ icon, label, value, help, loading = false }) {
     return (
-        <Paper
-            elevation={0}
-            sx={{
-                ...softCard,
-                p: 2.25,
-                borderRadius: 2,
-                height: 88,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                gap: .25
-            }}
-        >
+        <Paper elevation={0} sx={{ ...softCard, p: 2.25, borderRadius: 2, height: 88, display: "flex", flexDirection: "column", justifyContent: "center", gap: .25 }}>
             <Stack direction="row" spacing={1} alignItems="center">
                 {icon}
                 <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead }}>{label}</Typography>
@@ -118,6 +621,7 @@ function RectCard({ icon, label, value, help }) {
                 <Typography variant="h5" sx={{ fontWeight: 900, fontFamily: FONTS.number }}>{value}</Typography>
                 {help ? <Typography variant="caption" sx={{ opacity: .7, fontFamily: FONTS.subhead }}>{help}</Typography> : null}
             </Stack>
+            {loading ? <LinearProgress sx={{ mt: .5 }} /> : null}
         </Paper>
     );
 }
@@ -136,46 +640,23 @@ function Donut({ occupied = 0, vacant = 0, reserved = 0, size = 72 }) {
         <Box sx={{ position: "relative", width: size, height: size, transition: "transform .25s ease" }} className="donut">
             <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                    <Pie
-                        data={data}
-                        dataKey="value"
-                        innerRadius={size / 2 - 12}
-                        outerRadius={size / 2}
-                        paddingAngle={1}
-                        stroke="none"
-                    >
-                        {data.map((entry, i) => (
-                            <Cell key={i} fill={entry.c} />
-                        ))}
+                    <Pie data={data} dataKey="value" innerRadius={size / 2 - 12} outerRadius={size / 2} paddingAngle={1} stroke="none">
+                        {data.map((entry, i) => (<Cell key={i} fill={entry.c} />))}
                     </Pie>
                 </PieChart>
             </ResponsiveContainer>
-            <Box
-                sx={{
-                    position: "absolute", inset: 0, display: "grid",
-                    placeItems: "center", fontSize: 12, color: "#fff",
-                    fontWeight: 700, fontFamily: FONTS.number,
-                }}
-            >
+            <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: 12, color: "#fff", fontWeight: 700, fontFamily: FONTS.number }}>
                 {occRate}%
             </Box>
         </Box>
     );
 }
 
-function PropertyCard({ p, onOpen }) {
+/* ------------------------------ Property Card ------------------------------ */
+function PropertyCard({ p, onOpen, onEdit, onAddUnits }) {
     const s = p.Stats || {};
     return (
-        <Paper
-            elevation={0}
-            onClick={() => onOpen?.(p)}
-            sx={{
-                ...softCard,
-                cursor: "pointer",
-                height: "100%",
-                "&:hover .donut": { transform: "scale(1.06)" }
-            }}
-        >
+        <Paper elevation={0} onClick={() => onOpen?.(p)} sx={{ ...softCard, cursor: "pointer", height: "100%", "&:hover .donut": { transform: "scale(1.06)" } }}>
             <Stack direction="row" alignItems="center" spacing={1}>
                 <HomeWorkIcon fontSize="small" />
                 <Typography variant="subtitle1" sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>
@@ -184,32 +665,17 @@ function PropertyCard({ p, onOpen }) {
                 <Chip
                     size="small"
                     label={p.Location || "—"}
-                    sx={{
-                        ml: "auto",
-                        color: "#fff",
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        bgcolor: "rgba(255,255,255,0.04)",
-                        fontFamily: FONTS.subhead
-                    }}
+                    sx={{ ml: "auto", color: "#fff", border: "1px solid rgba(255,255,255,0.12)", bgcolor: "rgba(255,255,255,0.04)", fontFamily: FONTS.subhead }}
                 />
             </Stack>
 
             <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1.5 }}>
-                <Donut
-                    occupied={s.OccupiedUnits || 0}
-                    vacant={s.VacantUnits || 0}
-                    reserved={s.ReservedUnits || 0}
-                />
+                <Donut occupied={s.OccupiedUnits || 0} vacant={s.VacantUnits || 0} reserved={s.ReservedUnits || 0} />
                 <Box sx={{ flex: 1 }}>
                     <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                        <Chip size="small" label={`Units: ${fmtNum(s.TotalUnits)}`}
-                            sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
-                        <Chip size="small" label={`Occupied: ${fmtNum(s.OccupiedUnits)}`}
-                            icon={<CheckCircleOutlineIcon sx={{ color: OCCUPIED_COLOR }} />}
-                            sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
-                        <Chip size="small" label={`Vacant: ${fmtNum(s.VacantUnits)}`}
-                            icon={<CancelOutlinedIcon sx={{ color: VACANT_COLOR }} />}
-                            sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
+                        <Chip size="small" label={`Units: ${fmtNum(s.TotalUnits)}`} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
+                        <Chip size="small" label={`Occupied: ${fmtNum(s.OccupiedUnits)}`} icon={<CheckCircleOutlineIcon sx={{ color: OCCUPIED_COLOR }} />} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
+                        <Chip size="small" label={`Vacant: ${fmtNum(s.VacantUnits)}`} icon={<CancelOutlinedIcon sx={{ color: VACANT_COLOR }} />} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
                     </Stack>
                     {p.Description ? (
                         <Typography variant="caption" sx={{ mt: 1, display: "block", opacity: 0.8, fontFamily: FONTS.subhead }}>
@@ -228,34 +694,32 @@ function PropertyCard({ p, onOpen }) {
                     sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
                     startIcon={<OpenInNewIcon />}
                 >
-                    View Apartment
+                    View
                 </Button>
-                <Button size="small" variant="outlined"
-                    sx={{
-                        textTransform: "none",
-                        borderRadius: 2,
-                        borderColor: "rgba(255,255,255,0.35)",
-                        color: "#fff",
-                        "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" }
-                    }}>
-                    Units
+                <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={(e) => { e.stopPropagation(); onEdit?.(p); }}
+                    startIcon={<EditIcon />}
+                    sx={{ textTransform: "none", borderRadius: 2, borderColor: "rgba(255,255,255,0.35)", color: "#fff", "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" } }}
+                >
+                    Edit
                 </Button>
-                <Button size="small" variant="outlined"
-                    sx={{
-                        textTransform: "none",
-                        borderRadius: 2,
-                        borderColor: "rgba(255,255,255,0.35)",
-                        color: "#fff",
-                        "&:hover": { borderColor: BRAND.end, background: "rgba(126,0,166,.08)" }
-                    }}>
-                    Tenants
+                <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={(e) => { e.stopPropagation(); onAddUnits?.(p); }}
+                    startIcon={<AddHomeWorkIcon />}
+                    sx={{ textTransform: "none", borderRadius: 2, borderColor: "rgba(255,255,255,0.35)", color: "#fff", "&:hover": { borderColor: BRAND.end, background: "rgba(126,0,166,.08)" } }}
+                >
+                    Add Units
                 </Button>
             </Stack>
         </Paper>
     );
 }
 
-// ---------------- Main component (logic unchanged) ----------------
+/* ---------------------------------- Page ----------------------------------- */
 export default function Properties() {
     const [loading, setLoading] = useState(true);
     const [apartments, setApartments] = useState([]);
@@ -265,6 +729,18 @@ export default function Properties() {
     const [expensesMonthTotal, setExpensesMonthTotal] = useState(0);
     const [expensesByApartment, setExpensesByApartment] = useState([]);
     const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "info" });
+
+    const [addOpen, setAddOpen] = useState(false);
+    const [editOpen, setEditOpen] = useState(false);
+    const [unitsOpen, setUnitsOpen] = useState(false);
+    const [selectedApt, setSelectedApt] = useState(null);
+
+    // for table filtering/units loading
+    const [statusList, setStatusList] = useState([]); // for status names in table
+    const [units, setUnits] = useState([]);
+    const [unitsLoading, setUnitsLoading] = useState(false);
+    const [filterAptId, setFilterAptId] = useState(null);
+    const tableRef = useRef(null);
 
     const token = useMemo(() => localStorage.getItem("token"), []);
     const api = axios.create({
@@ -277,7 +753,7 @@ export default function Properties() {
             setLoading(true);
             const [
                 aptsRes, tenantsRes, billsMonthRes, unpaidRes, partialRes,
-                expByAptRes, expByMonthRes,
+                expByAptRes, expByMonthRes, statusesRes
             ] = await Promise.all([
                 api.get("/myapartments"),
                 api.get("/tenants"),
@@ -286,6 +762,7 @@ export default function Properties() {
                 api.get("/bills/status/Partially%20Paid").catch(() => ({ data: { bills: [] } })),
                 api.get("/landlord-expenses/by-apartment").catch(() => ({ data: { expenses: {} } })),
                 api.get("/landlord-expenses/by-month").catch(() => ({ data: { expenses: {} } })),
+                api.get("/rental-unit-statuses").catch(() => ({ data: { RentalUnitStatuses: [] } })),
             ]);
 
             const apts = (aptsRes.data?.Apartments || []).map((a) => ({
@@ -294,10 +771,10 @@ export default function Properties() {
             }));
             setApartments(apts);
             setTenants(tenantsRes.data?.tenants || []);
+            setStatusList(statusesRes.data?.RentalUnitStatuses || []);
 
             const monthBills = billsMonthRes.data?.bills || [];
-            const collected = monthBills.filter((b) => b.BillStatus === "Paid")
-                .reduce((acc, b) => acc + Number(b.TotalAmountDue || 0), 0);
+            const collected = monthBills.filter((b) => b.BillStatus === "Paid").reduce((acc, b) => acc + Number(b.TotalAmountDue || 0), 0);
             setCollectedThisMonth(collected);
 
             const overdue =
@@ -317,6 +794,11 @@ export default function Properties() {
                 return { apartment: aptName, totalMonth };
             }).sort((a, b) => b.totalMonth - a.totalMonth);
             setExpensesByApartment(byApartmentMonth);
+
+            // if we already had a filter, refresh units for that filter
+            if (filterAptId) {
+                await loadUnits(filterAptId);
+            }
         } catch (e) {
             console.error(e);
             setSnackbar({ open: true, message: "Failed to load data. Check API/token.", severity: "error" });
@@ -324,7 +806,61 @@ export default function Properties() {
             setLoading(false);
         }
     };
+
     useEffect(() => { fetchAll(); /* eslint-disable-next-line */ }, []);
+
+    // Load units for table (filtered by apartment id; if null load all by iterating apts)
+    const loadUnits = async (apartmentId = null) => {
+        try {
+            setUnitsLoading(true);
+            let rows = [];
+            if (apartmentId) {
+                const apt = apartments.find((a) => a.ApartmentID === apartmentId);
+                if (!apt) return;
+                const { data } = await api.get(`/apartments/${apartmentId}/units`);
+                rows = (data || []).map((u) => ({ ...u, ApartmentID: apartmentId, ApartmentName: apt.ApartmentName }));
+            } else {
+                const results = await Promise.allSettled(
+                    apartments.map(async (apt) => {
+                        const { data } = await api.get(`/apartments/${apt.ApartmentID}/units`);
+                        return (data || []).map((u) => ({ ...u, ApartmentID: apt.ApartmentID, ApartmentName: apt.ApartmentName }));
+                    })
+                );
+                rows = results
+                    .filter((r) => r.status === "fulfilled")
+                    .flatMap((r) => r.value);
+            }
+
+            // join with tenants (best-effort by Apartment + Unit label)
+            const tIndex = new Map(
+                (tenants || []).map((t) => [`${t.Apartment || ""}||${t.RentalUnit || ""}`.toLowerCase(), t])
+            );
+
+            const statusMap = Object.fromEntries(statusList.map((s) => [s.StatusID, s.StatusName]));
+            const joined = rows.map((r) => {
+                const key = `${r.ApartmentName || ""}||${r.Label || ""}`.toLowerCase();
+                const ten = tIndex.get(key);
+                return {
+                    ...r,
+                    StatusName: statusMap[r.StatusID] || "Unknown",
+                    TenantName: ten?.FullName || "",
+                    MoveIn: ten?.MoveInDate || "",
+                    Arrears: ten?.Arrears || 0,
+                };
+            });
+
+            setUnits(joined);
+            // scroll into view when loading a specific property
+            if (tableRef.current) {
+                tableRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+        } catch (e) {
+            console.error(e);
+            setSnackbar({ open: true, message: "Failed to load units.", severity: "error" });
+        } finally {
+            setUnitsLoading(false);
+        }
+    };
 
     const kpi = useMemo(() => {
         const totals = apartments.reduce(
@@ -365,6 +901,7 @@ export default function Properties() {
             const a = document.createElement("a"); a.href = url;
             a.download = `tenants_${dayjs().format("YYYYMMDD_HHmmss")}.csv`; a.click();
             URL.revokeObjectURL(url);
+            setSnackbar({ open: true, message: "CSV exported.", severity: "success" });
         } catch {
             setSnackbar({ open: true, message: "Export failed.", severity: "error" });
         }
@@ -380,8 +917,67 @@ export default function Properties() {
         }
     };
 
-    const handleOpenApartment = (p) => {
-        console.log("open apartment", p.ApartmentID);
+    const handleOpenApartment = async (apt) => {
+        setFilterAptId(apt.ApartmentID);
+        await loadUnits(apt.ApartmentID);
+    };
+
+    const handleAddCreated = (res) => {
+        if (res?.error) {
+            setSnackbar({ open: true, message: res.error, severity: "error" });
+            return;
+        }
+        const a = res?.Apartment;
+        if (a) {
+            setApartments((prev) => [
+                {
+                    ApartmentID: a.ApartmentID,
+                    ApartmentName: a.ApartmentName,
+                    Location: a.Location,
+                    Description: a.Description,
+                    CreatedAt: dayjs().format("YYYY-MM-DD HH:mm:ss"),
+                    Stats: { TotalUnits: 0, OccupiedUnits: 0, VacantUnits: 0, ReservedUnits: 0, VacancyRate: 0 },
+                },
+                ...prev,
+            ]);
+        }
+        setSnackbar({ open: true, message: res?.message || "Apartment created.", severity: "success" });
+        fetchAll();
+    };
+
+    const handleUpdatedApartment = (updated, message) => {
+        if (!updated) {
+            setSnackbar({ open: true, message, severity: "error" });
+            return;
+        }
+        setApartments((prev) => prev.map((p) => p.ApartmentID === updated.ApartmentID ? { ...p, ...updated } : p));
+        setSnackbar({ open: true, message: message || "Apartment updated.", severity: "success" });
+        fetchAll();
+    };
+
+    const handleUnitsDone = ({ ok, fail, total }) => {
+        const msg = `Created ${ok}/${total} unit(s)` + (fail ? ` — ${fail} failed` : "");
+        setSnackbar({ open: true, message: msg, severity: fail ? "warning" : "success" });
+        // reload units for current filter (if set) + refresh stats
+        if (filterAptId) loadUnits(filterAptId);
+        fetchAll();
+    };
+
+    // table helpers
+    const statusChip = (name) => {
+        const n = (name || "").toLowerCase();
+        let bg = "rgba(255,255,255,.1)";
+        if (n === "occupied") bg = "rgba(110,231,183,.2)";
+        else if (n === "vacant") bg = "rgba(251,113,133,.2)";
+        else if (n === "reserved") bg = "rgba(253,230,138,.2)";
+        return (
+            <Chip size="small" label={name || "—"} sx={{ bgcolor: bg, color: "#fff", border: "1px solid rgba(255,255,255,.18)" }} />
+        );
+    };
+
+    const clearFilter = async () => {
+        setFilterAptId(null);
+        await loadUnits(null);
     };
 
     return (
@@ -411,7 +1007,7 @@ export default function Properties() {
                     startIcon={<AddIcon />}
                     variant="contained"
                     sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none", "&:hover": { boxShadow: BRAND.glow } }}
-                    onClick={() => console.log("Add Property dialog")}
+                    onClick={() => setAddOpen(true)}
                 >
                     Add Property
                 </Button>
@@ -419,18 +1015,34 @@ export default function Properties() {
 
             {/* KPIs */}
             <Grid container spacing={2} sx={{ mb: 1 }}>
-                <Grid item xs={12} sm={6} md={3} lg={2.4}><KpiCard icon={<ApartmentIcon fontSize="small" />} label="Total Apartments" value={fmtNum(kpi.totalApartments)} /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2.4}><KpiCard icon={<PeopleIcon fontSize="small" />} label="Occupancy Rate" value={`${kpi.occupancyRate}%`} sublabel={`${fmtNum(kpi.occupied)} occupied`} /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2.4}><KpiCard icon={<HomeWorkIcon fontSize="small" />} label="Total Units" value={fmtNum(kpi.totalUnits)} /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2.4}><KpiCard icon={<CheckCircleOutlineIcon fontSize="small" />} label="Occupied" value={fmtNum(kpi.occupied)} /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2.4}><KpiCard icon={<CancelOutlinedIcon fontSize="small" />} label="Vacant" value={fmtNum(kpi.vacant)} /></Grid>
+                <Grid item xs={12} sm={6} md={3} lg={2.4}>
+                    <KpiCard icon={<ApartmentIcon fontSize="small" />} label="Total Apartments" value={fmtNum(kpi.totalApartments)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3} lg={2.4}>
+                    <KpiCard icon={<PeopleIcon fontSize="small" />} label="Occupancy Rate" value={`${kpi.occupancyRate}%`} sublabel={`${fmtNum(kpi.occupied)} occupied`} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3} lg={2.4}>
+                    <KpiCard icon={<HomeWorkIcon fontSize="small" />} label="Total Units" value={fmtNum(kpi.totalUnits)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3} lg={2.4}>
+                    <KpiCard icon={<CheckCircleOutlineIcon fontSize="small" />} label="Occupied" value={fmtNum(kpi.occupied)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3} lg={2.4}>
+                    <KpiCard icon={<CancelOutlinedIcon fontSize="small" />} label="Vacant" value={fmtNum(kpi.vacant)} />
+                </Grid>
             </Grid>
 
             {/* Money row */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={4}><RectCard icon={<LocalAtmOutlinedIcon sx={{ color: "#6EE7B7" }} />} label={`Collected — ${monthKey}`} value={fmtKES(collectedThisMonth)} help="Sum of Paid bills" /></Grid>
-                <Grid item xs={12} md={4}><RectCard icon={<WarningAmberOutlinedIcon sx={{ color: "#FB7185" }} />} label="Overdue (unpaid & partial)" value={fmtKES(overdueThisMonth)} help="Outstanding before payments" /></Grid>
-                <Grid item xs={12} md={4}><RectCard icon={<ReceiptLongOutlinedIcon sx={{ color: "#A78BFA" }} />} label={`Expenses — ${monthKey}`} value={fmtKES(expensesMonthTotal)} help="Across all apartments" /></Grid>
+                <Grid item xs={12} md={4}>
+                    <RectCard icon={<LocalAtmOutlinedIcon sx={{ color: "#6EE7B7" }} />} label={`Collected — ${monthKey}`} value={fmtKES(collectedThisMonth)} help="Sum of Paid bills" />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    <RectCard icon={<WarningAmberOutlinedIcon sx={{ color: "#FB7185" }} />} label="Overdue (unpaid & partial)" value={fmtKES(overdueThisMonth)} help="Outstanding before payments" />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    <RectCard icon={<ReceiptLongOutlinedIcon sx={{ color: "#A78BFA" }} />} label={`Expenses — ${monthKey}`} value={fmtKES(expensesMonthTotal)} help="Across all apartments" />
+                </Grid>
             </Grid>
 
             {/* Expenses by Apartment */}
@@ -469,27 +1081,41 @@ export default function Properties() {
                 <Grid container spacing={2} sx={{ mb: 3 }}>
                     {apartments.map((p) => (
                         <Grid key={p.ApartmentID} item xs={12} sm={6} md={4} lg={3}>
-                            <PropertyCard p={p} onOpen={console.log} />
+                            <PropertyCard
+                                p={p}
+                                onOpen={handleOpenApartment}
+                                onEdit={(apt) => { setSelectedApt(apt); setEditOpen(true); }}
+                                onAddUnits={(apt) => { setSelectedApt(apt); setUnitsOpen(true); }}
+                            />
                         </Grid>
                     ))}
                 </Grid>
             )}
 
             {/* Rental Units & Tenants */}
-            <Paper elevation={0} sx={{ ...softCard }}>
+            <Paper ref={tableRef} elevation={0} sx={{ ...softCard }}>
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 800, color: "#fff", fontFamily: FONTS.subhead }}>
-                        Rental Units & Tenants
-                    </Typography>
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                        <Typography variant="h6" sx={{ fontWeight: 800, color: "#fff", fontFamily: FONTS.subhead }}>
+                            Rental Units & Tenants
+                        </Typography>
+                        {filterAptId ? (
+                            <Chip
+                                label={`Filtered: ${apartments.find(a => a.ApartmentID === filterAptId)?.ApartmentName || ""}`}
+                                onDelete={clearFilter}
+                                sx={{ bgcolor: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.18)" }}
+                            />
+                        ) : null}
+                    </Stack>
                     <Stack direction="row" spacing={1}>
                         <Button size="small" variant="outlined" startIcon={<FileDownloadOutlinedIcon />}
                             sx={{ textTransform: "none", borderRadius: 2, color: "#fff", borderColor: "rgba(255,255,255,0.35)", "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" } }}
-                            onClick={() => { /* exportCSV(); */ }}>
+                            onClick={exportCSV}>
                             Export CSV
                         </Button>
                         <Button size="small" variant="outlined" startIcon={<RequestQuoteOutlinedIcon />}
                             sx={{ textTransform: "none", borderRadius: 2, color: "#fff", borderColor: "rgba(255,255,255,0.35)", "&:hover": { borderColor: BRAND.end, background: "rgba(126,0,166,.08)" } }}
-                            onClick={() => { /* generateBills(); */ }}>
+                            onClick={generateBills}>
                             Generate Bills
                         </Button>
                     </Stack>
@@ -498,8 +1124,8 @@ export default function Properties() {
                 <Table size="small" sx={{ "& th, & td": { borderColor: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: FONTS.subhead } }}>
                     <TableHead>
                         <TableRow>
-                            <TableCell>Unit</TableCell>
                             <TableCell>Property</TableCell>
+                            <TableCell>Rental Unit</TableCell>
                             <TableCell>Tenant</TableCell>
                             <TableCell>Status</TableCell>
                             <TableCell>Move In</TableCell>
@@ -508,18 +1134,64 @@ export default function Properties() {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {/* feed your tenants here as before */}
+                        {unitsLoading ? (
+                            <TableRow><TableCell colSpan={7}><LinearProgress /></TableCell></TableRow>
+                        ) : units.length === 0 ? (
+                            <TableRow><TableCell colSpan={7} sx={{ opacity: .8 }}>No units to display.</TableCell></TableRow>
+                        ) : units.map((u) => (
+                            <TableRow key={`${u.ApartmentID}-${u.UnitID}`}>
+                                <TableCell>{u.ApartmentName}</TableCell>
+                                <TableCell>{u.Label}</TableCell>
+                                <TableCell>{u.TenantName || "—"}</TableCell>
+                                <TableCell>{statusChip(u.StatusName)}</TableCell>
+                                <TableCell>{u.MoveIn ? dayjs(u.MoveIn).format("YYYY-MM-DD") : "—"}</TableCell>
+                                <TableCell align="right">{fmtKES(u.Arrears || 0)}</TableCell>
+                                <TableCell align="right">
+                                    {/* placeholder actions (view unit, assign tenant, etc.) */}
+                                    <Button size="small" variant="text" sx={{ color: "#fff", textTransform: "none" }}>Details</Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
                     </TableBody>
                 </Table>
             </Paper>
 
+            {/* Dialogs */}
+            <AddApartmentDialog
+                open={addOpen}
+                onClose={() => setAddOpen(false)}
+                onCreated={handleAddCreated}
+                api={api}
+            />
+            <EditApartmentDialog
+                open={editOpen}
+                onClose={() => setEditOpen(false)}
+                apartment={selectedApt}
+                api={api}
+                onUpdated={handleUpdatedApartment}
+            />
+            <AddUnitsDialog
+                open={unitsOpen}
+                onClose={() => setUnitsOpen(false)}
+                apartment={selectedApt}
+                api={api}
+                onDone={handleUnitsDone}
+            />
+
+            {/* Snackbar */}
             <Snackbar
-                open={false}
+                open={snackbar.open}
                 autoHideDuration={4000}
-                onClose={() => { }}
+                onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
                 anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
             >
-                <Alert severity="success" sx={{ width: "100%" }}>ok</Alert>
+                <Alert
+                    onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+                    severity={snackbar.severity || "info"}
+                    sx={{ width: "100%" }}
+                >
+                    {snackbar.message}
+                </Alert>
             </Snackbar>
         </Box>
     );
