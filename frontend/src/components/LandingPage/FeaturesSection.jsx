@@ -7,11 +7,9 @@ import { styled, keyframes } from "@mui/material/styles";
 import { motion, useReducedMotion } from "framer-motion";
 
 /* ---- PayNest palette ---- */
-const P = " #ffffffff"
+const P = " #ffffffff"; // (your palette object is assumed in your real code)
 
-  ;
-
-// Load Orbitron once
+/* Load Orbitron once */
 const fontLink = document.createElement("link");
 fontLink.href =
   "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap";
@@ -20,7 +18,7 @@ if (!document.head.querySelector(`link[href="${fontLink.href}"]`)) {
   document.head.appendChild(fontLink);
 }
 
-// Pulse glow for hover
+/* Pulse glow for hover */
 const pulse = keyframes`
   0% { transform: scale(1); box-shadow: 0 0 0 rgba(255,46,196,.35); }
   50%{ transform: scale(1.03); box-shadow: 0 0 16px rgba(255,46,196,.55); }
@@ -80,7 +78,7 @@ const features = [
   },
 ];
 
-// ---- Motion variants (staggered fade-up + 3D + blur, row-aware, reduced-motion)
+/* ---- Motion variants (unchanged entrance, gentle hover polish) */
 const useVariants = (reduced) => {
   const baseShow = reduced
     ? { opacity: 1, y: 0, rotateX: 0, scale: 1, filter: "blur(0px)" }
@@ -103,17 +101,10 @@ const useVariants = (reduced) => {
         transition: {
           duration: reduced ? 0.2 : 0.55,
           ease: [0.22, 1, 0.36, 1],
-          // left→right within each row
           delay: ((i % cols) * (reduced ? 0 : 0.06)),
         },
       },
-      hover: reduced
-        ? {}
-        : { y: -6, scale: 1.01, transition: { duration: 0.18 } },
     }),
-    image: reduced
-      ? {}
-      : { initial: { scale: 1.03 }, hover: { scale: 1.06, transition: { duration: 0.25 } } },
   };
 };
 
@@ -149,7 +140,6 @@ const FeaturesSection = () => {
         From Chaos to Chill — Meet PayNest
       </Typography>
 
-
       <Typography
         variant="h6"
         align="center"
@@ -181,17 +171,42 @@ const FeaturesSection = () => {
         <Grid container spacing={4} justifyContent="center">
           {features.map((feature, index) => (
             <Grid item xs={12} sm={6} md={3} key={index}>
+              {/* keep your reveal; add soft lift/scale/tap */}
               <motion.div
-                variants={variants.card(index, 4)} // 4 columns on md; change to 3 if you alter breakpoints
-                whileHover="hover"
+                variants={variants.card(index, 4)}
+                whileHover={!prefersReduced ? { y: -6, scale: 1.015 } : {}}
+                whileTap={{ scale: 0.985 }}
               >
-                <GlowCard sx={{ maxWidth: 345, mx: "auto" }}>
+                <GlowCard
+                  sx={{ maxWidth: 345, mx: "auto", overflow: "hidden", position: "relative" }}
+                >
+                  {/* Ken-Burns idle + tiny hover zoom */}
                   <motion.div
-                    initial={variants.image.initial}
-                    whileHover={variants.image.hover}
+                    initial={prefersReduced ? {} : { scale: 1 }}
+                    animate={prefersReduced ? {} : { scale: [1, 1.03, 1] }}
+                    transition={prefersReduced ? {} : { duration: 10, repeat: Infinity, ease: "easeInOut" }}
+                    whileHover={!prefersReduced ? { scale: 1.06, transition: { duration: 0.25 } } : {}}
                   >
                     <ImageBox image={feature.image} />
                   </motion.div>
+
+                  {/* Glass-wipe sheen (only on hover, respects reduced motion) */}
+                  {!prefersReduced && (
+                    <motion.div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        borderRadius: 16,
+                        pointerEvents: "none",
+                        background:
+                          "linear-gradient(120deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,0) 55%)",
+                        mixBlendMode: "screen",
+                      }}
+                      initial={{ x: "-120%" }}
+                      whileHover={{ x: "120%" }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
+                    />
+                  )}
 
                   <CardHeader
                     avatar={
