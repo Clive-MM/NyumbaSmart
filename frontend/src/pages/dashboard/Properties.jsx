@@ -32,7 +32,9 @@ const monthKey = dayjs().format("MMMM YYYY");
 
 const fmtNum = (n) => new Intl.NumberFormat().format(Number(n || 0));
 const fmtKES = (n) =>
-    `KES ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(Number(n || 0))}`;
+    `KES ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(
+        Number(n || 0)
+    )}`;
 
 const OCCUPIED_COLOR = "#6EE7B7";
 const VACANT_COLOR = "#FB7185";
@@ -74,12 +76,21 @@ const softCard = {
     }
 };
 
-// ---- Reusable TextField styling (dark + neumorphism + visible labels) ----
+// ---- Shared TextField styling (dark + neumorphism + **visible labels**) ----
 const fieldNeumorphSx = {
+    // Make labels fully visible (no ellipsis clipping)
     "& .MuiInputLabel-root": {
         color: "rgba(255,255,255,0.92)",
-        fontFamily: FONTS.subhead
+        fontFamily: FONTS.subhead,
+        whiteSpace: "nowrap",
+        overflow: "visible",
+        textOverflow: "clip",
+        maxWidth: "none",
     },
+    "& .MuiInputLabel-root.MuiInputLabel-shrink": {
+        maxWidth: "none",
+    },
+
     "& .MuiInputBase-input": {
         color: "#fff",
         fontFamily: FONTS.subhead
@@ -91,7 +102,8 @@ const fieldNeumorphSx = {
     "& .MuiOutlinedInput-root": {
         background: "rgba(255,255,255,0.03)",
         borderRadius: 2,
-        boxShadow: "inset 6px 6px 12px rgba(0,0,0,.45), inset -6px -6px 12px rgba(255,255,255,.03)",
+        boxShadow:
+            "inset 6px 6px 12px rgba(0,0,0,.45), inset -6px -6px 12px rgba(255,255,255,.03)",
     },
     "& .MuiOutlinedInput-notchedOutline": {
         borderColor: "rgba(255,255,255,0.22)"
@@ -104,31 +116,60 @@ const fieldNeumorphSx = {
     }
 };
 
-/* -------------------------- Reusable Confirm Dialog -------------------------- */
-function ConfirmDialog({ open, title, content, onCancel, onConfirm, confirmText = "Confirm", loading = false }) {
+/* -------------------------- Centered Confirm Dialog -------------------------- */
+function ConfirmDialog({
+    open,
+    title,
+    content,
+    onCancel,
+    onConfirm,
+    confirmText = "Confirm",
+    loading = false,
+}) {
     return (
         <Dialog
             open={open}
             onClose={loading ? undefined : onCancel}
             fullWidth
             maxWidth="sm"
+            // Center the dialog on all breakpoints
             sx={{
-                "& .MuiDialog-container": { justifyContent: { md: "flex-end" } },
-                "& .MuiDialog-paper": { mr: { md: 3 }, borderRadius: 3, width: { md: "min(680px, 96vw)" } }
+                "& .MuiDialog-container": {
+                    alignItems: "center",
+                    justifyContent: "center",
+                },
+                "& .MuiDialog-paper": {
+                    borderRadius: 3,
+                    width: { md: "min(680px, 96vw)" },
+                },
             }}
             PaperProps={{ sx: { ...softCard, p: 0 } }}
         >
-            <DialogTitle sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>{title}</DialogTitle>
-            <DialogContent sx={{ pt: .5 }}>
-                <Typography variant="body2" sx={{ opacity: .9, fontFamily: FONTS.subhead }}>{content}</Typography>
+            <DialogTitle sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>
+                {title}
+            </DialogTitle>
+            <DialogContent sx={{ pt: 0.5 }}>
+                <Typography
+                    variant="body2"
+                    sx={{ opacity: 0.9, fontFamily: FONTS.subhead }}
+                >
+                    {content}
+                </Typography>
             </DialogContent>
             <DialogActions sx={{ p: 2 }}>
-                <Button onClick={onCancel} disabled={loading} sx={{ textTransform: "none" }}>Cancel</Button>
+                <Button onClick={onCancel} disabled={loading} sx={{ textTransform: "none" }}>
+                    Cancel
+                </Button>
                 <Button
                     onClick={onConfirm}
                     disabled={loading}
                     variant="contained"
-                    sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                    sx={{
+                        textTransform: "none",
+                        borderRadius: 2,
+                        background: BRAND.gradient,
+                        boxShadow: "none",
+                    }}
                 >
                     {loading ? "Working…" : confirmText}
                 </Button>
@@ -139,7 +180,11 @@ function ConfirmDialog({ open, title, content, onCancel, onConfirm, confirmText 
 
 /* ------------------------------ Add Apartment ------------------------------ */
 function AddApartmentDialog({ open, onClose, onCreated, api }) {
-    const [form, setForm] = React.useState({ ApartmentName: "", Location: "", Description: "" });
+    const [form, setForm] = React.useState({
+        ApartmentName: "",
+        Location: "",
+        Description: "",
+    });
     const [saving, setSaving] = React.useState(false);
     const [errors, setErrors] = React.useState({});
     const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -148,11 +193,13 @@ function AddApartmentDialog({ open, onClose, onCreated, api }) {
         if (!open) setForm({ ApartmentName: "", Location: "", Description: "" });
     }, [open]);
 
-    const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+    const onChange = (e) =>
+        setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
     const validate = () => {
         const e = {};
-        if (!form.ApartmentName.trim()) e.ApartmentName = "Apartment name is required";
+        if (!form.ApartmentName.trim())
+            e.ApartmentName = "Apartment name is required";
         if (!form.Location.trim()) e.Location = "Location is required";
         setErrors(e);
         return Object.keys(e).length === 0;
@@ -171,7 +218,8 @@ function AddApartmentDialog({ open, onClose, onCreated, api }) {
             setForm({ ApartmentName: "", Location: "", Description: "" });
             onClose?.();
         } catch (err) {
-            const msg = err?.response?.data?.message || "Failed to create apartment.";
+            const msg =
+                err?.response?.data?.message || "Failed to create apartment.";
             onCreated?.({ error: msg });
         } finally {
             setSaving(false);
@@ -186,55 +234,82 @@ function AddApartmentDialog({ open, onClose, onCreated, api }) {
                 onClose={saving ? undefined : onClose}
                 fullWidth
                 maxWidth="md"
+                // Centered dialog
                 sx={{
-                    "& .MuiDialog-container": { justifyContent: { md: "flex-end" } },
+                    "& .MuiDialog-container": {
+                        alignItems: "center",
+                        justifyContent: "center",
+                    },
                     "& .MuiDialog-paper": {
-                        mr: { md: 3 },
                         borderRadius: 3,
-                        width: { md: "min(900px, 96vw)" }
-                    }
+                        width: { md: "min(900px, 96vw)" },
+                    },
                 }}
                 PaperProps={{ sx: { ...softCard, p: 0 } }}
             >
-                <DialogTitle sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>Add Property</DialogTitle>
+                <DialogTitle sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>
+                    Add Property
+                </DialogTitle>
                 <DialogContent sx={{ pt: 0.5, overflow: "visible" }}>
                     <Grid container spacing={2}>
                         <Grid item xs={12}>
                             <TextField
-                                fullWidth label="Apartment Name" name="ApartmentName"
+                                fullWidth
+                                label="Apartment Name"
+                                name="ApartmentName"
                                 placeholder="e.g., Blue House Apartment"
-                                value={form.ApartmentName} onChange={onChange}
-                                error={!!errors.ApartmentName} helperText={errors.ApartmentName}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.ApartmentName}
+                                onChange={onChange}
+                                error={!!errors.ApartmentName}
+                                helperText={errors.ApartmentName}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                         <Grid item xs={12}>
                             <TextField
-                                fullWidth label="Location" name="Location"
+                                fullWidth
+                                label="Location"
+                                name="Location"
                                 placeholder="e.g., Kileleshwa, Nairobi"
-                                value={form.Location} onChange={onChange}
-                                error={!!errors.Location} helperText={errors.Location}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.Location}
+                                onChange={onChange}
+                                error={!!errors.Location}
+                                helperText={errors.Location}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                         <Grid item xs={12}>
                             <TextField
-                                fullWidth multiline minRows={3}
-                                label="Description (optional)" name="Description"
+                                fullWidth
+                                multiline
+                                minRows={3}
+                                label="Description (optional)"
+                                name="Description"
                                 placeholder="Short description of the property"
-                                value={form.Description} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.Description}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                     </Grid>
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>Cancel</Button>
+                    <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>
+                        Cancel
+                    </Button>
                     <Button
                         onClick={requestSave}
                         disabled={saving}
                         variant="contained"
-                        sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                        sx={{
+                            textTransform: "none",
+                            borderRadius: 2,
+                            background: BRAND.gradient,
+                            boxShadow: "none",
+                        }}
                     >
                         {saving ? "Saving…" : "Create Apartment"}
                     </Button>
@@ -247,7 +322,8 @@ function AddApartmentDialog({ open, onClose, onCreated, api }) {
                 onConfirm={handleSave}
                 loading={saving}
                 title="Create this apartment?"
-                content={`Name: ${form.ApartmentName || "—"} • Location: ${form.Location || "—"}`}
+                content={`Name: ${form.ApartmentName || "—"} • Location: ${form.Location || "—"
+                    }`}
                 confirmText="Create"
             />
         </>
@@ -256,7 +332,11 @@ function AddApartmentDialog({ open, onClose, onCreated, api }) {
 
 /* ------------------------------ Edit Apartment ----------------------------- */
 function EditApartmentDialog({ open, onClose, apartment, api, onUpdated }) {
-    const [form, setForm] = React.useState({ ApartmentName: "", Location: "", Description: "" });
+    const [form, setForm] = React.useState({
+        ApartmentName: "",
+        Location: "",
+        Description: "",
+    });
     const [saving, setSaving] = React.useState(false);
     const [confirmOpen, setConfirmOpen] = React.useState(false);
 
@@ -273,18 +353,25 @@ function EditApartmentDialog({ open, onClose, apartment, api, onUpdated }) {
         }
     }, [open, apartment]);
 
-    const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+    const onChange = (e) =>
+        setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
     const requestSave = () => setConfirmOpen(true);
 
     const handleSave = async () => {
         try {
             setSaving(true);
-            const { data } = await api.put(`/apartments/update/${apartment.ApartmentID}`, form);
+            const { data } = await api.put(
+                `/apartments/update/${apartment.ApartmentID}`,
+                form
+            );
             onUpdated?.(data?.Apartment, data?.message);
             onClose?.();
         } catch (err) {
-            onUpdated?.(null, err?.response?.data?.message || "Failed to update apartment.");
+            onUpdated?.(
+                null,
+                err?.response?.data?.message || "Failed to update apartment."
+            );
         } finally {
             setSaving(false);
             setConfirmOpen(false);
@@ -299,8 +386,14 @@ function EditApartmentDialog({ open, onClose, apartment, api, onUpdated }) {
                 fullWidth
                 maxWidth="md"
                 sx={{
-                    "& .MuiDialog-container": { justifyContent: { md: "flex-end" } },
-                    "& .MuiDialog-paper": { mr: { md: 3 }, borderRadius: 3, width: { md: "min(900px, 96vw)" } }
+                    "& .MuiDialog-container": {
+                        alignItems: "center",
+                        justifyContent: "center",
+                    },
+                    "& .MuiDialog-paper": {
+                        borderRadius: 3,
+                        width: { md: "min(900px, 96vw)" },
+                    },
                 }}
                 PaperProps={{ sx: { ...softCard, p: 0 } }}
             >
@@ -311,38 +404,58 @@ function EditApartmentDialog({ open, onClose, apartment, api, onUpdated }) {
                     <Grid container spacing={2}>
                         <Grid item xs={12}>
                             <TextField
-                                fullWidth label="Apartment Name" name="ApartmentName"
+                                fullWidth
+                                label="Apartment Name"
+                                name="ApartmentName"
                                 placeholder="e.g., Blue House Apartment"
-                                value={form.ApartmentName} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.ApartmentName}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                         <Grid item xs={12}>
                             <TextField
-                                fullWidth label="Location" name="Location"
+                                fullWidth
+                                label="Location"
+                                name="Location"
                                 placeholder="e.g., Kileleshwa, Nairobi"
-                                value={form.Location} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.Location}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                         <Grid item xs={12}>
                             <TextField
-                                fullWidth multiline minRows={3}
-                                label="Description (optional)" name="Description"
+                                fullWidth
+                                multiline
+                                minRows={3}
+                                label="Description (optional)"
+                                name="Description"
                                 placeholder="Short description"
-                                value={form.Description} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.Description}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                     </Grid>
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>Cancel</Button>
+                    <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>
+                        Cancel
+                    </Button>
                     <Button
                         onClick={requestSave}
                         disabled={saving}
                         variant="contained"
-                        sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                        sx={{
+                            textTransform: "none",
+                            borderRadius: 2,
+                            background: BRAND.gradient,
+                            boxShadow: "none",
+                        }}
                     >
                         {saving ? "Saving…" : "Save Changes"}
                     </Button>
@@ -355,7 +468,8 @@ function EditApartmentDialog({ open, onClose, apartment, api, onUpdated }) {
                 onConfirm={handleSave}
                 loading={saving}
                 title="Save apartment changes?"
-                content={`Name: ${form.ApartmentName || "—"} • Location: ${form.Location || "—"}`}
+                content={`Name: ${form.ApartmentName || "—"} • Location: ${form.Location || "—"
+                    }`}
                 confirmText="Save"
             />
         </>
@@ -380,7 +494,9 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
     const [saving, setSaving] = React.useState(false);
     const [confirmOpen, setConfirmOpen] = React.useState(false);
 
-    useEffect(() => { if (!open) setForm(defaults); }, [open]); // clear on close
+    useEffect(() => {
+        if (!open) setForm(defaults);
+    }, [open]); // clear on close
 
     const onChange = (e) => {
         const { name, value } = e.target;
@@ -396,11 +512,18 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                     api.get("/rental-unit-statuses"),
                 ]);
                 setCats(cRes.data?.UnitCategories || []);
-                const sts = (sRes.data?.RentalUnitStatuses || []);
+                const sts = sRes.data?.RentalUnitStatuses || [];
                 setStatuses(sts);
-                const vacant = sts.find((x) => x.StatusName?.toLowerCase() === "vacant");
-                setForm((f) => ({ ...f, StatusID: f.StatusID || vacant?.StatusID || "" }));
-            } catch { /* ignore */ }
+                const vacant = sts.find(
+                    (x) => x.StatusName?.toLowerCase() === "vacant"
+                );
+                setForm((f) => ({
+                    ...f,
+                    StatusID: f.StatusID || vacant?.StatusID || "",
+                }));
+            } catch {
+                /* ignore */
+            }
         })();
     }, [open]); // eslint-disable-line
 
@@ -409,13 +532,15 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
         const count = Math.max(1, Number(form.count) || 1);
         const pad = Math.max(0, Number(form.pad) || 0);
         const first = `${form.prefix || ""}${String(start).padStart(pad, "0")}`;
-        const last = `${form.prefix || ""}${String(start + count - 1).padStart(pad, "0")}`;
+        const last = `${form.prefix || ""}${String(start + count - 1).padStart(
+            pad,
+            "0"
+        )}`;
         return { first, last, count };
     }, [form.prefix, form.startAt, form.count, form.pad]);
 
     const requestCreate = () => {
         if (!form.MonthlyRent || !form.CategoryID || !form.StatusID) return;
-        const { first, last, count } = labelsPreview;
         setConfirmOpen(true);
     };
 
@@ -442,7 +567,9 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
 
         try {
             setSaving(true);
-            const results = await Promise.allSettled(payloads.map((p) => api.post("/rental-units/create", p)));
+            const results = await Promise.allSettled(
+                payloads.map((p) => api.post("/rental-units/create", p))
+            );
             const ok = results.filter((r) => r.status === "fulfilled").length;
             const fail = results.length - ok;
             onDone?.({ ok, fail, total: results.length, labels });
@@ -461,8 +588,14 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                 fullWidth
                 maxWidth="md"
                 sx={{
-                    "& .MuiDialog-container": { justifyContent: { md: "flex-end" } },
-                    "& .MuiDialog-paper": { mr: { md: 3 }, borderRadius: 3, width: { md: "min(920px, 96vw)" } }
+                    "& .MuiDialog-container": {
+                        alignItems: "center",
+                        justifyContent: "center",
+                    },
+                    "& .MuiDialog-paper": {
+                        borderRadius: 3,
+                        width: { md: "min(920px, 96vw)" },
+                    },
                 }}
                 PaperProps={{ sx: { ...softCard, p: 0 } }}
             >
@@ -475,73 +608,121 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                     <Grid container spacing={2}>
                         <Grid item xs={12} sm={3}>
                             <TextField
-                                fullWidth label="Prefix" name="prefix"
+                                fullWidth
+                                label="Prefix"
+                                name="prefix"
                                 placeholder="e.g., A- or BlkB-"
-                                value={form.prefix} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.prefix}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                         <Grid item xs={12} sm={2}>
                             <TextField
-                                fullWidth label="Start at" name="startAt" type="number"
+                                fullWidth
+                                label="Start at"
+                                name="startAt"
+                                type="number"
                                 placeholder="e.g., 1"
-                                value={form.startAt} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.startAt}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                         <Grid item xs={12} sm={2}>
                             <TextField
-                                fullWidth label="Count" name="count" type="number"
+                                fullWidth
+                                label="Count"
+                                name="count"
+                                type="number"
                                 placeholder="How many?"
-                                value={form.count} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.count}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                         <Grid item xs={12} sm={2}>
                             <TextField
-                                fullWidth label="Pad" name="pad" type="number"
+                                fullWidth
+                                label="Pad"
+                                name="pad"
+                                type="number"
                                 placeholder="Digits (0 for none)"
-                                value={form.pad} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.pad}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                         <Grid item xs={12} sm={3}>
                             <TextField
-                                select fullWidth label="Category" name="CategoryID"
+                                select
+                                fullWidth
+                                label="Category"
+                                name="CategoryID"
                                 placeholder="Select category"
-                                value={form.CategoryID} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.CategoryID}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             >
                                 {cats.map((c) => (
-                                    <MenuItem key={c.CategoryID} value={c.CategoryID}>{c.CategoryName}</MenuItem>
+                                    <MenuItem key={c.CategoryID} value={c.CategoryID}>
+                                        {c.CategoryName}
+                                    </MenuItem>
                                 ))}
                             </TextField>
                         </Grid>
                     </Grid>
 
-                    <Typography variant="caption" sx={{ display: "block", mt: 1, opacity: 0.9, fontFamily: FONTS.subhead }}>
-                        Example: {labelsPreview.first} … {labelsPreview.last} ({labelsPreview.count} unit{labelsPreview.count > 1 ? "s" : ""})
+                    <Typography
+                        variant="caption"
+                        sx={{
+                            display: "block",
+                            mt: 1,
+                            opacity: 0.9,
+                            fontFamily: FONTS.subhead,
+                        }}
+                    >
+                        Example: {labelsPreview.first} … {labelsPreview.last} (
+                        {labelsPreview.count} unit
+                        {labelsPreview.count > 1 ? "s" : ""})
                     </Typography>
 
                     {/* Row 2: Monthly Rent | Status */}
                     <Grid container spacing={2} sx={{ mt: 0.5 }}>
                         <Grid item xs={12} sm={6}>
                             <TextField
-                                fullWidth label="Monthly Rent" name="MonthlyRent" type="number"
+                                fullWidth
+                                label="Monthly Rent"
+                                name="MonthlyRent"
+                                type="number"
                                 placeholder="e.g., 25000"
-                                value={form.MonthlyRent} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.MonthlyRent}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                         <Grid item xs={12} sm={6}>
                             <TextField
-                                select fullWidth label="Status" name="StatusID"
+                                select
+                                fullWidth
+                                label="Status"
+                                name="StatusID"
                                 placeholder="Select status"
-                                value={form.StatusID} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.StatusID}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             >
                                 {statuses.map((s) => (
-                                    <MenuItem key={s.StatusID} value={s.StatusID}>{s.StatusName}</MenuItem>
+                                    <MenuItem key={s.StatusID} value={s.StatusID}>
+                                        {s.StatusName}
+                                    </MenuItem>
                                 ))}
                             </TextField>
                         </Grid>
@@ -549,11 +730,16 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                         {/* Row 3: Description */}
                         <Grid item xs={12}>
                             <TextField
-                                fullWidth multiline minRows={3}
-                                label="Description (optional)" name="Description"
+                                fullWidth
+                                multiline
+                                minRows={3}
+                                label="Description (optional)"
+                                name="Description"
                                 placeholder="Any notes that apply to all generated units"
-                                value={form.Description} onChange={onChange}
-                                InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                                value={form.Description}
+                                onChange={onChange}
+                                InputLabelProps={{ shrink: true }}
+                                sx={fieldNeumorphSx}
                             />
                         </Grid>
                     </Grid>
@@ -568,7 +754,12 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                         disabled={saving}
                         variant="contained"
                         startIcon={<AddHomeWorkIcon />}
-                        sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                        sx={{
+                            textTransform: "none",
+                            borderRadius: 2,
+                            background: BRAND.gradient,
+                            boxShadow: "none",
+                        }}
                     >
                         {saving ? "Creating…" : "Create Units"}
                     </Button>
@@ -581,7 +772,9 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                 onConfirm={handleCreate}
                 loading={saving}
                 title="Create these units?"
-                content={`Apartment: ${apartment?.ApartmentName || "—"} • Range: ${labelsPreview.first} … ${labelsPreview.last} (${labelsPreview.count}) • Rent: ${form.MonthlyRent || "—"}`}
+                content={`Apartment: ${apartment?.ApartmentName || "—"} • Range: ${labelsPreview.first
+                    } … ${labelsPreview.last} (${labelsPreview.count}) • Rent: ${form.MonthlyRent || "—"
+                    }`}
                 confirmText="Create Units"
             />
         </>
@@ -594,11 +787,21 @@ function KpiCard({ icon, label, value, sublabel }) {
         <Paper elevation={0} sx={{ ...softCard, height: 120 }}>
             <Stack direction="row" alignItems="center" spacing={1}>
                 {icon}
-                <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead, letterSpacing: .2 }}>
+                <Typography
+                    variant="body2"
+                    sx={{
+                        opacity: 0.88,
+                        fontFamily: FONTS.subhead,
+                        letterSpacing: 0.2,
+                    }}
+                >
                     {label}
                 </Typography>
             </Stack>
-            <Typography variant="h5" sx={{ mt: .5, fontWeight: 800, fontFamily: FONTS.number }}>
+            <Typography
+                variant="h5"
+                sx={{ mt: 0.5, fontWeight: 800, fontFamily: FONTS.number }}
+            >
                 {value}
             </Typography>
             {sublabel ? (
@@ -612,16 +815,36 @@ function KpiCard({ icon, label, value, sublabel }) {
 
 function RectCard({ icon, label, value, help, loading = false }) {
     return (
-        <Paper elevation={0} sx={{ ...softCard, p: 2.25, borderRadius: 2, height: 88, display: "flex", flexDirection: "column", justifyContent: "center", gap: .25 }}>
+        <Paper
+            elevation={0}
+            sx={{
+                ...softCard,
+                p: 2.25,
+                borderRadius: 2,
+                height: 88,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                gap: 0.25,
+            }}
+        >
             <Stack direction="row" spacing={1} alignItems="center">
                 {icon}
-                <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead }}>{label}</Typography>
+                <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead }}>
+                    {label}
+                </Typography>
             </Stack>
             <Stack direction="row" alignItems="baseline" spacing={1}>
-                <Typography variant="h5" sx={{ fontWeight: 900, fontFamily: FONTS.number }}>{value}</Typography>
-                {help ? <Typography variant="caption" sx={{ opacity: .7, fontFamily: FONTS.subhead }}>{help}</Typography> : null}
+                <Typography variant="h5" sx={{ fontWeight: 900, fontFamily: FONTS.number }}>
+                    {value}
+                </Typography>
+                {help ? (
+                    <Typography variant="caption" sx={{ opacity: 0.7, fontFamily: FONTS.subhead }}>
+                        {help}
+                    </Typography>
+                ) : null}
             </Stack>
-            {loading ? <LinearProgress sx={{ mt: .5 }} /> : null}
+            {loading ? <LinearProgress sx={{ mt: 0.5 }} /> : null}
         </Paper>
     );
 }
@@ -641,11 +864,24 @@ function Donut({ occupied = 0, vacant = 0, reserved = 0, size = 72 }) {
             <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                     <Pie data={data} dataKey="value" innerRadius={size / 2 - 12} outerRadius={size / 2} paddingAngle={1} stroke="none">
-                        {data.map((entry, i) => (<Cell key={i} fill={entry.c} />))}
+                        {data.map((entry, i) => (
+                            <Cell key={i} fill={entry.c} />
+                        ))}
                     </Pie>
                 </PieChart>
             </ResponsiveContainer>
-            <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: 12, color: "#fff", fontWeight: 700, fontFamily: FONTS.number }}>
+            <Box
+                sx={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: 12,
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontFamily: FONTS.number,
+                }}
+            >
                 {occRate}%
             </Box>
         </Box>
@@ -656,29 +892,80 @@ function Donut({ occupied = 0, vacant = 0, reserved = 0, size = 72 }) {
 function PropertyCard({ p, onOpen, onEdit, onAddUnits }) {
     const s = p.Stats || {};
     return (
-        <Paper elevation={0} onClick={() => onOpen?.(p)} sx={{ ...softCard, cursor: "pointer", height: "100%", "&:hover .donut": { transform: "scale(1.06)" } }}>
+        <Paper
+            elevation={0}
+            onClick={() => onOpen?.(p)}
+            sx={{
+                ...softCard,
+                cursor: "pointer",
+                height: "100%",
+                "&:hover .donut": { transform: "scale(1.06)" },
+            }}
+        >
             <Stack direction="row" alignItems="center" spacing={1}>
                 <HomeWorkIcon fontSize="small" />
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>
+                <Typography
+                    variant="subtitle1"
+                    sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}
+                >
                     {p.ApartmentName}
                 </Typography>
                 <Chip
                     size="small"
                     label={p.Location || "—"}
-                    sx={{ ml: "auto", color: "#fff", border: "1px solid rgba(255,255,255,0.12)", bgcolor: "rgba(255,255,255,0.04)", fontFamily: FONTS.subhead }}
+                    sx={{
+                        ml: "auto",
+                        color: "#fff",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        bgcolor: "rgba(255,255,255,0.04)",
+                        fontFamily: FONTS.subhead,
+                    }}
                 />
             </Stack>
 
             <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1.5 }}>
-                <Donut occupied={s.OccupiedUnits || 0} vacant={s.VacantUnits || 0} reserved={s.ReservedUnits || 0} />
+                <Donut
+                    occupied={s.OccupiedUnits || 0}
+                    vacant={s.VacantUnits || 0}
+                    reserved={s.ReservedUnits || 0}
+                />
                 <Box sx={{ flex: 1 }}>
                     <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                        <Chip size="small" label={`Units: ${fmtNum(s.TotalUnits)}`} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
-                        <Chip size="small" label={`Occupied: ${fmtNum(s.OccupiedUnits)}`} icon={<CheckCircleOutlineIcon sx={{ color: OCCUPIED_COLOR }} />} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
-                        <Chip size="small" label={`Vacant: ${fmtNum(s.VacantUnits)}`} icon={<CancelOutlinedIcon sx={{ color: VACANT_COLOR }} />} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
+                        <Chip
+                            size="small"
+                            label={`Units: ${fmtNum(s.TotalUnits)}`}
+                            sx={{
+                                color: "#fff",
+                                border: "1px solid rgba(255,255,255,0.14)",
+                                fontFamily: FONTS.subhead,
+                            }}
+                        />
+                        <Chip
+                            size="small"
+                            label={`Occupied: ${fmtNum(s.OccupiedUnits)}`}
+                            icon={<CheckCircleOutlineIcon sx={{ color: OCCUPIED_COLOR }} />}
+                            sx={{
+                                color: "#fff",
+                                border: "1px solid rgba(255,255,255,0.14)",
+                                fontFamily: FONTS.subhead,
+                            }}
+                        />
+                        <Chip
+                            size="small"
+                            label={`Vacant: ${fmtNum(s.VacantUnits)}`}
+                            icon={<CancelOutlinedIcon sx={{ color: VACANT_COLOR }} />}
+                            sx={{
+                                color: "#fff",
+                                border: "1px solid rgba(255,255,255,0.14)",
+                                fontFamily: FONTS.subhead,
+                            }}
+                        />
                     </Stack>
                     {p.Description ? (
-                        <Typography variant="caption" sx={{ mt: 1, display: "block", opacity: 0.8, fontFamily: FONTS.subhead }}>
+                        <Typography
+                            variant="caption"
+                            sx={{ mt: 1, display: "block", opacity: 0.8, fontFamily: FONTS.subhead }}
+                        >
                             {p.Description}
                         </Typography>
                     ) : null}
@@ -688,10 +975,18 @@ function PropertyCard({ p, onOpen, onEdit, onAddUnits }) {
             <Divider sx={{ my: 1.5, borderColor: "rgba(255,255,255,0.08)" }} />
             <Stack direction="row" spacing={1}>
                 <Button
-                    onClick={(e) => { e.stopPropagation(); onOpen?.(p); }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onOpen?.(p);
+                    }}
                     size="small"
                     variant="contained"
-                    sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                    sx={{
+                        textTransform: "none",
+                        borderRadius: 2,
+                        background: BRAND.gradient,
+                        boxShadow: "none",
+                    }}
                     startIcon={<OpenInNewIcon />}
                 >
                     View
@@ -699,18 +994,39 @@ function PropertyCard({ p, onOpen, onEdit, onAddUnits }) {
                 <Button
                     size="small"
                     variant="outlined"
-                    onClick={(e) => { e.stopPropagation(); onEdit?.(p); }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit?.(p);
+                    }}
                     startIcon={<EditIcon />}
-                    sx={{ textTransform: "none", borderRadius: 2, borderColor: "rgba(255,255,255,0.35)", color: "#fff", "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" } }}
+                    sx={{
+                        textTransform: "none",
+                        borderRadius: 2,
+                        borderColor: "rgba(255,255,255,0.35)",
+                        color: "#fff",
+                        "&:hover": {
+                            borderColor: BRAND.start,
+                            background: "rgba(255,0,128,.08)",
+                        },
+                    }}
                 >
                     Edit
                 </Button>
                 <Button
                     size="small"
                     variant="outlined"
-                    onClick={(e) => { e.stopPropagation(); onAddUnits?.(p); }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onAddUnits?.(p);
+                    }}
                     startIcon={<AddHomeWorkIcon />}
-                    sx={{ textTransform: "none", borderRadius: 2, borderColor: "rgba(255,255,255,0.35)", color: "#fff", "&:hover": { borderColor: BRAND.end, background: "rgba(126,0,166,.08)" } }}
+                    sx={{
+                        textTransform: "none",
+                        borderRadius: 2,
+                        borderColor: "rgba(255,255,255,0.35)",
+                        color: "#fff",
+                        "&:hover": { borderColor: BRAND.end, background: "rgba(126,0,166,.08)" },
+                    }}
                 >
                     Add Units
                 </Button>
@@ -728,7 +1044,11 @@ export default function Properties() {
     const [overdueThisMonth, setOverdueThisMonth] = useState(0);
     const [expensesMonthTotal, setExpensesMonthTotal] = useState(0);
     const [expensesByApartment, setExpensesByApartment] = useState([]);
-    const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "info" });
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: "",
+        severity: "info",
+    });
 
     const [addOpen, setAddOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
@@ -752,47 +1072,86 @@ export default function Properties() {
         try {
             setLoading(true);
             const [
-                aptsRes, tenantsRes, billsMonthRes, unpaidRes, partialRes,
-                expByAptRes, expByMonthRes, statusesRes
+                aptsRes,
+                tenantsRes,
+                billsMonthRes,
+                unpaidRes,
+                partialRes,
+                expByAptRes,
+                expByMonthRes,
+                statusesRes,
             ] = await Promise.all([
                 api.get("/myapartments"),
                 api.get("/tenants"),
-                api.get(`/bills/month/${encodeURIComponent(monthKey)}`).catch(() => ({ data: { bills: [] } })),
+                api
+                    .get(`/bills/month/${encodeURIComponent(monthKey)}`)
+                    .catch(() => ({ data: { bills: [] } })),
                 api.get("/bills/status/Unpaid").catch(() => ({ data: { bills: [] } })),
-                api.get("/bills/status/Partially%20Paid").catch(() => ({ data: { bills: [] } })),
-                api.get("/landlord-expenses/by-apartment").catch(() => ({ data: { expenses: {} } })),
-                api.get("/landlord-expenses/by-month").catch(() => ({ data: { expenses: {} } })),
-                api.get("/rental-unit-statuses").catch(() => ({ data: { RentalUnitStatuses: [] } })),
+                api
+                    .get("/bills/status/Partially%20Paid")
+                    .catch(() => ({ data: { bills: [] } })),
+                api
+                    .get("/landlord-expenses/by-apartment")
+                    .catch(() => ({ data: { expenses: {} } })),
+                api
+                    .get("/landlord-expenses/by-month")
+                    .catch(() => ({ data: { expenses: {} } })),
+                api.get("/rental-unit-statuses").catch(() => ({
+                    data: { RentalUnitStatuses: [] },
+                })),
             ]);
 
             const apts = (aptsRes.data?.Apartments || []).map((a) => ({
                 ...a,
-                Stats: a.Stats || { TotalUnits: 0, OccupiedUnits: 0, VacantUnits: 0, ReservedUnits: 0, VacancyRate: 0 },
+                Stats:
+                    a.Stats || {
+                        TotalUnits: 0,
+                        OccupiedUnits: 0,
+                        VacantUnits: 0,
+                        ReservedUnits: 0,
+                        VacancyRate: 0,
+                    },
             }));
             setApartments(apts);
             setTenants(tenantsRes.data?.tenants || []);
             setStatusList(statusesRes.data?.RentalUnitStatuses || []);
 
             const monthBills = billsMonthRes.data?.bills || [];
-            const collected = monthBills.filter((b) => b.BillStatus === "Paid").reduce((acc, b) => acc + Number(b.TotalAmountDue || 0), 0);
+            const collected = monthBills
+                .filter((b) => b.BillStatus === "Paid")
+                .reduce((acc, b) => acc + Number(b.TotalAmountDue || 0), 0);
             setCollectedThisMonth(collected);
 
             const overdue =
-                (unpaidRes.data?.bills || []).reduce((a, b) => a + Number(b.TotalAmountDue || 0), 0) +
-                (partialRes.data?.bills || []).reduce((a, b) => a + Number(b.TotalAmountDue || 0), 0);
+                (unpaidRes.data?.bills || []).reduce(
+                    (a, b) => a + Number(b.TotalAmountDue || 0),
+                    0
+                ) +
+                (partialRes.data?.bills || []).reduce(
+                    (a, b) => a + Number(b.TotalAmountDue || 0),
+                    0
+                );
             setOverdueThisMonth(overdue);
 
             const byApt = expByAptRes.data?.expenses || {};
             const byMonth = expByMonthRes.data?.expenses || {};
             const monthList = byMonth[monthKey] || [];
-            setExpensesMonthTotal(monthList.reduce((sum, r) => sum + Number(r.Amount || 0), 0));
+            setExpensesMonthTotal(
+                monthList.reduce((sum, r) => sum + Number(r.Amount || 0), 0)
+            );
 
-            const byApartmentMonth = Object.entries(byApt).map(([aptName, arr]) => {
-                const totalMonth = arr
-                    .filter((e) => dayjs(e.ExpenseDate, "YYYY-MM-DD").format("MMMM YYYY") === monthKey)
-                    .reduce((sum, e) => sum + Number(e.Amount || 0), 0);
-                return { apartment: aptName, totalMonth };
-            }).sort((a, b) => b.totalMonth - a.totalMonth);
+            const byApartmentMonth = Object.entries(byApt)
+                .map(([aptName, arr]) => {
+                    const totalMonth = arr
+                        .filter(
+                            (e) =>
+                                dayjs(e.ExpenseDate, "YYYY-MM-DD").format("MMMM YYYY") ===
+                                monthKey
+                        )
+                        .reduce((sum, e) => sum + Number(e.Amount || 0), 0);
+                    return { apartment: aptName, totalMonth };
+                })
+                .sort((a, b) => b.totalMonth - a.totalMonth);
             setExpensesByApartment(byApartmentMonth);
 
             // if we already had a filter, refresh units for that filter
@@ -801,13 +1160,20 @@ export default function Properties() {
             }
         } catch (e) {
             console.error(e);
-            setSnackbar({ open: true, message: "Failed to load data. Check API/token.", severity: "error" });
+            setSnackbar({
+                open: true,
+                message: "Failed to load data. Check API/token.",
+                severity: "error",
+            });
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => { fetchAll(); /* eslint-disable-next-line */ }, []);
+    useEffect(() => {
+        fetchAll();
+        // eslint-disable-next-line
+    }, []);
 
     // Load units for table (filtered by apartment id; if null load all by iterating apts)
     const loadUnits = async (apartmentId = null) => {
@@ -818,12 +1184,22 @@ export default function Properties() {
                 const apt = apartments.find((a) => a.ApartmentID === apartmentId);
                 if (!apt) return;
                 const { data } = await api.get(`/apartments/${apartmentId}/units`);
-                rows = (data || []).map((u) => ({ ...u, ApartmentID: apartmentId, ApartmentName: apt.ApartmentName }));
+                rows = (data || []).map((u) => ({
+                    ...u,
+                    ApartmentID: apartmentId,
+                    ApartmentName: apt.ApartmentName,
+                }));
             } else {
                 const results = await Promise.allSettled(
                     apartments.map(async (apt) => {
-                        const { data } = await api.get(`/apartments/${apt.ApartmentID}/units`);
-                        return (data || []).map((u) => ({ ...u, ApartmentID: apt.ApartmentID, ApartmentName: apt.ApartmentName }));
+                        const { data } = await api.get(
+                            `/apartments/${apt.ApartmentID}/units`
+                        );
+                        return (data || []).map((u) => ({
+                            ...u,
+                            ApartmentID: apt.ApartmentID,
+                            ApartmentName: apt.ApartmentName,
+                        }));
                     })
                 );
                 rows = results
@@ -833,10 +1209,15 @@ export default function Properties() {
 
             // join with tenants (best-effort by Apartment + Unit label)
             const tIndex = new Map(
-                (tenants || []).map((t) => [`${t.Apartment || ""}||${t.RentalUnit || ""}`.toLowerCase(), t])
+                (tenants || []).map((t) => [
+                    `${t.Apartment || ""}||${t.RentalUnit || ""}`.toLowerCase(),
+                    t,
+                ])
             );
 
-            const statusMap = Object.fromEntries(statusList.map((s) => [s.StatusID, s.StatusName]));
+            const statusMap = Object.fromEntries(
+                statusList.map((s) => [s.StatusID, s.StatusName])
+            );
             const joined = rows.map((r) => {
                 const key = `${r.ApartmentName || ""}||${r.Label || ""}`.toLowerCase();
                 const ten = tIndex.get(key);
@@ -852,11 +1233,18 @@ export default function Properties() {
             setUnits(joined);
             // scroll into view when loading a specific property
             if (tableRef.current) {
-                tableRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                tableRef.current.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                });
             }
         } catch (e) {
             console.error(e);
-            setSnackbar({ open: true, message: "Failed to load units.", severity: "error" });
+            setSnackbar({
+                open: true,
+                message: "Failed to load units.",
+                severity: "error",
+            });
         } finally {
             setUnitsLoading(false);
         }
@@ -873,7 +1261,9 @@ export default function Properties() {
             },
             { units: 0, occ: 0, vac: 0 }
         );
-        const occRate = totals.units ? Math.round((totals.occ / totals.units) * 100) : 0;
+        const occRate = totals.units
+            ? Math.round((totals.occ / totals.units) * 100)
+            : 0;
         return {
             totalApartments: apartments.length,
             totalUnits: totals.units,
@@ -895,11 +1285,21 @@ export default function Properties() {
                 MoveInDate: t.MoveInDate || "",
             }));
             const head = Object.keys(rows[0] || { Sample: "" }).join(",");
-            const body = rows.map((r) => Object.values(r).map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-            const blob = new Blob([head + "\n" + body], { type: "text/csv;charset=utf-8;" });
+            const body = rows
+                .map((r) =>
+                    Object.values(r)
+                        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+                        .join(",")
+                )
+                .join("\n");
+            const blob = new Blob([head + "\n" + body], {
+                type: "text/csv;charset=utf-8;",
+            });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement("a"); a.href = url;
-            a.download = `tenants_${dayjs().format("YYYYMMDD_HHmmss")}.csv`; a.click();
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `tenants_${dayjs().format("YYYYMMDD_HHmmss")}.csv`;
+            a.click();
             URL.revokeObjectURL(url);
             setSnackbar({ open: true, message: "CSV exported.", severity: "success" });
         } catch {
@@ -909,11 +1309,21 @@ export default function Properties() {
 
     const generateBills = async () => {
         try {
-            const { data } = await api.post("/bills/generate-or-update", { BillingMonth: monthKey });
-            setSnackbar({ open: true, message: data.alert || "Bills generated.", severity: "success" });
+            const { data } = await api.post("/bills/generate-or-update", {
+                BillingMonth: monthKey,
+            });
+            setSnackbar({
+                open: true,
+                message: data.alert || "Bills generated.",
+                severity: "success",
+            });
             fetchAll();
         } catch {
-            setSnackbar({ open: true, message: "Failed to generate bills.", severity: "error" });
+            setSnackbar({
+                open: true,
+                message: "Failed to generate bills.",
+                severity: "error",
+            });
         }
     };
 
@@ -936,12 +1346,22 @@ export default function Properties() {
                     Location: a.Location,
                     Description: a.Description,
                     CreatedAt: dayjs().format("YYYY-MM-DD HH:mm:ss"),
-                    Stats: { TotalUnits: 0, OccupiedUnits: 0, VacantUnits: 0, ReservedUnits: 0, VacancyRate: 0 },
+                    Stats: {
+                        TotalUnits: 0,
+                        OccupiedUnits: 0,
+                        VacantUnits: 0,
+                        ReservedUnits: 0,
+                        VacancyRate: 0,
+                    },
                 },
                 ...prev,
             ]);
         }
-        setSnackbar({ open: true, message: res?.message || "Apartment created.", severity: "success" });
+        setSnackbar({
+            open: true,
+            message: res?.message || "Apartment created.",
+            severity: "success",
+        });
         fetchAll();
     };
 
@@ -950,14 +1370,27 @@ export default function Properties() {
             setSnackbar({ open: true, message, severity: "error" });
             return;
         }
-        setApartments((prev) => prev.map((p) => p.ApartmentID === updated.ApartmentID ? { ...p, ...updated } : p));
-        setSnackbar({ open: true, message: message || "Apartment updated.", severity: "success" });
+        setApartments((prev) =>
+            prev.map((p) =>
+                p.ApartmentID === updated.ApartmentID ? { ...p, ...updated } : p
+            )
+        );
+        setSnackbar({
+            open: true,
+            message: message || "Apartment updated.",
+            severity: "success",
+        });
         fetchAll();
     };
 
     const handleUnitsDone = ({ ok, fail, total }) => {
-        const msg = `Created ${ok}/${total} unit(s)` + (fail ? ` — ${fail} failed` : "");
-        setSnackbar({ open: true, message: msg, severity: fail ? "warning" : "success" });
+        const msg =
+            `Created ${ok}/${total} unit(s)` + (fail ? ` — ${fail} failed` : "");
+        setSnackbar({
+            open: true,
+            message: msg,
+            severity: fail ? "warning" : "success",
+        });
         // reload units for current filter (if set) + refresh stats
         if (filterAptId) loadUnits(filterAptId);
         fetchAll();
@@ -971,7 +1404,15 @@ export default function Properties() {
         else if (n === "vacant") bg = "rgba(251,113,133,.2)";
         else if (n === "reserved") bg = "rgba(253,230,138,.2)";
         return (
-            <Chip size="small" label={name || "—"} sx={{ bgcolor: bg, color: "#fff", border: "1px solid rgba(255,255,255,.18)" }} />
+            <Chip
+                size="small"
+                label={name || "—"}
+                sx={{
+                    bgcolor: bg,
+                    color: "#fff",
+                    border: "1px solid rgba(255,255,255,.18)",
+                }}
+            />
         );
     };
 
@@ -992,7 +1433,7 @@ export default function Properties() {
                         WebkitBackgroundClip: "text",
                         WebkitTextFillColor: "transparent",
                         fontFamily: FONTS.display,
-                        letterSpacing: .5
+                        letterSpacing: 0.5,
                     }}
                 >
                     Properties
@@ -1006,7 +1447,13 @@ export default function Properties() {
                 <Button
                     startIcon={<AddIcon />}
                     variant="contained"
-                    sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none", "&:hover": { boxShadow: BRAND.glow } }}
+                    sx={{
+                        textTransform: "none",
+                        borderRadius: 2,
+                        background: BRAND.gradient,
+                        boxShadow: "none",
+                        "&:hover": { boxShadow: BRAND.glow },
+                    }}
                     onClick={() => setAddOpen(true)}
                 >
                     Add Property
@@ -1016,49 +1463,114 @@ export default function Properties() {
             {/* KPIs */}
             <Grid container spacing={2} sx={{ mb: 1 }}>
                 <Grid item xs={12} sm={6} md={3} lg={2.4}>
-                    <KpiCard icon={<ApartmentIcon fontSize="small" />} label="Total Apartments" value={fmtNum(kpi.totalApartments)} />
+                    <KpiCard
+                        icon={<ApartmentIcon fontSize="small" />}
+                        label="Total Apartments"
+                        value={fmtNum(kpi.totalApartments)}
+                    />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3} lg={2.4}>
-                    <KpiCard icon={<PeopleIcon fontSize="small" />} label="Occupancy Rate" value={`${kpi.occupancyRate}%`} sublabel={`${fmtNum(kpi.occupied)} occupied`} />
+                    <KpiCard
+                        icon={<PeopleIcon fontSize="small" />}
+                        label="Occupancy Rate"
+                        value={`${kpi.occupancyRate}%`}
+                        sublabel={`${fmtNum(kpi.occupied)} occupied`}
+                    />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3} lg={2.4}>
-                    <KpiCard icon={<HomeWorkIcon fontSize="small" />} label="Total Units" value={fmtNum(kpi.totalUnits)} />
+                    <KpiCard
+                        icon={<HomeWorkIcon fontSize="small" />}
+                        label="Total Units"
+                        value={fmtNum(kpi.totalUnits)}
+                    />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3} lg={2.4}>
-                    <KpiCard icon={<CheckCircleOutlineIcon fontSize="small" />} label="Occupied" value={fmtNum(kpi.occupied)} />
+                    <KpiCard
+                        icon={<CheckCircleOutlineIcon fontSize="small" />}
+                        label="Occupied"
+                        value={fmtNum(kpi.occupied)}
+                    />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3} lg={2.4}>
-                    <KpiCard icon={<CancelOutlinedIcon fontSize="small" />} label="Vacant" value={fmtNum(kpi.vacant)} />
+                    <KpiCard
+                        icon={<CancelOutlinedIcon fontSize="small" />}
+                        label="Vacant"
+                        value={fmtNum(kpi.vacant)}
+                    />
                 </Grid>
             </Grid>
 
             {/* Money row */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid item xs={12} md={4}>
-                    <RectCard icon={<LocalAtmOutlinedIcon sx={{ color: "#6EE7B7" }} />} label={`Collected — ${monthKey}`} value={fmtKES(collectedThisMonth)} help="Sum of Paid bills" />
+                    <RectCard
+                        icon={<LocalAtmOutlinedIcon sx={{ color: "#6EE7B7" }} />}
+                        label={`Collected — ${monthKey}`}
+                        value={fmtKES(collectedThisMonth)}
+                        help="Sum of Paid bills"
+                    />
                 </Grid>
                 <Grid item xs={12} md={4}>
-                    <RectCard icon={<WarningAmberOutlinedIcon sx={{ color: "#FB7185" }} />} label="Overdue (unpaid & partial)" value={fmtKES(overdueThisMonth)} help="Outstanding before payments" />
+                    <RectCard
+                        icon={<WarningAmberOutlinedIcon sx={{ color: "#FB7185" }} />}
+                        label="Overdue (unpaid & partial)"
+                        value={fmtKES(overdueThisMonth)}
+                        help="Outstanding before payments"
+                    />
                 </Grid>
                 <Grid item xs={12} md={4}>
-                    <RectCard icon={<ReceiptLongOutlinedIcon sx={{ color: "#A78BFA" }} />} label={`Expenses — ${monthKey}`} value={fmtKES(expensesMonthTotal)} help="Across all apartments" />
+                    <RectCard
+                        icon={<ReceiptLongOutlinedIcon sx={{ color: "#A78BFA" }} />}
+                        label={`Expenses — ${monthKey}`}
+                        value={fmtKES(expensesMonthTotal)}
+                        help="Across all apartments"
+                    />
                 </Grid>
             </Grid>
 
             {/* Expenses by Apartment */}
             <Paper elevation={0} sx={{ ...softCard, mb: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>
+                <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}
+                >
                     Expenses by Apartment — {monthKey}
                 </Typography>
                 {expensesByApartment.length === 0 ? (
-                    <Typography variant="body2" sx={{ opacity: .72, fontFamily: FONTS.subhead }}>No expenses recorded this month.</Typography>
+                    <Typography
+                        variant="body2"
+                        sx={{ opacity: 0.72, fontFamily: FONTS.subhead }}
+                    >
+                        No expenses recorded this month.
+                    </Typography>
                 ) : (
                     <Grid container spacing={1.5}>
                         {expensesByApartment.map((e) => (
                             <Grid key={e.apartment} item xs={12} sm={6} md={4} lg={3}>
-                                <Paper elevation={0} sx={{ ...softCard, p: 1.5, borderRadius: 2, height: 72, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                                    <Typography variant="body2" sx={{ opacity: .85, mb: .25, fontFamily: FONTS.subhead }}>{e.apartment}</Typography>
-                                    <Typography variant="subtitle1" sx={{ fontWeight: 800, fontFamily: FONTS.number }}>{fmtKES(e.totalMonth)}</Typography>
+                                <Paper
+                                    elevation={0}
+                                    sx={{
+                                        ...softCard,
+                                        p: 1.5,
+                                        borderRadius: 2,
+                                        height: 72,
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        justifyContent: "center",
+                                    }}
+                                >
+                                    <Typography
+                                        variant="body2"
+                                        sx={{ opacity: 0.85, mb: 0.25, fontFamily: FONTS.subhead }}
+                                    >
+                                        {e.apartment}
+                                    </Typography>
+                                    <Typography
+                                        variant="subtitle1"
+                                        sx={{ fontWeight: 800, fontFamily: FONTS.number }}
+                                    >
+                                        {fmtKES(e.totalMonth)}
+                                    </Typography>
                                 </Paper>
                             </Grid>
                         ))}
@@ -1067,15 +1579,30 @@ export default function Properties() {
             </Paper>
 
             {/* Properties grid */}
-            <Typography variant="h6" sx={{ color: "#fff", mb: 1, fontWeight: 800, fontFamily: FONTS.subhead }}>
+            <Typography
+                variant="h6"
+                sx={{ color: "#fff", mb: 1, fontWeight: 800, fontFamily: FONTS.subhead }}
+            >
                 Your Properties
             </Typography>
             {loading ? (
-                <Box sx={{ display: "grid", placeItems: "center", py: 6 }}><CircularProgress /></Box>
+                <Box sx={{ display: "grid", placeItems: "center", py: 6 }}>
+                    <CircularProgress />
+                </Box>
             ) : apartments.length === 0 ? (
                 <Paper elevation={0} sx={{ ...softCard, textAlign: "center", mb: 3 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1, fontFamily: FONTS.subhead }}>No properties found</Typography>
-                    <Typography variant="body2" sx={{ opacity: 0.8, fontFamily: FONTS.subhead }}>Try adding your first property.</Typography>
+                    <Typography
+                        variant="subtitle1"
+                        sx={{ fontWeight: 700, mb: 1, fontFamily: FONTS.subhead }}
+                    >
+                        No properties found
+                    </Typography>
+                    <Typography
+                        variant="body2"
+                        sx={{ opacity: 0.8, fontFamily: FONTS.subhead }}
+                    >
+                        Try adding your first property.
+                    </Typography>
                 </Paper>
             ) : (
                 <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -1084,8 +1611,14 @@ export default function Properties() {
                             <PropertyCard
                                 p={p}
                                 onOpen={handleOpenApartment}
-                                onEdit={(apt) => { setSelectedApt(apt); setEditOpen(true); }}
-                                onAddUnits={(apt) => { setSelectedApt(apt); setUnitsOpen(true); }}
+                                onEdit={(apt) => {
+                                    setSelectedApt(apt);
+                                    setEditOpen(true);
+                                }}
+                                onAddUnits={(apt) => {
+                                    setSelectedApt(apt);
+                                    setUnitsOpen(true);
+                                }}
                             />
                         </Grid>
                     ))}
@@ -1094,34 +1627,83 @@ export default function Properties() {
 
             {/* Rental Units & Tenants */}
             <Paper ref={tableRef} elevation={0} sx={{ ...softCard }}>
-                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{ mb: 1 }}
+                >
                     <Stack direction="row" alignItems="center" spacing={1}>
-                        <Typography variant="h6" sx={{ fontWeight: 800, color: "#fff", fontFamily: FONTS.subhead }}>
+                        <Typography
+                            variant="h6"
+                            sx={{ fontWeight: 800, color: "#fff", fontFamily: FONTS.subhead }}
+                        >
                             Rental Units & Tenants
                         </Typography>
                         {filterAptId ? (
                             <Chip
-                                label={`Filtered: ${apartments.find(a => a.ApartmentID === filterAptId)?.ApartmentName || ""}`}
+                                label={`Filtered: ${apartments.find((a) => a.ApartmentID === filterAptId)
+                                        ?.ApartmentName || ""
+                                    }`}
                                 onDelete={clearFilter}
-                                sx={{ bgcolor: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.18)" }}
+                                sx={{
+                                    bgcolor: "rgba(255,255,255,.08)",
+                                    color: "#fff",
+                                    border: "1px solid rgba(255,255,255,.18)",
+                                }}
                             />
                         ) : null}
                     </Stack>
                     <Stack direction="row" spacing={1}>
-                        <Button size="small" variant="outlined" startIcon={<FileDownloadOutlinedIcon />}
-                            sx={{ textTransform: "none", borderRadius: 2, color: "#fff", borderColor: "rgba(255,255,255,0.35)", "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" } }}
-                            onClick={exportCSV}>
+                        <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<FileDownloadOutlinedIcon />}
+                            sx={{
+                                textTransform: "none",
+                                borderRadius: 2,
+                                color: "#fff",
+                                borderColor: "rgba(255,255,255,0.35)",
+                                "&:hover": {
+                                    borderColor: BRAND.start,
+                                    background: "rgba(255,0,128,.08)",
+                                },
+                            }}
+                            onClick={exportCSV}
+                        >
                             Export CSV
                         </Button>
-                        <Button size="small" variant="outlined" startIcon={<RequestQuoteOutlinedIcon />}
-                            sx={{ textTransform: "none", borderRadius: 2, color: "#fff", borderColor: "rgba(255,255,255,0.35)", "&:hover": { borderColor: BRAND.end, background: "rgba(126,0,166,.08)" } }}
-                            onClick={generateBills}>
+                        <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<RequestQuoteOutlinedIcon />}
+                            sx={{
+                                textTransform: "none",
+                                borderRadius: 2,
+                                color: "#fff",
+                                borderColor: "rgba(255,255,255,0.35)",
+                                "&:hover": {
+                                    borderColor: BRAND.end,
+                                    background: "rgba(126,0,166,.08)",
+                                },
+                            }}
+                            onClick={generateBills}
+                        >
                             Generate Bills
                         </Button>
                     </Stack>
                 </Stack>
 
-                <Table size="small" sx={{ "& th, & td": { borderColor: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: FONTS.subhead } }}>
+                <Table
+                    size="small"
+                    sx={{
+                        "& th, & td": {
+                            borderColor: "rgba(255,255,255,0.08)",
+                            color: "#fff",
+                            fontFamily: FONTS.subhead,
+                        },
+                    }}
+                >
                     <TableHead>
                         <TableRow>
                             <TableCell>Property</TableCell>
@@ -1135,23 +1717,41 @@ export default function Properties() {
                     </TableHead>
                     <TableBody>
                         {unitsLoading ? (
-                            <TableRow><TableCell colSpan={7}><LinearProgress /></TableCell></TableRow>
-                        ) : units.length === 0 ? (
-                            <TableRow><TableCell colSpan={7} sx={{ opacity: .8 }}>No units to display.</TableCell></TableRow>
-                        ) : units.map((u) => (
-                            <TableRow key={`${u.ApartmentID}-${u.UnitID}`}>
-                                <TableCell>{u.ApartmentName}</TableCell>
-                                <TableCell>{u.Label}</TableCell>
-                                <TableCell>{u.TenantName || "—"}</TableCell>
-                                <TableCell>{statusChip(u.StatusName)}</TableCell>
-                                <TableCell>{u.MoveIn ? dayjs(u.MoveIn).format("YYYY-MM-DD") : "—"}</TableCell>
-                                <TableCell align="right">{fmtKES(u.Arrears || 0)}</TableCell>
-                                <TableCell align="right">
-                                    {/* placeholder actions (view unit, assign tenant, etc.) */}
-                                    <Button size="small" variant="text" sx={{ color: "#fff", textTransform: "none" }}>Details</Button>
+                            <TableRow>
+                                <TableCell colSpan={7}>
+                                    <LinearProgress />
                                 </TableCell>
                             </TableRow>
-                        ))}
+                        ) : units.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={7} sx={{ opacity: 0.8 }}>
+                                    No units to display.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            units.map((u) => (
+                                <TableRow key={`${u.ApartmentID}-${u.UnitID}`}>
+                                    <TableCell>{u.ApartmentName}</TableCell>
+                                    <TableCell>{u.Label}</TableCell>
+                                    <TableCell>{u.TenantName || "—"}</TableCell>
+                                    <TableCell>{statusChip(u.StatusName)}</TableCell>
+                                    <TableCell>
+                                        {u.MoveIn ? dayjs(u.MoveIn).format("YYYY-MM-DD") : "—"}
+                                    </TableCell>
+                                    <TableCell align="right">{fmtKES(u.Arrears || 0)}</TableCell>
+                                    <TableCell align="right">
+                                        {/* placeholder actions (view unit, assign tenant, etc.) */}
+                                        <Button
+                                            size="small"
+                                            variant="text"
+                                            sx={{ color: "#fff", textTransform: "none" }}
+                                        >
+                                            Details
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
                     </TableBody>
                 </Table>
             </Paper>
