@@ -76,9 +76,8 @@ const softCard = {
     }
 };
 
-// ---- Shared TextField styling (dark + neumorphism + **visible labels**) ----
+// ---- Shared TextField styling ----
 const fieldNeumorphSx = {
-    // Make labels fully visible (no ellipsis clipping)
     "& .MuiInputLabel-root": {
         color: "rgba(255,255,255,0.92)",
         fontFamily: FONTS.subhead,
@@ -132,7 +131,6 @@ function ConfirmDialog({
             onClose={loading ? undefined : onCancel}
             fullWidth
             maxWidth="sm"
-            // Center the dialog on all breakpoints
             sx={{
                 "& .MuiDialog-container": {
                     alignItems: "center",
@@ -234,7 +232,6 @@ function AddApartmentDialog({ open, onClose, onCreated, api }) {
                 onClose={saving ? undefined : onClose}
                 fullWidth
                 maxWidth="md"
-                // Centered dialog
                 sx={{
                     "& .MuiDialog-container": {
                         alignItems: "center",
@@ -322,8 +319,7 @@ function AddApartmentDialog({ open, onClose, onCreated, api }) {
                 onConfirm={handleSave}
                 loading={saving}
                 title="Create this apartment?"
-                content={`Name: ${form.ApartmentName || "—"} • Location: ${form.Location || "—"
-                    }`}
+                content={`Name: ${form.ApartmentName || "—"} • Location: ${form.Location || "—"}`}
                 confirmText="Create"
             />
         </>
@@ -450,6 +446,7 @@ function EditApartmentDialog({ open, onClose, apartment, api, onUpdated }) {
                         onClick={requestSave}
                         disabled={saving}
                         variant="contained"
+                        startIcon={<EditIcon />}
                         sx={{
                             textTransform: "none",
                             borderRadius: 2,
@@ -468,8 +465,7 @@ function EditApartmentDialog({ open, onClose, apartment, api, onUpdated }) {
                 onConfirm={handleSave}
                 loading={saving}
                 title="Save apartment changes?"
-                content={`Name: ${form.ApartmentName || "—"} • Location: ${form.Location || "—"
-                    }`}
+                content={`Name: ${form.ApartmentName || "—"} • Location: ${form.Location || "—"}`}
                 confirmText="Save"
             />
         </>
@@ -489,6 +485,7 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
         Description: "",
     };
     const [form, setForm] = React.useState(defaults);
+
     const [cats, setCats] = React.useState([]);
     const [statuses, setStatuses] = React.useState([]);
     const [saving, setSaving] = React.useState(false);
@@ -555,7 +552,6 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
             return `${form.prefix || ""}${suffix}`;
         });
 
-        // Build payloads WITHOUT AdditionalBills (column not in your model)
         const payloads = labels.map((Label) => ({
             ApartmentID: apartment.ApartmentID,
             Label,
@@ -604,7 +600,7 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                 </DialogTitle>
 
                 <DialogContent sx={{ pt: 0.5, overflow: "visible" }}>
-                    {/* Row 1: Prefix | Start | Count | Pad | Category */}
+                    {/* Row 1 */}
                     <Grid container spacing={2}>
                         <Grid item xs={12} sm={3}>
                             <TextField
@@ -687,12 +683,10 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                             fontFamily: FONTS.subhead,
                         }}
                     >
-                        Example: {labelsPreview.first} … {labelsPreview.last} (
-                        {labelsPreview.count} unit
-                        {labelsPreview.count > 1 ? "s" : ""})
+                        Example: {labelsPreview.first} … {labelsPreview.last} ({labelsPreview.count} unit{labelsPreview.count > 1 ? "s" : ""})
                     </Typography>
 
-                    {/* Row 2: Monthly Rent | Status */}
+                    {/* Row 2 */}
                     <Grid container spacing={2} sx={{ mt: 0.5 }}>
                         <Grid item xs={12} sm={6}>
                             <TextField
@@ -727,7 +721,7 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                             </TextField>
                         </Grid>
 
-                        {/* Row 3: Description */}
+                        {/* Row 3 */}
                         <Grid item xs={12}>
                             <TextField
                                 fullWidth
@@ -772,9 +766,7 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                 onConfirm={handleCreate}
                 loading={saving}
                 title="Create these units?"
-                content={`Apartment: ${apartment?.ApartmentName || "—"} • Range: ${labelsPreview.first
-                    } … ${labelsPreview.last} (${labelsPreview.count}) • Rent: ${form.MonthlyRent || "—"
-                    }`}
+                content={`Apartment: ${apartment?.ApartmentName || "—"} • Range: ${labelsPreview.first} … ${labelsPreview.last} (${labelsPreview.count}) • Rent: ${form.MonthlyRent || "—"}`}
                 confirmText="Create Units"
             />
         </>
@@ -1001,7 +993,6 @@ function PropertyCard({ p, onOpen, onEdit, onAddUnits }) {
                     startIcon={<EditIcon />}
                     sx={{
                         textTransform: "none",
-                        borderRadius: 2,
                         borderColor: "rgba(255,255,255,0.35)",
                         color: "#fff",
                         "&:hover": {
@@ -1022,7 +1013,6 @@ function PropertyCard({ p, onOpen, onEdit, onAddUnits }) {
                     startIcon={<AddHomeWorkIcon />}
                     sx={{
                         textTransform: "none",
-                        borderRadius: 2,
                         borderColor: "rgba(255,255,255,0.35)",
                         color: "#fff",
                         "&:hover": { borderColor: BRAND.end, background: "rgba(126,0,166,.08)" },
@@ -1154,10 +1144,12 @@ export default function Properties() {
                 .sort((a, b) => b.totalMonth - a.totalMonth);
             setExpensesByApartment(byApartmentMonth);
 
-            // if we already had a filter, refresh units for that filter
-            if (filterAptId) {
-                await loadUnits(filterAptId);
-            }
+            // 🔁 Always populate the units table after fetching everything
+            await loadUnits(filterAptId || null, {
+                apartments: apts,
+                tenants: tenantsRes.data?.tenants || [],
+                statusList: statusesRes.data?.RentalUnitStatuses || [],
+            });
         } catch (e) {
             console.error(e);
             setSnackbar({
@@ -1175,13 +1167,18 @@ export default function Properties() {
         // eslint-disable-next-line
     }, []);
 
-    // Load units for table (filtered by apartment id; if null load all by iterating apts)
-    const loadUnits = async (apartmentId = null) => {
+    // Load units for table (supports fresh datasets passed in)
+    const loadUnits = async (apartmentId = null, opts = {}) => {
+        const apartmentsSrc = opts.apartments ?? apartments;
+        const tenantsSrc = opts.tenants ?? tenants;
+        const statusListSrc = opts.statusList ?? statusList;
+
         try {
             setUnitsLoading(true);
             let rows = [];
+
             if (apartmentId) {
-                const apt = apartments.find((a) => a.ApartmentID === apartmentId);
+                const apt = apartmentsSrc.find((a) => a.ApartmentID === apartmentId);
                 if (!apt) return;
                 const { data } = await api.get(`/apartments/${apartmentId}/units`);
                 rows = (data || []).map((u) => ({
@@ -1191,7 +1188,7 @@ export default function Properties() {
                 }));
             } else {
                 const results = await Promise.allSettled(
-                    apartments.map(async (apt) => {
+                    apartmentsSrc.map(async (apt) => {
                         const { data } = await api.get(
                             `/apartments/${apt.ApartmentID}/units`
                         );
@@ -1209,15 +1206,16 @@ export default function Properties() {
 
             // join with tenants (best-effort by Apartment + Unit label)
             const tIndex = new Map(
-                (tenants || []).map((t) => [
+                (tenantsSrc || []).map((t) => [
                     `${t.Apartment || ""}||${t.RentalUnit || ""}`.toLowerCase(),
                     t,
                 ])
             );
 
             const statusMap = Object.fromEntries(
-                statusList.map((s) => [s.StatusID, s.StatusName])
+                (statusListSrc || []).map((s) => [s.StatusID, s.StatusName])
             );
+
             const joined = rows.map((r) => {
                 const key = `${r.ApartmentName || ""}||${r.Label || ""}`.toLowerCase();
                 const ten = tIndex.get(key);
@@ -1231,7 +1229,7 @@ export default function Properties() {
             });
 
             setUnits(joined);
-            // scroll into view when loading a specific property
+
             if (tableRef.current) {
                 tableRef.current.scrollIntoView({
                     behavior: "smooth",
@@ -1391,7 +1389,6 @@ export default function Properties() {
             message: msg,
             severity: fail ? "warning" : "success",
         });
-        // reload units for current filter (if set) + refresh stats
         if (filterAptId) loadUnits(filterAptId);
         fetchAll();
     };
@@ -1643,7 +1640,7 @@ export default function Properties() {
                         {filterAptId ? (
                             <Chip
                                 label={`Filtered: ${apartments.find((a) => a.ApartmentID === filterAptId)
-                                        ?.ApartmentName || ""
+                                    ?.ApartmentName || ""
                                     }`}
                                 onDelete={clearFilter}
                                 sx={{
@@ -1740,7 +1737,6 @@ export default function Properties() {
                                     </TableCell>
                                     <TableCell align="right">{fmtKES(u.Arrears || 0)}</TableCell>
                                     <TableCell align="right">
-                                        {/* placeholder actions (view unit, assign tenant, etc.) */}
                                         <Button
                                             size="small"
                                             variant="text"
