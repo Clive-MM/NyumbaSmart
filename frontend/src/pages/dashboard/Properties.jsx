@@ -1052,11 +1052,54 @@ export default function Properties() {
     const [filterAptId, setFilterAptId] = useState(null);
     const tableRef = useRef(null);
 
+    // 🔄 Refresh UX state/refs (NEW)
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [lastSync, setLastSync] = useState(null);
+    const [delta, setDelta] = useState(null);          // {added, updated, removed}
+    const [flashIds, setFlashIds] = useState(new Set());
+    const hasLoadedRef = useRef(false);
+    const refreshingRef = useRef(false);
+    const prevMapRef = useRef(new Map());
+    const lastClickRef = useRef(0);
+
     const token = useMemo(() => localStorage.getItem("token"), []);
     const api = axios.create({
         baseURL: API,
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
+
+    // ⚙️ Diff helpers (NEW)
+    const snapshotRow = (r) => ({
+        id: `${r.ApartmentID}-${r.UnitID}`,
+        tenant: r.TenantName || "",
+        status: r.StatusID || r.StatusName || "",
+        arrears: Number(r.Arrears || 0),
+        moveIn: r.MoveIn || "",
+    });
+
+    const diffUnits = (newRows) => {
+        const prev = prevMapRef.current;
+        const next = new Map();
+        let added = 0, updated = 0, removed = 0;
+        const flashes = new Set();
+
+        for (const r of newRows) {
+            const snap = snapshotRow(r);
+            next.set(snap.id, snap);
+            const old = prev.get(snap.id);
+            if (!old) { added++; flashes.add(snap.id); }
+            else if (
+                old.tenant !== snap.tenant ||
+                old.status !== snap.status ||
+                old.arrears !== snap.arrears ||
+                old.moveIn !== snap.moveIn
+            ) { updated++; flashes.add(snap.id); }
+        }
+        for (const id of prev.keys()) {
+            if (!next.has(id)) removed++;
+        }
+        return { added, updated, removed, flashes, next };
+    };
 
     const fetchAll = async () => {
         try {
@@ -1150,6 +1193,12 @@ export default function Properties() {
                 tenants: tenantsRes.data?.tenants || [],
                 statusList: statusesRes.data?.RentalUnitStatuses || [],
             });
+
+            // mark first successful sync time
+            if (!hasLoadedRef.current) {
+                hasLoadedRef.current = true;
+                setLastSync(new Date());
+            }
         } catch (e) {
             console.error(e);
             setSnackbar({
@@ -1229,6 +1278,21 @@ export default function Properties() {
             });
 
             setUnits(joined);
+
+            // 🔔 Delta + highlights only during manual refresh (not first mount)
+            if (refreshingRef.current && hasLoadedRef.current) {
+                const { added, updated, removed, flashes, next } = diffUnits(joined);
+                setDelta({ added, updated, removed });
+                setFlashIds(flashes);
+                prevMapRef.current = next;
+                setTimeout(() => setFlashIds(new Set()), 2500);
+            } else {
+                const baseline = new Map(joined.map(r => {
+                    const s = snapshotRow(r);
+                    return [s.id, s];
+                }));
+                prevMapRef.current = baseline;
+            }
 
             if (tableRef.current) {
                 tableRef.current.scrollIntoView({
@@ -1418,6 +1482,36 @@ export default function Properties() {
         await loadUnits(null);
     };
 
+    // 🔁 Smart Refresh handler (rate-limited, spinner, last sync)
+    const handleRefresh = async () => {
+        const now = Date.now();
+        if (now - lastClickRef.current < 1500) {
+            setSnackbar({ open: true, message: "Please wait a moment…", severity: "info" });
+            return;
+        }
+        lastClickRef.current = now;
+
+        try {
+            setIsRefreshing(true);
+            refreshingRef.current = true;       // enable diff mode inside loadUnits
+            await fetchAll();                    // respects current filterAptId
+            setLastSync(new Date());
+        } finally {
+            refreshingRef.current = false;
+            setIsRefreshing(false);
+        }
+    };
+
+    // 🧠 Focus-aware auto-refresh (reuses handler, respects cooldown)
+    useEffect(() => {
+        const onFocus = () => {
+            if (hasLoadedRef.current) handleRefresh();
+        };
+        window.addEventListener("focus", onFocus);
+        return () => window.removeEventListener("focus", onFocus);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     return (
         <Box sx={{ p: 3, bgcolor: "#0b0714", minHeight: "100vh" }}>
             {/* Header */}
@@ -1436,10 +1530,12 @@ export default function Properties() {
                     Properties
                 </Typography>
                 <Box sx={{ flexGrow: 1 }} />
-                <Tooltip title="Refresh">
-                    <IconButton onClick={fetchAll} sx={{ color: "#fff" }}>
-                        <RefreshIcon />
-                    </IconButton>
+                <Tooltip title={lastSync ? `Refresh • Last sync ${dayjs(lastSync).format("HH:mm:ss")}` : "Refresh"}>
+                    <span>
+                        <IconButton onClick={handleRefresh} sx={{ color: "#fff" }} disabled={isRefreshing}>
+                            {isRefreshing ? <CircularProgress size={20} /> : <RefreshIcon />}
+                        </IconButton>
+                    </span>
                 </Tooltip>
                 <Button
                     startIcon={<AddIcon />}
@@ -1691,6 +1787,15 @@ export default function Properties() {
                     </Stack>
                 </Stack>
 
+                {/* 🔍 Delta summary banner */}
+                {delta && (delta.added || delta.updated || delta.removed) ? (
+                    <Typography variant="caption" sx={{ mb: 1, opacity: 0.8, fontFamily: FONTS.subhead }}>
+                        {delta.added ? `+${delta.added} new ` : ""}
+                        {delta.updated ? `• ${delta.updated} updated ` : ""}
+                        {delta.removed ? `• ${delta.removed} removed` : ""}
+                    </Typography>
+                ) : null}
+
                 <Table
                     size="small"
                     sx={{
@@ -1726,27 +1831,37 @@ export default function Properties() {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            units.map((u) => (
-                                <TableRow key={`${u.ApartmentID}-${u.UnitID}`}>
-                                    <TableCell>{u.ApartmentName}</TableCell>
-                                    <TableCell>{u.Label}</TableCell>
-                                    <TableCell>{u.TenantName || "—"}</TableCell>
-                                    <TableCell>{statusChip(u.StatusName)}</TableCell>
-                                    <TableCell>
-                                        {u.MoveIn ? dayjs(u.MoveIn).format("YYYY-MM-DD") : "—"}
-                                    </TableCell>
-                                    <TableCell align="right">{fmtKES(u.Arrears || 0)}</TableCell>
-                                    <TableCell align="right">
-                                        <Button
-                                            size="small"
-                                            variant="text"
-                                            sx={{ color: "#fff", textTransform: "none" }}
-                                        >
-                                            Details
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))
+                            units.map((u) => {
+                                const rowId = `${u.ApartmentID}-${u.UnitID}`;
+                                const isFlash = flashIds.has(rowId);
+                                return (
+                                    <TableRow
+                                        key={rowId}
+                                        sx={{
+                                            backgroundColor: isFlash ? "rgba(255, 255, 0, 0.08)" : "transparent",
+                                            transition: "background-color 600ms ease",
+                                        }}
+                                    >
+                                        <TableCell>{u.ApartmentName}</TableCell>
+                                        <TableCell>{u.Label}</TableCell>
+                                        <TableCell>{u.TenantName || "—"}</TableCell>
+                                        <TableCell>{statusChip(u.StatusName)}</TableCell>
+                                        <TableCell>
+                                            {u.MoveIn ? dayjs(u.MoveIn).format("YYYY-MM-DD") : "—"}
+                                        </TableCell>
+                                        <TableCell align="right">{fmtKES(u.Arrears || 0)}</TableCell>
+                                        <TableCell align="right">
+                                            <Button
+                                                size="small"
+                                                variant="text"
+                                                sx={{ color: "#fff", textTransform: "none" }}
+                                            >
+                                                Details
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })
                         )}
                     </TableBody>
                 </Table>
