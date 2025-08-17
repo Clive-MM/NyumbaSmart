@@ -4,7 +4,7 @@ import {
     Box, Paper, Typography, Grid, Chip, Button, IconButton, Tooltip,
     Snackbar, Alert, Divider, Table, TableHead, TableRow, TableCell, TableBody,
     CircularProgress, Stack, Dialog, DialogTitle, DialogContent, DialogActions,
-    TextField, LinearProgress, MenuItem
+    TextField, LinearProgress, MenuItem, Checkbox, FormGroup, FormControlLabel
 } from "@mui/material";
 
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -18,7 +18,6 @@ import PeopleIcon from "@mui/icons-material/People";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import RequestQuoteOutlinedIcon from "@mui/icons-material/RequestQuoteOutlined";
 import LocalAtmOutlinedIcon from "@mui/icons-material/LocalAtmOutlined";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
@@ -1025,6 +1024,122 @@ function PropertyCard({ p, onOpen, onEdit, onAddUnits }) {
     );
 }
 
+/* ------------------------------ Export Dialog ------------------------------ */
+function ExportDialog({ open, onClose, rows, defaultCols, onExported, monthKey }) {
+    const STORAGE_KEY = "prop_export_cols_v1";
+    const [cols, setCols] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try { return JSON.parse(saved); } catch { /* ignore */ }
+        }
+        return defaultCols.reduce((acc, c) => ({ ...acc, [c.key]: c.default }), {});
+    });
+    const [downloadUrl, setDownloadUrl] = useState(null);
+
+    useEffect(() => {
+        // keep in sync if defaults change
+        if (!open) return;
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) {
+            const init = defaultCols.reduce((acc, c) => ({ ...acc, [c.key]: c.default }), {});
+            setCols(init);
+        }
+        // cleanup blob url when closing
+        return () => {
+            if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+        };
+        // eslint-disable-next-line
+    }, [open]);
+
+    const toggle = (key) => setCols((c) => ({ ...c, [key]: !c[key] }));
+
+    const handleExport = () => {
+        const selected = defaultCols.filter((c) => cols[c.key]);
+        if (selected.length === 0) return;
+
+        // Build CSV from provided rows (already the "current view")
+        const head = selected.map((c) => c.header).join(",");
+        const body = rows
+            .map((r) =>
+                selected
+                    .map((c) => {
+                        const val = typeof c.get === "function" ? c.get(r) : r[c.key];
+                        return `"${String(val ?? "").replace(/"/g, '""')}"`;
+                    })
+                    .join(",")
+            )
+            .join("\n");
+
+        const blob = new Blob([head + "\n" + body], {
+            type: "text/csv;charset=utf-8;",
+        });
+        const url = URL.createObjectURL(blob);
+        setDownloadUrl(url);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cols));
+
+        // Auto-trigger download
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `export_${dayjs().format("YYYYMMDD_HHmmss")}.csv`;
+        a.click();
+
+        onExported?.();
+    };
+
+    return (
+        <Dialog
+            open={open}
+            onClose={onClose}
+            fullWidth
+            maxWidth="sm"
+            PaperProps={{ sx: { ...softCard, p: 0 } }}
+        >
+            <DialogTitle sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>
+                Export — {monthKey}
+            </DialogTitle>
+            <DialogContent sx={{ pt: 0.5 }}>
+                <Typography variant="body2" sx={{ mb: 1, opacity: 0.8, fontFamily: FONTS.subhead }}>
+                    Choose which columns to include in your download. The export respects the current view and filters.
+                </Typography>
+                <FormGroup>
+                    {defaultCols.map((c) => (
+                        <FormControlLabel
+                            key={c.key}
+                            control={
+                                <Checkbox
+                                    checked={!!cols[c.key]}
+                                    onChange={() => toggle(c.key)}
+                                    sx={{ color: "#fff" }}
+                                />
+                            }
+                            label={c.header}
+                        />
+                    ))}
+                </FormGroup>
+                {downloadUrl ? (
+                    <Typography variant="caption" sx={{ mt: 1, display: "block", opacity: 0.8 }}>
+                        If your download didn’t start,{" "}
+                        <a href={downloadUrl} download={`export_${dayjs().format("YYYYMMDD_HHmmss")}.csv`} style={{ color: "#9ae6b4" }}>
+                            click here to download
+                        </a>.
+                    </Typography>
+                ) : null}
+            </DialogContent>
+            <DialogActions sx={{ p: 2 }}>
+                <Button onClick={onClose} sx={{ textTransform: "none" }}>Close</Button>
+                <Button
+                    onClick={handleExport}
+                    variant="contained"
+                    startIcon={<FileDownloadOutlinedIcon />}
+                    sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                >
+                    Export CSV
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+}
+
 /* ---------------------------------- Page ----------------------------------- */
 export default function Properties() {
     const [loading, setLoading] = useState(true);
@@ -1052,7 +1167,7 @@ export default function Properties() {
     const [filterAptId, setFilterAptId] = useState(null);
     const tableRef = useRef(null);
 
-    // 🔄 Refresh UX state/refs (NEW)
+    // 🔄 Refresh UX state/refs
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [lastSync, setLastSync] = useState(null);
     const [delta, setDelta] = useState(null);          // {added, updated, removed}
@@ -1062,13 +1177,16 @@ export default function Properties() {
     const prevMapRef = useRef(new Map());
     const lastClickRef = useRef(0);
 
+    // Export dialog
+    const [exportOpen, setExportOpen] = useState(false);
+
     const token = useMemo(() => localStorage.getItem("token"), []);
     const api = axios.create({
         baseURL: API,
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
-    // ⚙️ Diff helpers (NEW)
+    // Diff helpers
     const snapshotRow = (r) => ({
         id: `${r.ApartmentID}-${r.UnitID}`,
         tenant: r.TenantName || "",
@@ -1187,14 +1305,13 @@ export default function Properties() {
                 .sort((a, b) => b.totalMonth - a.totalMonth);
             setExpensesByApartment(byApartmentMonth);
 
-            // 🔁 Always populate the units table after fetching everything
+            // Always populate units table after fetching everything
             await loadUnits(filterAptId || null, {
                 apartments: apts,
                 tenants: tenantsRes.data?.tenants || [],
                 statusList: statusesRes.data?.RentalUnitStatuses || [],
             });
 
-            // mark first successful sync time
             if (!hasLoadedRef.current) {
                 hasLoadedRef.current = true;
                 setLastSync(new Date());
@@ -1272,6 +1389,7 @@ export default function Properties() {
                     ...r,
                     StatusName: statusMap[r.StatusID] || "Unknown",
                     TenantName: ten?.FullName || "",
+                    TenantPhone: ten?.Phone || "",
                     MoveIn: ten?.MoveInDate || "",
                     Arrears: ten?.Arrears || 0,
                 };
@@ -1279,7 +1397,7 @@ export default function Properties() {
 
             setUnits(joined);
 
-            // 🔔 Delta + highlights only during manual refresh (not first mount)
+            // Delta + highlights only during manual refresh (not first mount)
             if (refreshingRef.current && hasLoadedRef.current) {
                 const { added, updated, removed, flashes, next } = diffUnits(joined);
                 setDelta({ added, updated, removed });
@@ -1334,60 +1452,6 @@ export default function Properties() {
             occupancyRate: occRate,
         };
     }, [apartments]);
-
-    const exportCSV = () => {
-        try {
-            const rows = tenants.map((t) => ({
-                TenantID: t.TenantID,
-                FullName: t.FullName,
-                Apartment: t.Apartment,
-                Unit: t.RentalUnit,
-                Phone: t.Phone,
-                Status: t.Status,
-                MoveInDate: t.MoveInDate || "",
-            }));
-            const head = Object.keys(rows[0] || { Sample: "" }).join(",");
-            const body = rows
-                .map((r) =>
-                    Object.values(r)
-                        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-                        .join(",")
-                )
-                .join("\n");
-            const blob = new Blob([head + "\n" + body], {
-                type: "text/csv;charset=utf-8;",
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `tenants_${dayjs().format("YYYYMMDD_HHmmss")}.csv`;
-            a.click();
-            URL.revokeObjectURL(url);
-            setSnackbar({ open: true, message: "CSV exported.", severity: "success" });
-        } catch {
-            setSnackbar({ open: true, message: "Export failed.", severity: "error" });
-        }
-    };
-
-    const generateBills = async () => {
-        try {
-            const { data } = await api.post("/bills/generate-or-update", {
-                BillingMonth: monthKey,
-            });
-            setSnackbar({
-                open: true,
-                message: data.alert || "Bills generated.",
-                severity: "success",
-            });
-            fetchAll();
-        } catch {
-            setSnackbar({
-                open: true,
-                message: "Failed to generate bills.",
-                severity: "error",
-            });
-        }
-    };
 
     const handleOpenApartment = async (apt) => {
         setFilterAptId(apt.ApartmentID);
@@ -1482,7 +1546,7 @@ export default function Properties() {
         await loadUnits(null);
     };
 
-    // 🔁 Smart Refresh handler (rate-limited, spinner, last sync)
+    // Smart Refresh handler (rate-limited, spinner, last sync)
     const handleRefresh = async () => {
         const now = Date.now();
         if (now - lastClickRef.current < 1500) {
@@ -1502,7 +1566,7 @@ export default function Properties() {
         }
     };
 
-    // 🧠 Focus-aware auto-refresh (reuses handler, respects cooldown)
+    // Focus-aware auto-refresh
     useEffect(() => {
         const onFocus = () => {
             if (hasLoadedRef.current) handleRefresh();
@@ -1511,6 +1575,17 @@ export default function Properties() {
         return () => window.removeEventListener("focus", onFocus);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Exportable columns definition (table & export share the same data source: units)
+    const exportColumns = useMemo(() => ([
+        { key: "ApartmentName", header: "Property", default: true },
+        { key: "Label", header: "Rental Unit", default: true },
+        { key: "TenantName", header: "Tenant", default: true },
+        { key: "TenantPhone", header: "Tenant Phone", default: false },
+        { key: "StatusName", header: "Status", default: true },
+        { key: "MoveIn", header: "Move In", default: true, get: (r) => r.MoveIn ? dayjs(r.MoveIn).format("YYYY-MM-DD") : "" },
+        { key: "Arrears", header: "Arrears", default: true, get: (r) => String(Number(r.Arrears || 0)) },
+    ]), []);
 
     return (
         <Box sx={{ p: 3, bgcolor: "#0b0714", minHeight: "100vh" }}>
@@ -1762,38 +1837,34 @@ export default function Properties() {
                                     background: "rgba(255,0,128,.08)",
                                 },
                             }}
-                            onClick={exportCSV}
+                            onClick={() => setExportOpen(true)}
                         >
-                            Export CSV
+                            Export
                         </Button>
-                        <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<RequestQuoteOutlinedIcon />}
-                            sx={{
-                                textTransform: "none",
-                                borderRadius: 2,
-                                color: "#fff",
-                                borderColor: "rgba(255,255,255,0.35)",
-                                "&:hover": {
-                                    borderColor: BRAND.end,
-                                    background: "rgba(126,0,166,.08)",
-                                },
-                            }}
-                            onClick={generateBills}
-                        >
-                            Generate Bills
-                        </Button>
+                        {/* Generate Bills removed as requested */}
                     </Stack>
                 </Stack>
 
-                {/* 🔍 Delta summary banner */}
+                {/* Delta summary banner */}
                 {delta && (delta.added || delta.updated || delta.removed) ? (
                     <Typography variant="caption" sx={{ mb: 1, opacity: 0.8, fontFamily: FONTS.subhead }}>
                         {delta.added ? `+${delta.added} new ` : ""}
                         {delta.updated ? `• ${delta.updated} updated ` : ""}
                         {delta.removed ? `• ${delta.removed} removed` : ""}
                     </Typography>
+                ) : null}
+
+                {/* Slim refresh bar (shows only during manual refresh) */}
+                {isRefreshing ? (
+                    <LinearProgress
+                        sx={{
+                            mb: 1,
+                            height: 3,
+                            borderRadius: 1,
+                            bgcolor: "rgba(255,255,255,0.06)",
+                            "& .MuiLinearProgress-bar": { transition: "transform 200ms linear" },
+                        }}
+                    />
                 ) : null}
 
                 <Table
@@ -1814,19 +1885,19 @@ export default function Properties() {
                             <TableCell>Status</TableCell>
                             <TableCell>Move In</TableCell>
                             <TableCell align="right">Arrears</TableCell>
-                            <TableCell align="right">Actions</TableCell>
+                            {/* Actions column removed */}
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {unitsLoading ? (
                             <TableRow>
-                                <TableCell colSpan={7}>
+                                <TableCell colSpan={6}>
                                     <LinearProgress />
                                 </TableCell>
                             </TableRow>
                         ) : units.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} sx={{ opacity: 0.8 }}>
+                                <TableCell colSpan={6} sx={{ opacity: 0.8 }}>
                                     No units to display.
                                 </TableCell>
                             </TableRow>
@@ -1850,15 +1921,6 @@ export default function Properties() {
                                             {u.MoveIn ? dayjs(u.MoveIn).format("YYYY-MM-DD") : "—"}
                                         </TableCell>
                                         <TableCell align="right">{fmtKES(u.Arrears || 0)}</TableCell>
-                                        <TableCell align="right">
-                                            <Button
-                                                size="small"
-                                                variant="text"
-                                                sx={{ color: "#fff", textTransform: "none" }}
-                                            >
-                                                Details
-                                            </Button>
-                                        </TableCell>
                                     </TableRow>
                                 );
                             })
@@ -1887,6 +1949,16 @@ export default function Properties() {
                 apartment={selectedApt}
                 api={api}
                 onDone={handleUnitsDone}
+            />
+
+            {/* Export dialog */}
+            <ExportDialog
+                open={exportOpen}
+                onClose={() => setExportOpen(false)}
+                rows={units}
+                defaultCols={exportColumns}
+                onExported={() => setSnackbar({ open: true, message: "CSV exported.", severity: "success" })}
+                monthKey={monthKey}
             />
 
             {/* Snackbar */}
