@@ -4,7 +4,8 @@ import {
     Box, Paper, Typography, Grid, Chip, Button, IconButton, Tooltip,
     Snackbar, Alert, Divider, Table, TableHead, TableRow, TableCell, TableBody,
     CircularProgress, Stack, Dialog, DialogTitle, DialogContent, DialogActions,
-    TextField, LinearProgress, MenuItem, Checkbox, FormGroup, FormControlLabel
+    TextField, LinearProgress, MenuItem, Checkbox, FormGroup, FormControlLabel,
+    TablePagination
 } from "@mui/material";
 
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -21,6 +22,11 @@ import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import LocalAtmOutlinedIcon from "@mui/icons-material/LocalAtmOutlined";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import TrendingDownIcon from "@mui/icons-material/TrendingDown";
+import CategoryIcon from "@mui/icons-material/Category";
+import BusinessIcon from "@mui/icons-material/Business";
+import ScheduleIcon from "@mui/icons-material/Schedule";
 
 import axios from "axios";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
@@ -548,7 +554,8 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                         </Grid>
                         <Grid item xs={12}>
                             <TextField
-                                fullWidth multiline minRows={3} label="Description (optional)" name="Description"
+                                fullWidth multiline minRows={3}
+                                label="Description (optional)" name="Description"
                                 placeholder="Any notes that apply to all generated units" value={form.Description}
                                 onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
                             />
@@ -636,6 +643,40 @@ function RectCard({ icon, label, value, help, loading = false }) {
                 ) : null}
             </Stack>
             {loading ? <LinearProgress sx={{ mt: 0.5 }} /> : null}
+        </Paper>
+    );
+}
+
+function StatChip({ icon, label, value, help }) {
+    return (
+        <Paper
+            elevation={0}
+            sx={{
+                ...softCard,
+                p: 1.5,
+                borderRadius: 2,
+                height: 72,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+            }}
+        >
+            <Stack direction="row" spacing={1} alignItems="center">
+                {icon}
+                <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead }}>
+                    {label}
+                </Typography>
+            </Stack>
+            <Stack direction="row" spacing={1} alignItems="baseline">
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, fontFamily: FONTS.number }}>
+                    {value}
+                </Typography>
+                {help ? (
+                    <Typography variant="caption" sx={{ opacity: 0.7, fontFamily: FONTS.subhead }}>
+                        {help}
+                    </Typography>
+                ) : null}
+            </Stack>
         </Paper>
     );
 }
@@ -1177,8 +1218,27 @@ export default function Properties() {
     const [assignUnit, setAssignUnit] = useState(null);
 
     // Bulk actions
+
     const [selectedIds, setSelectedIds] = useState([]);
     const [bulkStatusId, setBulkStatusId] = useState("");
+
+    // Expense highlights (paid/unpaid, top category, MoM, etc.)
+    const [expenseHL, setExpenseHL] = useState({
+        paidAmt: 0, paidCount: 0,
+        unpaidAmt: 0, unpaidCount: 0,
+        count: 0,
+        topCategory: null, topCategoryPct: 0,
+        topApartment: null, topApartmentAmt: 0,
+        avgPerApt: 0,
+        momPct: null,
+        latest: null,
+        lastMonthKey: "", lastMonthTotal: 0
+    });
+
+    // Pagination
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
+    useEffect(() => { setPage(0); }, [units]);
 
     const token = useMemo(() => localStorage.getItem("token"), []);
     const api = axios.create({
@@ -1277,20 +1337,75 @@ export default function Properties() {
                 (partialRes.data?.bills || []).reduce((a, b) => a + Number(b.TotalAmountDue || 0), 0);
             setOverdueThisMonth(overdue);
 
+            // -------- Expenses (month + highlights) --------
             const byApt = expByAptRes.data?.expenses || {};
             const byMonth = expByMonthRes.data?.expenses || {};
             const monthList = byMonth[monthKey] || [];
-            setExpensesMonthTotal(monthList.reduce((sum, r) => sum + Number(r.Amount || 0), 0));
+            const totalThisMonth = monthList.reduce((sum, r) => sum + Number(r.Amount || 0), 0);
+            setExpensesMonthTotal(totalThisMonth);
 
             const byApartmentMonth = Object.entries(byApt)
                 .map(([aptName, arr]) => {
                     const totalMonth = arr
-                        .filter((e) => dayjs(e.ExpenseDate, "YYYY-MM-DD").format("MMMM YYYY") === monthKey)
+                        .filter((e) =>
+                            dayjs(e.ExpenseDate || e.ExpensePaymentDate, "YYYY-MM-DD").format("MMMM YYYY") === monthKey
+                        )
                         .reduce((sum, e) => sum + Number(e.Amount || 0), 0);
                     return { apartment: aptName, totalMonth };
                 })
                 .sort((a, b) => b.totalMonth - a.totalMonth);
             setExpensesByApartment(byApartmentMonth);
+
+            // Highlights
+            const paidList = monthList.filter(e => !!e.ExpensePaymentDate);
+            const unpaidList = monthList.filter(e => !e.ExpensePaymentDate);
+            const paidAmt = paidList.reduce((a, e) => a + Number(e.Amount || 0), 0);
+            const unpaidAmt = unpaidList.reduce((a, e) => a + Number(e.Amount || 0), 0);
+
+            const catMap = new Map();
+            for (const e of monthList) {
+                const k = e.ExpenseType || "Other";
+                catMap.set(k, (catMap.get(k) || 0) + Number(e.Amount || 0));
+            }
+            let topCategory = null, topCategoryAmt = 0;
+            for (const [k, v] of catMap.entries()) { if (v > topCategoryAmt) { topCategoryAmt = v; topCategory = k; } }
+            const topCategoryPct = totalThisMonth ? Math.round((topCategoryAmt / totalThisMonth) * 100) : 0;
+
+            const topApt = byApartmentMonth[0] || null;
+            const topApartment = topApt?.apartment || null;
+            const topApartmentAmt = topApt?.totalMonth || 0;
+
+            const activeApts = byApartmentMonth.filter(x => x.totalMonth > 0).length || 0;
+            const avgPerApt = activeApts ? Math.round(totalThisMonth / activeApts) : 0;
+
+            const prevMonthKey = dayjs().subtract(1, "month").format("MMMM YYYY");
+            const prevList = byMonth[prevMonthKey] || [];
+            const prevTotal = prevList.reduce((s, r) => s + Number(r.Amount || 0), 0);
+            const momPct = prevTotal ? Math.round(((totalThisMonth - prevTotal) / prevTotal) * 100) : null;
+
+            const latest = [...monthList].sort((a, b) => {
+                const da = new Date(a.ExpensePaymentDate || a.ExpenseDate || 0);
+                const db = new Date(b.ExpensePaymentDate || b.ExpenseDate || 0);
+                return db - da;
+            })[0] || null;
+
+            setExpenseHL({
+                paidAmt, paidCount: paidList.length,
+                unpaidAmt, unpaidCount: unpaidList.length,
+                count: monthList.length,
+                topCategory, topCategoryPct,
+                topApartment, topApartmentAmt,
+                avgPerApt,
+                momPct,
+                latest: latest ? {
+                    date: dayjs(latest.ExpensePaymentDate || latest.ExpenseDate).format("YYYY-MM-DD"),
+                    type: latest.ExpenseType,
+                    amount: Number(latest.Amount || 0),
+                    apartment: latest.Apartment || latest.ApartmentName || ""
+                } : null,
+                lastMonthKey: prevMonthKey,
+                lastMonthTotal: prevTotal
+            });
 
             // Always populate units table after fetching everything
             await loadUnits(filterAptId || null, {
@@ -1643,41 +1758,76 @@ export default function Properties() {
                 </Grid>
             </Grid>
 
-            {/* Expenses by Apartment */}
+            {/* Expenses by Apartment + Highlights */}
             <Paper elevation={0} sx={{ ...softCard, mb: 3 }}>
                 <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>
-                    Expenses by Apartment — {monthKey}
+                    Expenses — {monthKey}
                 </Typography>
-                {expensesByApartment.length === 0 ? (
-                    <Typography variant="body2" sx={{ opacity: 0.72, fontFamily: FONTS.subhead }}>
-                        No expenses recorded this month.
-                    </Typography>
+
+                {expenseHL.count === 0 ? (
+                    <>
+                        <Typography variant="body2" sx={{ opacity: 0.72, fontFamily: FONTS.subhead }}>
+                            No expenses recorded this month.
+                        </Typography>
+                        {expenseHL.lastMonthTotal > 0 ? (
+                            <Typography variant="caption" sx={{ display: "block", mt: 0.5, opacity: 0.8, fontFamily: FONTS.subhead }}>
+                                Last month ({expenseHL.lastMonthKey}): {fmtKES(expenseHL.lastMonthTotal)}
+                            </Typography>
+                        ) : null}
+                    </>
                 ) : (
-                    <Grid container spacing={1.5}>
-                        {expensesByApartment.map((e) => (
-                            <Grid key={e.apartment} item xs={12} sm={6} md={4} lg={3}>
-                                <Paper
-                                    elevation={0}
-                                    sx={{
-                                        ...softCard,
-                                        p: 1.5,
-                                        borderRadius: 2,
-                                        height: 72,
-                                        display: "flex",
-                                        flexDirection: "column",
-                                        justifyContent: "center",
-                                    }}
-                                >
-                                    <Typography variant="body2" sx={{ opacity: 0.85, mb: 0.25, fontFamily: FONTS.subhead }}>
-                                        {e.apartment}
-                                    </Typography>
-                                    <Typography variant="subtitle1" sx={{ fontWeight: 800, fontFamily: FONTS.number }}>
-                                        {fmtKES(e.totalMonth)}
-                                    </Typography>
-                                </Paper>
+                    <>
+                        {/* Highlights */}
+                        <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+                            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                                <StatChip icon={<LocalAtmOutlinedIcon sx={{ color: "#6EE7B7" }} />} label="Paid" value={fmtKES(expenseHL.paidAmt)} help={`${expenseHL.paidCount} item(s)`} />
                             </Grid>
-                        ))}
-                    </Grid>
+                            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                                <StatChip icon={<WarningAmberOutlinedIcon sx={{ color: "#FB7185" }} />} label="Unpaid" value={fmtKES(expenseHL.unpaidAmt)} help={`${expenseHL.unpaidCount} item(s)`} />
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                                <StatChip icon={<CategoryIcon />} label="Top Category" value={expenseHL.topCategory || "—"} help={expenseHL.topCategory ? `${expenseHL.topCategoryPct}%` : ""} />
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                                <StatChip icon={<BusinessIcon />} label="Top Apartment" value={fmtKES(expenseHL.topApartmentAmt)} help={expenseHL.topApartment || "—"} />
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                                <StatChip icon={<ReceiptLongOutlinedIcon />} label="Avg / Apt" value={fmtKES(expenseHL.avgPerApt)} help="with spend" />
+                            </Grid>
+                            <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                                <StatChip
+                                    icon={expenseHL.momPct === null ? <TrendingUpIcon /> : expenseHL.momPct >= 0 ? <TrendingUpIcon /> : <TrendingDownIcon />}
+                                    label="MoM Change"
+                                    value={expenseHL.momPct === null ? "—" : `${expenseHL.momPct >= 0 ? "↑" : "↓"} ${Math.abs(expenseHL.momPct)}%`}
+                                    help={`vs ${expenseHL.lastMonthKey}`}
+                                />
+                            </Grid>
+                        </Grid>
+
+                        {/* Latest expense */}
+                        {expenseHL.latest ? (
+                            <Typography variant="caption" sx={{ display: "block", mb: 1.5, opacity: 0.8, fontFamily: FONTS.subhead }}>
+                                <ScheduleIcon fontSize="inherit" style={{ verticalAlign: "middle", marginRight: 6 }} />
+                                Last expense on {expenseHL.latest.date} • {expenseHL.latest.type} {fmtKES(expenseHL.latest.amount)}{expenseHL.latest.apartment ? ` at ${expenseHL.latest.apartment}` : ""}
+                            </Typography>
+                        ) : null}
+
+                        {/* Per-apartment tiles */}
+                        <Grid container spacing={1.5}>
+                            {expensesByApartment.map((e) => (
+                                <Grid key={e.apartment} item xs={12} sm={6} md={4} lg={3}>
+                                    <Paper elevation={0} sx={{ ...softCard, p: 1.5, borderRadius: 2, height: 72, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                                        <Typography variant="body2" sx={{ opacity: 0.85, mb: 0.25, fontFamily: FONTS.subhead }}>
+                                            {e.apartment}
+                                        </Typography>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 800, fontFamily: FONTS.number }}>
+                                            {fmtKES(e.totalMonth)}
+                                        </Typography>
+                                    </Paper>
+                                </Grid>
+                            ))}
+                        </Grid>
+                    </>
                 )}
             </Paper>
 
@@ -1840,51 +1990,63 @@ export default function Properties() {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            units.map((u) => {
-                                const rowId = `${u.ApartmentID}-${u.UnitID}`;
-                                const isFlash = flashIds.has(rowId);
-                                const isChecked = selectedIds.includes(u.UnitID);
-                                return (
-                                    <TableRow
-                                        key={rowId}
-                                        sx={{
-                                            backgroundColor: isFlash ? "rgba(255, 255, 0, 0.08)" : "transparent",
-                                            transition: "background-color 600ms ease",
-                                        }}
-                                    >
-                                        <TableCell padding="checkbox">
-                                            <Checkbox
-                                                checked={isChecked}
-                                                onChange={() => toggleSelect(u.UnitID)}
-                                                sx={{ color: "#fff" }}
-                                            />
-                                        </TableCell>
-                                        <TableCell>{u.ApartmentName}</TableCell>
-                                        <TableCell>{u.Label}</TableCell>
-                                        <TableCell>{u.TenantName || "—"}</TableCell>
-                                        <TableCell>{statusChip(u.StatusName)}</TableCell>
-                                        <TableCell>{u.MoveIn ? dayjs(u.MoveIn).format("YYYY-MM-DD") : "—"}</TableCell>
-                                        <TableCell align="right">{fmtKES(u.Arrears || 0)}</TableCell>
-                                        <TableCell align="center">
-                                            <Tooltip title="Edit Unit">
-                                                <IconButton onClick={() => openEditUnit(u)} size="small" sx={{ color: "#fff" }}>
-                                                    <EditIcon fontSize="small" />
-                                                </IconButton>
-                                            </Tooltip>
-                                            {(u.StatusName || "").toLowerCase() === "vacant" && (
-                                                <Tooltip title="Assign Tenant">
-                                                    <IconButton onClick={() => openAssignTenant(u)} size="small" sx={{ color: "#6EE7B7" }}>
-                                                        <PeopleIcon fontSize="small" />
+                            units
+                                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                                .map((u) => {
+                                    const rowId = `${u.ApartmentID}-${u.UnitID}`;
+                                    const isFlash = flashIds.has(rowId);
+                                    const isChecked = selectedIds.includes(u.UnitID);
+                                    return (
+                                        <TableRow
+                                            key={rowId}
+                                            sx={{
+                                                backgroundColor: isFlash ? "rgba(255, 255, 0, 0.08)" : "transparent",
+                                                transition: "background-color 600ms ease",
+                                            }}
+                                        >
+                                            <TableCell padding="checkbox">
+                                                <Checkbox
+                                                    checked={isChecked}
+                                                    onChange={() => toggleSelect(u.UnitID)}
+                                                    sx={{ color: "#fff" }}
+                                                />
+                                            </TableCell>
+                                            <TableCell>{u.ApartmentName}</TableCell>
+                                            <TableCell>{u.Label}</TableCell>
+                                            <TableCell>{u.TenantName || "—"}</TableCell>
+                                            <TableCell>{statusChip(u.StatusName)}</TableCell>
+                                            <TableCell>{u.MoveIn ? dayjs(u.MoveIn).format("YYYY-MM-DD") : "—"}</TableCell>
+                                            <TableCell align="right">{fmtKES(u.Arrears || 0)}</TableCell>
+                                            <TableCell align="center">
+                                                <Tooltip title="Edit Unit">
+                                                    <IconButton onClick={() => openEditUnit(u)} size="small" sx={{ color: "#fff" }}>
+                                                        <EditIcon fontSize="small" />
                                                     </IconButton>
                                                 </Tooltip>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                );
-                            })
+                                                {(u.StatusName || "").toLowerCase() === "vacant" && (
+                                                    <Tooltip title="Assign Tenant">
+                                                        <IconButton onClick={() => openAssignTenant(u)} size="small" sx={{ color: "#6EE7B7" }}>
+                                                            <PeopleIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
                         )}
                     </TableBody>
                 </Table>
+
+                <TablePagination
+                    component="div"
+                    count={units.length}
+                    page={page}
+                    onPageChange={(_, newPage) => setPage(newPage)}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+                    rowsPerPageOptions={[10, 25, 50, 100]}
+                />
             </Paper>
 
             {/* Dialogs */}
