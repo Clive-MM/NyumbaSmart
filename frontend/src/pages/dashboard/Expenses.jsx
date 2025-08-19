@@ -94,7 +94,7 @@ const TYPE_COLORS = {
 /* ---------------------- Add Expense Dialog (Smart) ---------------------- */
 function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes = [] }) {
     const defaultForm = {
-        ApartmentID: apartments[1]?.id || "", // skip "All" at index 0 when passed in that shape
+        ApartmentID: apartments[1]?.id || "",
         ExpenseType: "",
         Amount: "",
         Description: "",
@@ -114,9 +114,8 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
             setForm(defaultForm);
             setErrors({});
         } else {
-            // prefill first real apartment if empty
             if (!form.ApartmentID) {
-                const first = apartments.find(a => a.id); // has id
+                const first = apartments.find(a => a.id);
                 if (first) setForm(f => ({ ...f, ApartmentID: first.id }));
             }
         }
@@ -168,23 +167,20 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
                 Payee: form.Payee || "Unknown",
                 PaymentMethod: form.isPaid ? form.PaymentMethod || "Cash" : "Cash",
                 PaymentRef: form.isPaid ? (form.PaymentRef || "") : "",
-                ExpenseDate: form.ExpenseDate, // YYYY-MM-DD
+                ExpenseDate: form.ExpenseDate,
                 ExpensePaymentDate: form.isPaid ? form.ExpensePaymentDate : null,
             };
 
-            // Backend route uses /landlord-expenses/add (POST)
             const { data } = await api.post("/landlord-expenses/add", payload);
 
-            // Emit the newly created expense back to parent (normalize a bit)
             const created = data?.expense || {
                 ...payload,
-                ExpenseID: Date.now(), // optimistic id if server didn't send
+                ExpenseID: Date.now(),
                 Apartment: apartments.find(a => a.id === Number(form.ApartmentID))?.name || "",
             };
             onSaved?.(created);
 
             if (addAnother) {
-                // retain some fields to speed up entry
                 setForm((f) => ({
                     ...defaultForm,
                     ApartmentID: f.ApartmentID,
@@ -207,194 +203,219 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
         }
     };
 
-    const payMethods = ["Cash", "Bank Transfer", "M-Pesa", "Cheque", "Other"];
     const quickTypes = Array.from(new Set(["Repairs", "Water", "Electricity", "Garbage", "Internet", "Other", ...recentTypes]))
         .slice(0, 8);
 
+    /* ====== CENTERED DIALOG RETURN (narrowed) ====== */
     return (
-        <Paper
-            elevation={0}
+        <Box
             sx={{
-                ...softCard,
                 position: "fixed",
-                inset: "auto 0 0 0",
-                maxWidth: 900,
-                m: "auto",
-                p: 2.25,
+                inset: 0,
                 zIndex: 1400,
-                borderTopLeftRadius: 16,
-                borderTopRightRadius: 16,
-                display: open ? "block" : "none",
+                display: open ? "grid" : "none",
+                placeItems: "center",            // perfect center
             }}
+            role="dialog"
+            aria-modal="true"
         >
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                <Typography variant="h6" sx={{ fontWeight: 900, fontFamily: FONTS.subhead }}>
-                    Add Expense
-                </Typography>
-                <Box sx={{ flex: 1 }} />
-                <Button onClick={onClose} sx={{ color: "#fff", textTransform: "none" }}>
-                    Close
-                </Button>
-            </Stack>
+            {/* Backdrop */}
+            <Box
+                onClick={onClose}
+                sx={{
+                    position: "absolute",
+                    inset: 0,
+                    bgcolor: "rgba(0,0,0,.55)",
+                    backdropFilter: "blur(2px)",
+                }}
+            />
 
-            <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                    <TextField
-                        select fullWidth label="Property"
-                        name="ApartmentID" value={form.ApartmentID} onChange={onChange}
-                        error={!!errors.ApartmentID} helperText={errors.ApartmentID}
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    >
-                        {apartments.filter(a => a.id).map((a) => (
-                            <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
-                        ))}
-                    </TextField>
-                </Grid>
-                <Grid item xs={12} md={3}>
-                    <TextField
-                        fullWidth label="Type" name="ExpenseType" value={form.ExpenseType} onChange={onChange}
-                        error={!!errors.ExpenseType} helperText={errors.ExpenseType}
-                        placeholder="e.g. Repairs"
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    />
-                </Grid>
-                <Grid item xs={12} md={3}>
-                    <TextField
-                        fullWidth type="number" label="Amount" name="Amount" value={form.Amount} onChange={onChange}
-                        error={!!errors.Amount} helperText={errors.Amount}
-                        InputProps={{ inputProps: { min: 0, step: "any" } }}
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    />
-                </Grid>
-
-                <Grid item xs={12} md={4}>
-                    <TextField
-                        fullWidth type="date" label="Expense Date (for)" name="ExpenseDate" value={form.ExpenseDate} onChange={onChange}
-                        error={!!errors.ExpenseDate} helperText={errors.ExpenseDate}
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    />
-                </Grid>
-                <Grid item xs={12} md={8}>
-                    <TextField
-                        fullWidth multiline minRows={2} label="Description (optional)" name="Description"
-                        value={form.Description} onChange={onChange}
-                        placeholder="Short note or vendor invoice details"
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    />
-                </Grid>
-
-                <Grid item xs={12}>
-                    <Typography variant="caption" sx={{ opacity: .85, display: "block", mb: .5 }}>
-                        Quick Types:
+            {/* Dialog card */}
+            <Paper
+                elevation={0}
+                sx={{
+                    ...softCard,
+                    position: "relative",
+                    width: "min(700px, 90vw)",     // ⬅️ narrowed width
+                    maxHeight: "90vh",
+                    overflow: "auto",
+                    p: 2.25,
+                    borderRadius: 3,
+                    m: 0,
+                    transform: "translate(0, 0)",
+                }}
+            >
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900, fontFamily: FONTS.subhead }}>
+                        Add Expense
                     </Typography>
-                    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                        {quickTypes.map((t) => (
-                            <Chip
-                                key={t}
-                                size="small"
-                                label={t}
-                                onClick={() => setType(t)}
-                                sx={{
-                                    color: "#fff",
-                                    border: "1px solid rgba(255,255,255,0.14)",
-                                    bgcolor: form.ExpenseType === t ? "rgba(126,0,166,.26)" : "transparent",
-                                }}
-                            />
-                        ))}
-                    </Stack>
-                </Grid>
+                    <Box sx={{ flex: 1 }} />
+                    <Button onClick={onClose} sx={{ color: "#fff", textTransform: "none" }}>
+                        Close
+                    </Button>
+                </Stack>
 
-                <Grid item xs={12}>
-                    <FormControlLabel
-                        control={<Switch checked={form.isPaid} onChange={togglePaid} />}
-                        label={<Typography sx={{ fontFamily: FONTS.subhead }}>Mark as Paid</Typography>}
-                    />
-                </Grid>
-
-                <Grid item xs={12} md={4}>
-                    <TextField
-                        fullWidth type="date" label="Payment Date" name="ExpensePaymentDate"
-                        value={form.ExpensePaymentDate} onChange={onChange} disabled={!form.isPaid}
-                        error={!!errors.ExpensePaymentDate} helperText={errors.ExpensePaymentDate}
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                    <TextField
-                        select fullWidth label="Payment Method" name="PaymentMethod" value={form.PaymentMethod}
-                        onChange={onChange} disabled={!form.isPaid}
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    >
-                        {["Cash", "Bank Transfer", "M-Pesa", "Cheque", "Other"].map((m) => (
-                            <MenuItem key={m} value={m}>{m}</MenuItem>
-                        ))}
-                    </TextField>
-                </Grid>
-                <Grid item xs={12} md={4}>
-                    <TextField
-                        fullWidth label="Payment Ref" name="PaymentRef" value={form.PaymentRef}
-                        onChange={onChange} disabled={!form.isPaid}
-                        placeholder="e.g., M-Pesa/Bank ref"
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                    <TextField
-                        fullWidth label="Payee (optional)" name="Payee" value={form.Payee}
-                        onChange={onChange}
-                        placeholder="Vendor/recipient"
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    />
-                </Grid>
-
-                {errors.submit ? (
-                    <Grid item xs={12}>
-                        <Alert severity="error" sx={{ borderRadius: 2 }}>{errors.submit}</Alert>
+                {/* ---- Form ---- */}
+                <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                        <TextField
+                            select fullWidth label="Property"
+                            name="ApartmentID" value={form.ApartmentID} onChange={onChange}
+                            error={!!errors.ApartmentID} helperText={errors.ApartmentID}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        >
+                            {apartments.filter(a => a.id).map((a) => (
+                                <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
+                            ))}
+                        </TextField>
                     </Grid>
-                ) : null}
+                    <Grid item xs={12} md={6}>
+                        <TextField
+                            fullWidth label="Type" name="ExpenseType" value={form.ExpenseType} onChange={onChange}
+                            error={!!errors.ExpenseType} helperText={errors.ExpenseType}
+                            placeholder="e.g. Repairs"
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        />
+                    </Grid>
 
-                <Grid item xs={12}>
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
-                        <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={() => handleSave(true)}
-                            disabled={saving}
-                            variant="outlined"
-                            sx={{
-                                textTransform: "none",
-                                borderRadius: 2,
-                                color: "#fff",
-                                borderColor: "rgba(255,255,255,0.35)",
-                                "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" },
-                            }}
+                    <Grid item xs={12} md={6}>
+                        <TextField
+                            fullWidth type="number" label="Amount" name="Amount" value={form.Amount} onChange={onChange}
+                            error={!!errors.Amount} helperText={errors.Amount}
+                            InputProps={{ inputProps: { min: 0, step: "any" } }}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                        <TextField
+                            fullWidth type="date" label="Expense Date (for)" name="ExpenseDate" value={form.ExpenseDate} onChange={onChange}
+                            error={!!errors.ExpenseDate} helperText={errors.ExpenseDate}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        />
+                    </Grid>
+
+                    <Grid item xs={12}>
+                        <TextField
+                            fullWidth multiline minRows={2} label="Description (optional)" name="Description"
+                            value={form.Description} onChange={onChange}
+                            placeholder="Short note or vendor invoice details"
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        />
+                    </Grid>
+
+                    <Grid item xs={12}>
+                        <Typography variant="caption" sx={{ opacity: .85, display: "block", mb: .5 }}>
+                            Quick Types:
+                        </Typography>
+                        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                            {quickTypes.map((t) => (
+                                <Chip
+                                    key={t}
+                                    size="small"
+                                    label={t}
+                                    onClick={() => setType(t)}
+                                    sx={{
+                                        color: "#fff",
+                                        border: "1px solid rgba(255,255,255,0.14)",
+                                        bgcolor: form.ExpenseType === t ? "rgba(126,0,166,.26)" : "transparent",
+                                    }}
+                                />
+                            ))}
+                        </Stack>
+                    </Grid>
+
+                    <Grid item xs={12}>
+                        <FormControlLabel
+                            control={<Switch checked={form.isPaid} onChange={togglePaid} />}
+                            label={<Typography sx={{ fontFamily: FONTS.subhead }}>Mark as Paid</Typography>}
+                        />
+                    </Grid>
+
+                    <Grid item xs={12} md={4}>
+                        <TextField
+                            fullWidth type="date" label="Payment Date" name="ExpensePaymentDate"
+                            value={form.ExpensePaymentDate} onChange={onChange} disabled={!form.isPaid}
+                            error={!!errors.ExpensePaymentDate} helperText={errors.ExpensePaymentDate}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                        <TextField
+                            select fullWidth label="Payment Method" name="PaymentMethod" value={form.PaymentMethod}
+                            onChange={onChange} disabled={!form.isPaid}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
                         >
-                            {saving ? "Saving…" : "Save & Add Another"}
-                        </Button>
-                        <Button
-                            onClick={() => handleSave(false)}
-                            disabled={saving}
-                            variant="contained"
-                            startIcon={<AddIcon />}
-                            sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
-                        >
-                            {saving ? "Saving…" : "Save Expense"}
-                        </Button>
-                    </Stack>
+                            {["Cash", "Bank Transfer", "M-Pesa", "Cheque", "Other"].map((m) => (
+                                <MenuItem key={m} value={m}>{m}</MenuItem>
+                            ))}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                        <TextField
+                            fullWidth label="Payment Ref" name="PaymentRef" value={form.PaymentRef}
+                            onChange={onChange} disabled={!form.isPaid}
+                            placeholder="e.g., M-Pesa/Bank ref"
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        />
+                    </Grid>
+
+                    <Grid item xs={12}>
+                        <TextField
+                            fullWidth label="Payee (optional)" name="Payee" value={form.Payee}
+                            onChange={onChange}
+                            placeholder="Vendor/recipient"
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        />
+                    </Grid>
+
+                    {errors.submit ? (
+                        <Grid item xs={12}>
+                            <Alert severity="error" sx={{ borderRadius: 2 }}>{errors.submit}</Alert>
+                        </Grid>
+                    ) : null}
+
+                    <Grid item xs={12}>
+                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={() => handleSave(true)}
+                                disabled={saving}
+                                variant="outlined"
+                                sx={{
+                                    textTransform: "none",
+                                    borderRadius: 2,
+                                    color: "#fff",
+                                    borderColor: "rgba(255,255,255,0.35)",
+                                    "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" },
+                                }}
+                            >
+                                {saving ? "Saving…" : "Save & Add Another"}
+                            </Button>
+                            <Button
+                                onClick={() => handleSave(false)}
+                                disabled={saving}
+                                variant="contained"
+                                startIcon={<AddIcon />}
+                                sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                            >
+                                {saving ? "Saving…" : "Save Expense"}
+                            </Button>
+                        </Stack>
+                    </Grid>
                 </Grid>
-            </Grid>
-        </Paper>
+            </Paper>
+        </Box>
     );
 }
 
@@ -417,7 +438,7 @@ export default function Expenses() {
 
     /* Data/state */
     const [loading, setLoading] = useState(true);
-    const [all, setAll] = useState([]); // flat list with ApartmentName injected
+    const [all, setAll] = useState([]);
     const [apartments, setApartments] = useState([{ name: "All" }]);
     const [kpi, setKpi] = useState({ monthTotal: 0, highest: 0, avgPercent: 0 });
     const [trend, setTrend] = useState([]);
@@ -445,12 +466,12 @@ export default function Expenses() {
                 api.get("/myapartments").catch(() => ({ data: { Apartments: [] } })),
             ]);
 
-            const map = byAptRes.data?.expenses || {}; // { [AptName]: [Expense] }
+            const map = byAptRes.data?.expenses || {};
             const flat = Object.entries(map).flatMap(([apt, arr]) =>
                 (arr || []).map((e) => ({
                     ...e,
                     ApartmentName: apt,
-                    ExpenseDate: e.ExpenseDate || e.expenseDate || e.PaymentDate || e.payment_date, // keep resilient
+                    ExpenseDate: e.ExpenseDate || e.expenseDate || e.PaymentDate || e.payment_date,
                     ExpensePaymentDate: e.ExpensePaymentDate || e.paymentDate || null,
                     Amount: Number(e.Amount || 0),
                     ExpenseType: e.ExpenseType || "Other",
@@ -468,7 +489,6 @@ export default function Expenses() {
                 (aptsRes.data?.Apartments || [])
                     .map((a) => ({ id: a.ApartmentID, name: a.ApartmentName }))
                     .filter((a) => a.id && a.name);
-            // Also include any apts present only in expenses:
             const fromMap = Object.keys(map).map((name) => ({ id: undefined, name }));
             const uniqueByName = new Map();
             [...aptOptions, ...fromMap].forEach((a) => uniqueByName.set(a.name, a));
@@ -486,33 +506,29 @@ export default function Expenses() {
 
     useEffect(() => { fetchAll(); /* eslint-disable-line */ }, []);
 
-    /* Re-compute derived when month changes or data updates */
     useEffect(() => {
         if (all.length === 0) return;
         computeDerived(all, filter.month);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filter.month, all]);
 
-    /* Debounced search */
     const [search, setSearch] = useState(filter.q);
     useEffect(() => {
         const t = setTimeout(() => setSearch(filter.q), 250);
         return () => clearTimeout(t);
     }, [filter.q]);
 
-    /* Derived builders */
     function computeDerived(data, mKey) {
         const monthRows = data.filter((r) => monthLabel(r.ExpenseDate) === mKey);
         const monthTotal = monthRows.reduce((a, r) => a + r.Amount, 0);
         const highest = monthRows.reduce((a, r) => Math.max(a, r.Amount), 0);
 
-        // 12-mo avg
         const totalsByMonth = new Map();
         data.forEach((r) => {
             const k = monthLabel(r.ExpenseDate);
             totalsByMonth.set(k, (totalsByMonth.get(k) || 0) + r.Amount);
         });
-        const last12 = months.slice().reverse(); // chronological
+        const last12 = months.slice().reverse();
         const avg = last12.length
             ? Math.round(
                 last12.reduce((acc, k) => acc + (totalsByMonth.get(k) || 0), 0) / last12.length
@@ -521,7 +537,6 @@ export default function Expenses() {
 
         setKpi({ monthTotal, highest, avgPercent: avg ? Math.round((monthTotal / avg) * 100) : 0 });
 
-        // Trend (K)
         const last6 = months.slice(0, 6).reverse();
         setTrend(
             last6.map((k) => ({
@@ -530,7 +545,6 @@ export default function Expenses() {
             }))
         );
 
-        // By type
         const typeMap = new Map();
         monthRows.forEach((r) => typeMap.set(r.ExpenseType, (typeMap.get(r.ExpenseType) || 0) + r.Amount));
         const total = Array.from(typeMap.values()).reduce((a, v) => a + v, 0) || 1;
@@ -540,7 +554,6 @@ export default function Expenses() {
                 .sort((a, b) => b.value - a.value)
         );
 
-        // By apartment (K)
         const aptMap = new Map();
         monthRows.forEach((r) => aptMap.set(r.ApartmentName, (aptMap.get(r.ApartmentName) || 0) + r.Amount));
         setByApt(
@@ -550,7 +563,6 @@ export default function Expenses() {
                 .slice(0, 5)
         );
 
-        // Insights
         const prevKey = monthLabel(dayjs(mKey, "MMMM YYYY").subtract(1, "month"));
         const thisT = totalsByMonth.get(mKey) || 0;
         const prevT = totalsByMonth.get(prevKey) || 0;
@@ -562,7 +574,6 @@ export default function Expenses() {
         setInsights(ins);
     }
 
-    /* Current type list for filter */
     const currentTypes = useMemo(() => {
         const set = new Set(
             all.filter((r) => monthLabel(r.ExpenseDate) === filter.month).map((r) => r.ExpenseType)
@@ -570,7 +581,6 @@ export default function Expenses() {
         return ["All", ...Array.from(set).sort()];
     }, [all, filter.month]);
 
-    /* Filtered rows for table */
     const filteredRows = useMemo(() => {
         const q = (search || "").toLowerCase();
         return all
@@ -587,7 +597,6 @@ export default function Expenses() {
             .sort((a, b) => new Date(b.ExpenseDate) - new Date(a.ExpenseDate));
     }, [all, filter, search]);
 
-    /* Handlers */
     const refresh = () => fetchAll();
 
     const doExport = () => {
@@ -628,10 +637,9 @@ export default function Expenses() {
     };
 
     const doImport = () => document.getElementById("import-expenses-input")?.click();
-    const onFilePicked = (e) => { e.target.value = ""; /* hook up later to a bulk-import API */ };
+    const onFilePicked = (e) => { e.target.value = ""; };
 
     const handleSavedExpense = (created) => {
-        // Normalize + inject into all[], then recompute derived
         const aptName =
             created.Apartment ||
             created.ApartmentName ||
