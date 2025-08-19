@@ -1,10 +1,31 @@
-// src/pages/Expenses.jsx
+// src/pages/dashboard/Expenses.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
-    Box, Grid, Paper, Typography, Stack, Button, IconButton, Tooltip,
-    Chip, Divider, Table, TableHead, TableRow, TableCell, TableBody,
-    TextField, MenuItem, CircularProgress, InputAdornment, Link,
-    TablePagination, Snackbar, Alert, Switch, FormControlLabel
+    Box,
+    Grid,
+    Paper,
+    Typography,
+    Stack,
+    Button,
+    IconButton,
+    Tooltip,
+    Chip,
+    Divider,
+    Table,
+    TableHead,
+    TableRow,
+    TableCell,
+    TableBody,
+    TextField,
+    MenuItem,
+    CircularProgress,
+    InputAdornment,
+    Link,
+    TablePagination,
+    Snackbar,
+    Alert,
+    Switch,
+    FormControlLabel,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AddIcon from "@mui/icons-material/Add";
@@ -12,8 +33,19 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import {
-    LineChart, Line, ResponsiveContainer, XAxis, YAxis,
-    Tooltip as RTooltip, Legend, PieChart, Pie, Cell, BarChart, Bar, CartesianGrid
+    LineChart,
+    Line,
+    ResponsiveContainer,
+    XAxis,
+    YAxis,
+    Tooltip as RTooltip,
+    Legend,
+    PieChart,
+    Pie,
+    Cell,
+    BarChart,
+    Bar,
+    CartesianGrid,
 } from "recharts";
 import axios from "axios";
 import dayjs from "dayjs";
@@ -34,7 +66,9 @@ const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 /* ---------- Utils ---------- */
 const fmtKES = (n) =>
-    `KES ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(Number(n || 0))}`;
+    `KES ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(
+        Number(n || 0)
+    )}`;
 const monthLabel = (d) => dayjs(d).format("MMMM YYYY");
 const monthKeyNow = monthLabel(new Date());
 
@@ -50,36 +84,16 @@ const softCard = {
     transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
     "&:hover": {
         transform: "translateY(-3px)",
-        boxShadow: "12px 12px 24px rgba(0,0,0,.6), -12px -12px 24px rgba(255,255,255,.035)",
+        boxShadow:
+            "12px 12px 24px rgba(0,0,0,.6), -12px -12px 24px rgba(255,255,255,.035)",
         borderColor: "transparent",
         background:
-            "linear-gradient(#0e0a17,#0e0a17) padding-box, " + BRAND.gradient + " border-box",
+            "linear-gradient(#0e0a17,#0e0a17) padding-box, " +
+            BRAND.gradient +
+            " border-box",
         filter: "drop-shadow(0 18px 28px rgba(255,0,128,.16))",
     },
 };
-
-/* ---------- Reusable ---------- */
-function Kpi({ label, value }) {
-    return (
-        <Paper elevation={0} sx={{ ...softCard, height: 118 }}>
-            <Typography variant="body2" sx={{ opacity: .9, fontFamily: FONTS.subhead }}>
-                {label}
-            </Typography>
-            <Typography variant="h5" sx={{ mt: .5, fontWeight: 900, fontFamily: FONTS.number }}>
-                {value}
-            </Typography>
-        </Paper>
-    );
-}
-function Insight({ text }) {
-    return (
-        <Paper elevation={0} sx={{ ...softCard, borderRadius: 2, height: 74, display: "flex", alignItems: "center", px: 2.25 }}>
-            <Typography variant="body2" sx={{ fontFamily: FONTS.subhead, opacity: .92 }}>
-                {text}
-            </Typography>
-        </Paper>
-    );
-}
 
 /* ---------- Colors by type ---------- */
 const TYPE_COLORS = {
@@ -91,8 +105,15 @@ const TYPE_COLORS = {
     Other: "#F472B6",
 };
 
-/* ---------------------- Add Expense Dialog (Smart) ---------------------- */
-function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes = [] }) {
+/* ---------------------- Add Expense Dialog (centered & lowered) ---------------------- */
+function AddExpenseDialog({
+    open,
+    onClose,
+    apartments,
+    onSaved,
+    api,
+    recentTypes = [],
+}) {
     const defaultForm = {
         ApartmentID: apartments[1]?.id || "",
         ExpenseType: "",
@@ -115,11 +136,11 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
             setErrors({});
         } else {
             if (!form.ApartmentID) {
-                const first = apartments.find(a => a.id);
-                if (first) setForm(f => ({ ...f, ApartmentID: first.id }));
+                const first = apartments.find((a) => a.id);
+                if (first) setForm((f) => ({ ...f, ApartmentID: first.id }));
             }
         }
-        // eslint-disable-next-line
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, apartments?.length]);
 
     const onChange = (e) => {
@@ -166,7 +187,7 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
                 Description: form.Description || "",
                 Payee: form.Payee || "Unknown",
                 PaymentMethod: form.isPaid ? form.PaymentMethod || "Cash" : "Cash",
-                PaymentRef: form.isPaid ? (form.PaymentRef || "") : "",
+                PaymentRef: form.isPaid ? form.PaymentRef || "" : "",
                 ExpenseDate: form.ExpenseDate,
                 ExpensePaymentDate: form.isPaid ? form.ExpensePaymentDate : null,
             };
@@ -176,7 +197,8 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
             const created = data?.expense || {
                 ...payload,
                 ExpenseID: Date.now(),
-                Apartment: apartments.find(a => a.id === Number(form.ApartmentID))?.name || "",
+                Apartment:
+                    apartments.find((a) => a.id === Number(form.ApartmentID))?.name || "",
             };
             onSaved?.(created);
 
@@ -203,10 +225,19 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
         }
     };
 
-    const quickTypes = Array.from(new Set(["Repairs", "Water", "Electricity", "Garbage", "Internet", "Other", ...recentTypes]))
-        .slice(0, 8);
+    const quickTypes = Array.from(
+        new Set([
+            "Repairs",
+            "Water",
+            "Electricity",
+            "Garbage",
+            "Internet",
+            "Other",
+            ...recentTypes,
+        ])
+    ).slice(0, 8);
 
-    /* ====== CENTERED DIALOG RETURN (narrowed) ====== */
+    /* ====== CENTERED + LOWERED DIALOG ====== */
     return (
         <Box
             sx={{
@@ -214,7 +245,7 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
                 inset: 0,
                 zIndex: 1400,
                 display: open ? "grid" : "none",
-                placeItems: "center",            // perfect center
+                placeItems: "center",
             }}
             role="dialog"
             aria-modal="true"
@@ -236,13 +267,13 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
                 sx={{
                     ...softCard,
                     position: "relative",
-                    width: "min(700px, 90vw)",     // ⬅️ narrowed width
+                    width: "min(700px, 90vw)", // narrowed
                     maxHeight: "90vh",
                     overflow: "auto",
                     p: 2.25,
                     borderRadius: 3,
                     m: 0,
-                    transform: "translate(0, 0)",
+                    transform: "translateY(6vh)", // lowered (shukishwa kidogo)
                 }}
             >
                 <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
@@ -259,57 +290,105 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
                 <Grid container spacing={2}>
                     <Grid item xs={12} md={6}>
                         <TextField
-                            select fullWidth label="Property"
-                            name="ApartmentID" value={form.ApartmentID} onChange={onChange}
-                            error={!!errors.ApartmentID} helperText={errors.ApartmentID}
+                            select
+                            fullWidth
+                            label="Property"
+                            name="ApartmentID"
+                            value={form.ApartmentID}
+                            onChange={onChange}
+                            error={!!errors.ApartmentID}
+                            helperText={errors.ApartmentID}
                             InputLabelProps={{ shrink: true }}
-                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                            sx={{
+                                "& .MuiInputBase-root": { color: "#fff" },
+                                "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                            }}
                         >
-                            {apartments.filter(a => a.id).map((a) => (
-                                <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
-                            ))}
+                            {apartments
+                                .filter((a) => a.id)
+                                .map((a) => (
+                                    <MenuItem key={a.id} value={a.id}>
+                                        {a.name}
+                                    </MenuItem>
+                                ))}
                         </TextField>
                     </Grid>
+
                     <Grid item xs={12} md={6}>
                         <TextField
-                            fullWidth label="Type" name="ExpenseType" value={form.ExpenseType} onChange={onChange}
-                            error={!!errors.ExpenseType} helperText={errors.ExpenseType}
+                            fullWidth
+                            label="Type"
+                            name="ExpenseType"
+                            value={form.ExpenseType}
+                            onChange={onChange}
+                            error={!!errors.ExpenseType}
+                            helperText={errors.ExpenseType}
                             placeholder="e.g. Repairs"
                             InputLabelProps={{ shrink: true }}
-                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                            sx={{
+                                "& .MuiInputBase-root": { color: "#fff" },
+                                "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                            }}
                         />
                     </Grid>
 
                     <Grid item xs={12} md={6}>
                         <TextField
-                            fullWidth type="number" label="Amount" name="Amount" value={form.Amount} onChange={onChange}
-                            error={!!errors.Amount} helperText={errors.Amount}
+                            fullWidth
+                            type="number"
+                            label="Amount"
+                            name="Amount"
+                            value={form.Amount}
+                            onChange={onChange}
+                            error={!!errors.Amount}
+                            helperText={errors.Amount}
                             InputProps={{ inputProps: { min: 0, step: "any" } }}
                             InputLabelProps={{ shrink: true }}
-                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                            sx={{
+                                "& .MuiInputBase-root": { color: "#fff" },
+                                "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                            }}
                         />
                     </Grid>
+
                     <Grid item xs={12} md={6}>
                         <TextField
-                            fullWidth type="date" label="Expense Date (for)" name="ExpenseDate" value={form.ExpenseDate} onChange={onChange}
-                            error={!!errors.ExpenseDate} helperText={errors.ExpenseDate}
+                            fullWidth
+                            type="date"
+                            label="Expense Date (for)"
+                            name="ExpenseDate"
+                            value={form.ExpenseDate}
+                            onChange={onChange}
+                            error={!!errors.ExpenseDate}
+                            helperText={errors.ExpenseDate}
                             InputLabelProps={{ shrink: true }}
-                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                            sx={{
+                                "& .MuiInputBase-root": { color: "#fff" },
+                                "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                            }}
                         />
                     </Grid>
 
                     <Grid item xs={12}>
                         <TextField
-                            fullWidth multiline minRows={2} label="Description (optional)" name="Description"
-                            value={form.Description} onChange={onChange}
+                            fullWidth
+                            multiline
+                            minRows={2}
+                            label="Description (optional)"
+                            name="Description"
+                            value={form.Description}
+                            onChange={onChange}
                             placeholder="Short note or vendor invoice details"
                             InputLabelProps={{ shrink: true }}
-                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                            sx={{
+                                "& .MuiInputBase-root": { color: "#fff" },
+                                "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                            }}
                         />
                     </Grid>
 
                     <Grid item xs={12}>
-                        <Typography variant="caption" sx={{ opacity: .85, display: "block", mb: .5 }}>
+                        <Typography variant="caption" sx={{ opacity: 0.85, display: "block", mb: 0.5 }}>
                             Quick Types:
                         </Typography>
                         <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
@@ -322,7 +401,8 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
                                     sx={{
                                         color: "#fff",
                                         border: "1px solid rgba(255,255,255,0.14)",
-                                        bgcolor: form.ExpenseType === t ? "rgba(126,0,166,.26)" : "transparent",
+                                        bgcolor:
+                                            form.ExpenseType === t ? "rgba(126,0,166,.26)" : "transparent",
                                     }}
                                 />
                             ))}
@@ -338,48 +418,84 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
 
                     <Grid item xs={12} md={4}>
                         <TextField
-                            fullWidth type="date" label="Payment Date" name="ExpensePaymentDate"
-                            value={form.ExpensePaymentDate} onChange={onChange} disabled={!form.isPaid}
-                            error={!!errors.ExpensePaymentDate} helperText={errors.ExpensePaymentDate}
+                            fullWidth
+                            type="date"
+                            label="Payment Date"
+                            name="ExpensePaymentDate"
+                            value={form.ExpensePaymentDate}
+                            onChange={onChange}
+                            disabled={!form.isPaid}
+                            error={!!errors.ExpensePaymentDate}
+                            helperText={errors.ExpensePaymentDate}
                             InputLabelProps={{ shrink: true }}
-                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                            sx={{
+                                "& .MuiInputBase-root": { color: "#fff" },
+                                "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                            }}
                         />
                     </Grid>
+
                     <Grid item xs={12} md={4}>
                         <TextField
-                            select fullWidth label="Payment Method" name="PaymentMethod" value={form.PaymentMethod}
-                            onChange={onChange} disabled={!form.isPaid}
+                            select
+                            fullWidth
+                            label="Payment Method"
+                            name="PaymentMethod"
+                            value={form.PaymentMethod}
+                            onChange={onChange}
+                            disabled={!form.isPaid}
                             InputLabelProps={{ shrink: true }}
-                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                            sx={{
+                                "& .MuiInputBase-root": { color: "#fff" },
+                                "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                            }}
                         >
                             {["Cash", "Bank Transfer", "M-Pesa", "Cheque", "Other"].map((m) => (
-                                <MenuItem key={m} value={m}>{m}</MenuItem>
+                                <MenuItem key={m} value={m}>
+                                    {m}
+                                </MenuItem>
                             ))}
                         </TextField>
                     </Grid>
+
                     <Grid item xs={12} md={4}>
                         <TextField
-                            fullWidth label="Payment Ref" name="PaymentRef" value={form.PaymentRef}
-                            onChange={onChange} disabled={!form.isPaid}
+                            fullWidth
+                            label="Payment Ref"
+                            name="PaymentRef"
+                            value={form.PaymentRef}
+                            onChange={onChange}
+                            disabled={!form.isPaid}
                             placeholder="e.g., M-Pesa/Bank ref"
                             InputLabelProps={{ shrink: true }}
-                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                            sx={{
+                                "& .MuiInputBase-root": { color: "#fff" },
+                                "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                            }}
                         />
                     </Grid>
 
                     <Grid item xs={12}>
                         <TextField
-                            fullWidth label="Payee (optional)" name="Payee" value={form.Payee}
+                            fullWidth
+                            label="Payee (optional)"
+                            name="Payee"
+                            value={form.Payee}
                             onChange={onChange}
                             placeholder="Vendor/recipient"
                             InputLabelProps={{ shrink: true }}
-                            sx={{ "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                            sx={{
+                                "& .MuiInputBase-root": { color: "#fff" },
+                                "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                            }}
                         />
                     </Grid>
 
                     {errors.submit ? (
                         <Grid item xs={12}>
-                            <Alert severity="error" sx={{ borderRadius: 2 }}>{errors.submit}</Alert>
+                            <Alert severity="error" sx={{ borderRadius: 2 }}>
+                                {errors.submit}
+                            </Alert>
                         </Grid>
                     ) : null}
 
@@ -397,7 +513,10 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
                                     borderRadius: 2,
                                     color: "#fff",
                                     borderColor: "rgba(255,255,255,0.35)",
-                                    "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" },
+                                    "&:hover": {
+                                        borderColor: BRAND.start,
+                                        background: "rgba(255,0,128,.08)",
+                                    },
                                 }}
                             >
                                 {saving ? "Saving…" : "Save & Add Another"}
@@ -407,7 +526,12 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
                                 disabled={saving}
                                 variant="contained"
                                 startIcon={<AddIcon />}
-                                sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                                sx={{
+                                    textTransform: "none",
+                                    borderRadius: 2,
+                                    background: BRAND.gradient,
+                                    boxShadow: "none",
+                                }}
                             >
                                 {saving ? "Saving…" : "Save Expense"}
                             </Button>
@@ -423,7 +547,10 @@ function AddExpenseDialog({ open, onClose, apartments, onSaved, api, recentTypes
 export default function Expenses() {
     /* Filters + pagination */
     const months = useMemo(
-        () => Array.from({ length: 12 }, (_, i) => dayjs().subtract(i, "month").format("MMMM YYYY")),
+        () =>
+            Array.from({ length: 12 }, (_, i) =>
+                dayjs().subtract(i, "month").format("MMMM YYYY")
+            ),
         []
     );
     const [filter, setFilter] = useState({
@@ -445,15 +572,20 @@ export default function Expenses() {
     const [byType, setByType] = useState([]);
     const [byApt, setByApt] = useState([]);
     const [insights, setInsights] = useState([]);
-    const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: "",
+        severity: "success",
+    });
     const [addOpen, setAddOpen] = useState(false);
 
     const token = useMemo(() => localStorage.getItem("token"), []);
     const api = useMemo(
-        () => axios.create({
-            baseURL: API,
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-        }),
+        () =>
+            axios.create({
+                baseURL: API,
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            }),
         [token]
     );
 
@@ -471,7 +603,8 @@ export default function Expenses() {
                 (arr || []).map((e) => ({
                     ...e,
                     ApartmentName: apt,
-                    ExpenseDate: e.ExpenseDate || e.expenseDate || e.PaymentDate || e.payment_date,
+                    ExpenseDate:
+                        e.ExpenseDate || e.expenseDate || e.PaymentDate || e.payment_date,
                     ExpensePaymentDate: e.ExpensePaymentDate || e.paymentDate || null,
                     Amount: Number(e.Amount || 0),
                     ExpenseType: e.ExpenseType || "Other",
@@ -485,11 +618,13 @@ export default function Expenses() {
 
             setAll(flat);
 
-            const aptOptions =
-                (aptsRes.data?.Apartments || [])
-                    .map((a) => ({ id: a.ApartmentID, name: a.ApartmentName }))
-                    .filter((a) => a.id && a.name);
-            const fromMap = Object.keys(map).map((name) => ({ id: undefined, name }));
+            const aptOptions = (aptsRes.data?.Apartments || [])
+                .map((a) => ({ id: a.ApartmentID, name: a.ApartmentName }))
+                .filter((a) => a.id && a.name);
+            const fromMap = Object.keys(map).map((name) => ({
+                id: undefined,
+                name,
+            }));
             const uniqueByName = new Map();
             [...aptOptions, ...fromMap].forEach((a) => uniqueByName.set(a.name, a));
             const aptList = [{ name: "All" }, ...Array.from(uniqueByName.values())];
@@ -498,13 +633,19 @@ export default function Expenses() {
             computeDerived(flat, filter.month);
         } catch (err) {
             console.error(err);
-            setSnackbar({ open: true, message: "Failed to load expenses.", severity: "error" });
+            setSnackbar({
+                open: true,
+                message: "Failed to load expenses.",
+                severity: "error",
+            });
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => { fetchAll(); /* eslint-disable-line */ }, []);
+    useEffect(() => {
+        fetchAll(); // eslint-disable-line
+    }, []);
 
     useEffect(() => {
         if (all.length === 0) return;
@@ -531,11 +672,16 @@ export default function Expenses() {
         const last12 = months.slice().reverse();
         const avg = last12.length
             ? Math.round(
-                last12.reduce((acc, k) => acc + (totalsByMonth.get(k) || 0), 0) / last12.length
+                last12.reduce((acc, k) => acc + (totalsByMonth.get(k) || 0), 0) /
+                last12.length
             )
             : 0;
 
-        setKpi({ monthTotal, highest, avgPercent: avg ? Math.round((monthTotal / avg) * 100) : 0 });
+        setKpi({
+            monthTotal,
+            highest,
+            avgPercent: avg ? Math.round((monthTotal / avg) * 100) : 0,
+        });
 
         const last6 = months.slice(0, 6).reverse();
         setTrend(
@@ -546,7 +692,9 @@ export default function Expenses() {
         );
 
         const typeMap = new Map();
-        monthRows.forEach((r) => typeMap.set(r.ExpenseType, (typeMap.get(r.ExpenseType) || 0) + r.Amount));
+        monthRows.forEach((r) =>
+            typeMap.set(r.ExpenseType, (typeMap.get(r.ExpenseType) || 0) + r.Amount)
+        );
         const total = Array.from(typeMap.values()).reduce((a, v) => a + v, 0) || 1;
         setByType(
             Array.from(typeMap.entries())
@@ -555,10 +703,12 @@ export default function Expenses() {
         );
 
         const aptMap = new Map();
-        monthRows.forEach((r) => aptMap.set(r.ApartmentName, (aptMap.get(r.ApartmentName) || 0) + r.Amount));
+        monthRows.forEach((r) =>
+            aptMap.set(r.ApartmentName, (aptMap.get(r.ApartmentName) || 0) + r.Amount)
+        );
         setByApt(
             Array.from(aptMap.entries())
-                .map(([name, total]) => ({ name, total: Math.round(total / 1000) }))
+                .map(([name, totalApt]) => ({ name, total: Math.round(totalApt / 1000) }))
                 .sort((a, b) => b.total - a.total)
                 .slice(0, 5)
         );
@@ -567,16 +717,24 @@ export default function Expenses() {
         const thisT = totalsByMonth.get(mKey) || 0;
         const prevT = totalsByMonth.get(prevKey) || 0;
         const deltaPct = prevT ? Math.round(((thisT - prevT) / prevT) * 100) : null;
-        const topType = Array.from(typeMap.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
+        const topType = Array.from(typeMap.entries()).sort((a, b) => b[1] - a[1])[0]
+            ?.[0];
         const ins = [];
-        if (deltaPct !== null) ins.push(`Expenses are ${deltaPct >= 0 ? "up" : "down"} ${Math.abs(deltaPct)}% vs ${prevKey}.`);
+        if (deltaPct !== null)
+            ins.push(
+                `Expenses are ${deltaPct >= 0 ? "up" : "down"} ${Math.abs(
+                    deltaPct
+                )}% vs ${prevKey}.`
+            );
         if (topType) ins.push(`Top cost driver this month is ${topType}.`);
         setInsights(ins);
     }
 
     const currentTypes = useMemo(() => {
         const set = new Set(
-            all.filter((r) => monthLabel(r.ExpenseDate) === filter.month).map((r) => r.ExpenseType)
+            all
+                .filter((r) => monthLabel(r.ExpenseDate) === filter.month)
+                .map((r) => r.ExpenseType)
         );
         return ["All", ...Array.from(set).sort()];
     }, [all, filter.month]);
@@ -626,7 +784,9 @@ export default function Expenses() {
             .map((arr) => arr.map((v) => `"${String(v)}"`).join(","))
             .join("\n");
 
-        const blob = new Blob([cols.join(",") + "\n" + body], { type: "text/csv;charset=utf-8;" });
+        const blob = new Blob([cols.join(",") + "\n" + body], {
+            type: "text/csv;charset=utf-8;",
+        });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -636,19 +796,23 @@ export default function Expenses() {
         setSnackbar({ open: true, message: "CSV exported.", severity: "success" });
     };
 
-    const doImport = () => document.getElementById("import-expenses-input")?.click();
-    const onFilePicked = (e) => { e.target.value = ""; };
+    const doImport = () =>
+        document.getElementById("import-expenses-input")?.click();
+    const onFilePicked = (e) => {
+        e.target.value = "";
+    };
 
     const handleSavedExpense = (created) => {
         const aptName =
             created.Apartment ||
             created.ApartmentName ||
-            apartments.find(a => a.id === created.ApartmentID)?.name ||
+            apartments.find((a) => a.id === created.ApartmentID)?.name ||
             "";
         const normalized = {
             ExpenseID: created.ExpenseID,
             ApartmentName: aptName,
-            ExpenseDate: created.ExpenseDate || created.PaymentDate || created.ExpensePaymentDate,
+            ExpenseDate:
+                created.ExpenseDate || created.PaymentDate || created.ExpensePaymentDate,
             ExpensePaymentDate: created.ExpensePaymentDate || created.PaymentDate || null,
             ExpenseType: created.ExpenseType,
             Amount: Number(created.Amount || 0),
@@ -670,7 +834,13 @@ export default function Expenses() {
     return (
         <Box sx={{ p: 3, bgcolor: "#0b0714", minHeight: "100vh" }}>
             {/* Hidden file input for import */}
-            <input id="import-expenses-input" type="file" accept=".csv" style={{ display: "none" }} onChange={onFilePicked} />
+            <input
+                id="import-expenses-input"
+                type="file"
+                accept=".csv"
+                style={{ display: "none" }}
+                onChange={onFilePicked}
+            />
 
             {/* Title + actions */}
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
@@ -682,7 +852,7 @@ export default function Expenses() {
                         WebkitBackgroundClip: "text",
                         WebkitTextFillColor: "transparent",
                         fontFamily: FONTS.display,
-                        letterSpacing: .5,
+                        letterSpacing: 0.5,
                     }}
                 >
                     Expenses
@@ -740,17 +910,38 @@ export default function Expenses() {
             {/* KPI row */}
             <Grid container spacing={2} sx={{ mb: 2 }}>
                 <Grid item xs={12} sm={6} md={3}>
-                    <Kpi label={`Expenses (${filter.month})`} value={fmtKES(kpi.monthTotal)} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Kpi label="Highest Expense" value={fmtKES(kpi.highest)} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Kpi label="Vs 12-mo Avg" value={`${kpi.avgPercent}%`} />
+                    <Paper elevation={0} sx={{ ...softCard, height: 118 }}>
+                        <Typography variant="body2" sx={{ opacity: 0.9, fontFamily: FONTS.subhead }}>
+                            Expenses ({filter.month})
+                        </Typography>
+                        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 900, fontFamily: FONTS.number }}>
+                            {fmtKES(kpi.monthTotal)}
+                        </Typography>
+                    </Paper>
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                     <Paper elevation={0} sx={{ ...softCard, height: 118 }}>
-                        <Typography variant="body2" sx={{ opacity: .9, fontFamily: FONTS.subhead }}>
+                        <Typography variant="body2" sx={{ opacity: 0.9, fontFamily: FONTS.subhead }}>
+                            Highest Expense
+                        </Typography>
+                        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 900, fontFamily: FONTS.number }}>
+                            {fmtKES(kpi.highest)}
+                        </Typography>
+                    </Paper>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <Paper elevation={0} sx={{ ...softCard, height: 118 }}>
+                        <Typography variant="body2" sx={{ opacity: 0.9, fontFamily: FONTS.subhead }}>
+                            Vs 12-mo Avg
+                        </Typography>
+                        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 900, fontFamily: FONTS.number }}>
+                            {`${kpi.avgPercent}%`}
+                        </Typography>
+                    </Paper>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <Paper elevation={0} sx={{ ...softCard, height: 118 }}>
+                        <Typography variant="body2" sx={{ opacity: 0.9, fontFamily: FONTS.subhead }}>
                             By Apartment (Top 3)
                         </Typography>
                         <Box sx={{ height: 68 }}>
@@ -761,7 +952,10 @@ export default function Expenses() {
                                     <YAxis hide />
                                     <Bar dataKey="total" radius={[4, 4, 0, 0]}>
                                         {byApt.slice(0, 3).map((a, i) => (
-                                            <Cell key={i} fill={i === 0 ? "#7E00A6" : i === 1 ? "#FF0080" : "#F59E0B"} />
+                                            <Cell
+                                                key={i}
+                                                fill={i === 0 ? "#7E00A6" : i === 1 ? "#FF0080" : "#F59E0B"}
+                                            />
                                         ))}
                                     </Bar>
                                 </BarChart>
@@ -776,7 +970,24 @@ export default function Expenses() {
                 <Grid container spacing={2} sx={{ mb: 3 }}>
                     {insights.map((t, i) => (
                         <Grid key={i} item xs={12} md={6}>
-                            <Insight text={t} />
+                            <Paper
+                                elevation={0}
+                                sx={{
+                                    ...softCard,
+                                    borderRadius: 2,
+                                    height: 74,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    px: 2.25,
+                                }}
+                            >
+                                <Typography
+                                    variant="body2"
+                                    sx={{ fontFamily: FONTS.subhead, opacity: 0.92 }}
+                                >
+                                    {t}
+                                </Typography>
+                            </Paper>
                         </Grid>
                     ))}
                 </Grid>
@@ -786,7 +997,10 @@ export default function Expenses() {
             <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid item xs={12} md={6}>
                     <Paper elevation={0} sx={{ ...softCard, height: 280 }}>
-                        <Typography variant="body2" sx={{ fontFamily: FONTS.subhead, opacity: .9, mb: 1 }}>
+                        <Typography
+                            variant="body2"
+                            sx={{ fontFamily: FONTS.subhead, opacity: 0.9, mb: 1 }}
+                        >
                             Trend by Month (K)
                         </Typography>
                         <ResponsiveContainer width="100%" height="85%">
@@ -795,20 +1009,39 @@ export default function Expenses() {
                                 <YAxis stroke="#aaa" />
                                 <RTooltip />
                                 <Legend />
-                                <Line type="monotone" dataKey="total" stroke="#7E00A6" strokeWidth={2} dot={false} />
+                                <Line
+                                    type="monotone"
+                                    dataKey="total"
+                                    stroke="#7E00A6"
+                                    strokeWidth={2}
+                                    dot={false}
+                                />
                             </LineChart>
                         </ResponsiveContainer>
                     </Paper>
                 </Grid>
                 <Grid item xs={12} md={6}>
-                    <Paper elevation={0} sx={{ ...softCard, height: 280, display: "flex", flexDirection: "column" }}>
-                        <Typography variant="body2" sx={{ fontFamily: FONTS.subhead, opacity: .9, mb: 1 }}>
+                    <Paper
+                        elevation={0}
+                        sx={{ ...softCard, height: 280, display: "flex", flexDirection: "column" }}
+                    >
+                        <Typography
+                            variant="body2"
+                            sx={{ fontFamily: FONTS.subhead, opacity: 0.9, mb: 1 }}
+                        >
                             By Type
                         </Typography>
                         <Box sx={{ flex: 1 }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
-                                    <Pie data={byType} dataKey="value" nameKey="name" innerRadius={70} outerRadius={100} stroke="none">
+                                    <Pie
+                                        data={byType}
+                                        dataKey="value"
+                                        nameKey="name"
+                                        innerRadius={70}
+                                        outerRadius={100}
+                                        stroke="none"
+                                    >
                                         {byType.map((t, i) => (
                                             <Cell key={i} fill={TYPE_COLORS[t.name] || "#8884d8"} />
                                         ))}
@@ -822,7 +1055,11 @@ export default function Expenses() {
                                     key={t.name}
                                     size="small"
                                     label={`${t.name} ${t.value}%`}
-                                    sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }}
+                                    sx={{
+                                        color: "#fff",
+                                        border: "1px solid rgba(255,255,255,0.14)",
+                                        fontFamily: FONTS.subhead,
+                                    }}
                                 />
                             ))}
                         </Stack>
@@ -832,7 +1069,11 @@ export default function Expenses() {
 
             {/* Filters */}
             <Paper elevation={0} sx={{ ...softCard, borderRadius: 2, mb: 2 }}>
-                <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} alignItems="center">
+                <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    spacing={1.25}
+                    alignItems="center"
+                >
                     <TextField
                         size="small"
                         placeholder="Search…"
@@ -845,30 +1086,67 @@ export default function Expenses() {
                                 </InputAdornment>
                             ),
                         }}
-                        sx={{ flex: 1, "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        sx={{
+                            flex: 1,
+                            "& .MuiInputBase-root": { color: "#fff" },
+                            "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                        }}
                     />
                     <TextField
-                        select size="small" label="Month" value={filter.month}
+                        select
+                        size="small"
+                        label="Month"
+                        value={filter.month}
                         onChange={(e) => setFilter({ ...filter, month: e.target.value })}
-                        sx={{ minWidth: 160, "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        sx={{
+                            minWidth: 160,
+                            "& .MuiInputBase-root": { color: "#fff" },
+                            "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                        }}
                     >
-                        {months.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                        {months.map((m) => (
+                            <MenuItem key={m} value={m}>
+                                {m}
+                            </MenuItem>
+                        ))}
                     </TextField>
                     <TextField
-                        select size="small" label="Apartment" value={filter.apartment}
+                        select
+                        size="small"
+                        label="Apartment"
+                        value={filter.apartment}
                         onChange={(e) => setFilter({ ...filter, apartment: e.target.value })}
-                        sx={{ minWidth: 180, "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        sx={{
+                            minWidth: 180,
+                            "& .MuiInputBase-root": { color: "#fff" },
+                            "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                        }}
                     >
-                        {apartments.map((a) => <MenuItem key={a.name} value={a.name}>{a.name}</MenuItem>)}
+                        {apartments.map((a) => (
+                            <MenuItem key={a.name} value={a.name}>
+                                {a.name}
+                            </MenuItem>
+                        ))}
                     </TextField>
                     <TextField
-                        select size="small" label="Type" value={filter.type}
+                        select
+                        size="small"
+                        label="Type"
+                        value={filter.type}
                         onChange={(e) => setFilter({ ...filter, type: e.target.value })}
-                        sx={{ minWidth: 180, "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        sx={{
+                            minWidth: 180,
+                            "& .MuiInputBase-root": { color: "#fff" },
+                            "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                        }}
                     >
                         {(() => {
                             const set = new Set(currentTypes);
-                            return Array.from(set).map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>);
+                            return Array.from(set).map((t) => (
+                                <MenuItem key={t} value={t}>
+                                    {t}
+                                </MenuItem>
+                            ));
                         })()}
                     </TextField>
                 </Stack>
@@ -876,7 +1154,10 @@ export default function Expenses() {
 
             {/* Ledger Table */}
             <Paper elevation={0} sx={{ ...softCard }}>
-                <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>
+                <Typography
+                    variant="h6"
+                    sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}
+                >
                     Expenses
                 </Typography>
 
@@ -918,7 +1199,9 @@ export default function Expenses() {
                                         const paid = !!r.ExpensePaymentDate;
                                         return (
                                             <TableRow key={`${r.ExpenseID || idx}-${r.ApartmentName}`} hover>
-                                                <TableCell>{dayjs(r.ExpenseDate).format("DD MMM YYYY")}</TableCell>
+                                                <TableCell>
+                                                    {dayjs(r.ExpenseDate).format("DD MMM YYYY")}
+                                                </TableCell>
                                                 <TableCell>{r.ApartmentName}</TableCell>
                                                 <TableCell>{r.ExpenseType}</TableCell>
                                                 <TableCell>{r.Description || "—"}</TableCell>
@@ -928,13 +1211,21 @@ export default function Expenses() {
                                                         <Chip
                                                             size="small"
                                                             label={dayjs(r.ExpensePaymentDate).format("YYYY-MM-DD")}
-                                                            sx={{ bgcolor: "rgba(110,231,183,.18)", color: "#fff", border: "1px solid rgba(255,255,255,.18)" }}
+                                                            sx={{
+                                                                bgcolor: "rgba(110,231,183,.18)",
+                                                                color: "#fff",
+                                                                border: "1px solid rgba(255,255,255,.18)",
+                                                            }}
                                                         />
                                                     ) : (
                                                         <Chip
                                                             size="small"
                                                             label="Unpaid"
-                                                            sx={{ bgcolor: "rgba(251,113,133,.18)", color: "#fff", border: "1px solid rgba(255,255,255,.18)" }}
+                                                            sx={{
+                                                                bgcolor: "rgba(251,113,133,.18)",
+                                                                color: "#fff",
+                                                                border: "1px solid rgba(255,255,255,.18)",
+                                                            }}
                                                         />
                                                     )}
                                                 </TableCell>
@@ -942,10 +1233,16 @@ export default function Expenses() {
                                                 <TableCell>{r.PaymentMethod || "—"}</TableCell>
                                                 <TableCell>
                                                     {r.PaymentRef ? (
-                                                        <Link component="button" sx={{ color: "#fff" }} onClick={() => navigator.clipboard.writeText(r.PaymentRef)}>
+                                                        <Link
+                                                            component="button"
+                                                            sx={{ color: "#fff" }}
+                                                            onClick={() => navigator.clipboard.writeText(r.PaymentRef)}
+                                                        >
                                                             {r.PaymentRef}
                                                         </Link>
-                                                    ) : "—"}
+                                                    ) : (
+                                                        "—"
+                                                    )}
                                                 </TableCell>
                                             </TableRow>
                                         );
@@ -959,7 +1256,10 @@ export default function Expenses() {
                             page={page}
                             onPageChange={(_, newPage) => setPage(newPage)}
                             rowsPerPage={rowsPerPage}
-                            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+                            onRowsPerPageChange={(e) => {
+                                setRowsPerPage(parseInt(e.target.value, 10));
+                                setPage(0);
+                            }}
                             rowsPerPageOptions={[10, 25, 50, 100]}
                         />
                     </>
@@ -970,7 +1270,7 @@ export default function Expenses() {
             <AddExpenseDialog
                 open={addOpen}
                 onClose={() => setAddOpen(false)}
-                apartments={apartments.filter(a => a.id || a.name === "All")}
+                apartments={apartments.filter((a) => a.id || a.name === "All")}
                 api={api}
                 recentTypes={recentTypes}
                 onSaved={handleSavedExpense}
