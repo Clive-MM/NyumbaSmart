@@ -1314,59 +1314,56 @@ def transfer_tenant_by_id(id):
 @jwt_required()
 def get_all_tenants():
     user_id = get_jwt_identity()
+    page = max(int(request.args.get('page', 1)), 1)
+    limit = min(max(int(request.args.get('limit', 20)), 1), 100)
+    qstr = (request.args.get('query') or '').strip()
+    apartment_filter = request.args.get('apartment_id', type=int)
+    status_filter = (request.args.get('status') or '').strip()
 
-    # Optional filters
-    apartment_filter = request.args.get('apartment_id')
-    # 'Active', 'Inactive', or None for all
-    status_filter = request.args.get('status')
-    sort_by = request.args.get('sort', 'Apartment')
-
-    # Step 1: Get apartments owned by this landlord
-    apartments = Apartment.query.filter_by(UserID=user_id).all()
-    apartment_ids = [apt.ApartmentID for apt in apartments]
-
-    # Step 2: Get rental units in those apartments (optionally filter by apartment_id)
-    units_query = RentalUnit.query.filter(
+    # landlord apartments -> units
+    apartment_ids = [
+        a.ApartmentID for a in Apartment.query.filter_by(UserID=user_id).all()]
+    units_q = RentalUnit.query.filter(
         RentalUnit.ApartmentID.in_(apartment_ids))
     if apartment_filter:
-        units_query = units_query.filter_by(ApartmentID=int(apartment_filter))
-    units = units_query.all()
-    unit_dict = {unit.UnitID: unit for unit in units}
+        units_q = units_q.filter_by(ApartmentID=apartment_filter)
+    units = units_q.all()
+    unit_ids = [u.UnitID for u in units]
+    unit_by_id = {u.UnitID: u for u in units}
 
-    # Step 3: Get all tenants in those units (optionally filter by status)
-    tenants_query = Tenant.query.filter(
-        Tenant.RentalUnitID.in_(unit_dict.keys()))
+    tq = Tenant.query.filter(Tenant.RentalUnitID.in_(unit_ids))
     if status_filter:
-        tenants_query = tenants_query.filter_by(Status=status_filter)
-    tenants = tenants_query.all()
+        tq = tq.filter(Tenant.Status == status_filter)
+    if qstr:
+        like = f"%{qstr}%"
+        tq = tq.filter(
+            (Tenant.FullName.ilike(like)) |
+            (Tenant.Phone.ilike(like)) |
+            (Tenant.Email.ilike(like)) |
+            (Tenant.IDNumber.ilike(like))
+        )
 
-    # Step 4: Build response list
-    tenant_list = []
-    for t in tenants:
-        unit = unit_dict.get(t.RentalUnitID)
-        apartment = Apartment.query.get(unit.ApartmentID) if unit else None
+    total = tq.count()
+    items = (tq.order_by(Tenant.CreatedAt.desc())
+               .offset((page-1)*limit)
+               .limit(limit)
+               .all())
 
-        tenant_list.append({
-            "TenantID": t.TenantID,
-            "FullName": t.FullName,
-            "Email": t.Email,
-            "Phone": t.Phone,
-            "IDNumber": t.IDNumber,
-            "RentalUnit": unit.Label if unit else "N/A",
-            "Apartment": apartment.ApartmentName if apartment else "N/A",
-            "MoveInDate": t.MoveInDate.strftime('%Y-%m-%d') if t.MoveInDate else None,
-            "MoveOutDate": t.MoveOutDate.strftime('%Y-%m-%d') if t.Status == "Inactive" and t.MoveOutDate else None,
-            "Status": t.Status
+    out = []
+    for t in items:
+        u = unit_by_id.get(t.RentalUnitID)
+        a = Apartment.query.get(u.ApartmentID) if u else None
+        out.append({
+            "TenantID": t.TenantID, "FullName": t.FullName, "Phone": t.Phone,
+            "Email": t.Email, "IDNumber": t.IDNumber, "Status": t.Status,
+            "Apartment": a.ApartmentName if a else "N/A",
+            "Unit": u.Label if u else "N/A",
+            "MoveInDate": t.MoveInDate.strftime("%Y-%m-%d") if t.MoveInDate else None,
+            "MoveOutDate": t.MoveOutDate.strftime("%Y-%m-%d") if t.MoveOutDate else None,
         })
 
-    # Step 5: Sort by apartment name
-    if sort_by.lower() == "apartment":
-        tenant_list.sort(key=lambda x: x['Apartment'])
-
     return jsonify({
-        "total_tenants": len(tenant_list),
-        "filtered_status": status_filter or "All",
-        "tenants": tenant_list
+        "page": page, "limit": limit, "total": total, "items": out
     }), 200
 
 
@@ -2902,3 +2899,322 @@ def create_rating():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": "Failed to save rating.", "details": str(e)}), 500
+# Get single tenant + computed summary
+
+
+@routes.route('/tenants/<int:tenant_id>', methods=['GET'])
+@jwt_required()
+def get_tenant(tenant_id):
+    user_id = get_jwt_identity()
+    t = Tenant.query.get(tenant_id)
+    if not t:
+        return jsonify({"message": "Tenant not found"}), 404
+
+    unit = RentalUnit.query.get(t.RentalUnitID)
+    apt = Apartment.query.get(unit.ApartmentID) if unit else None
+    if not apt or apt.UserID != user_id:
+        return jsonify({"message": "Unauthorized"}), 403
+
+    # last payment
+    last_pmt = (RentPayment.query
+                .filter_by(TenantID=t.TenantID)
+                .order_by(RentPayment.PaymentDate.desc())
+                .first())
+
+    # current month bill (or latest)
+    last_bill = (TenantBill.query
+                 .filter_by(TenantID=t.TenantID)
+                 .order_by(TenantBill.IssuedDate.desc())
+                 .first())
+
+    return jsonify({
+        "TenantID": t.TenantID,
+        "FullName": t.FullName, "Phone": t.Phone, "Email": t.Email, "IDNumber": t.IDNumber,
+        "Status": t.Status, "MoveInDate": t.MoveInDate.strftime("%Y-%m-%d") if t.MoveInDate else None,
+        "Apartment": apt.ApartmentName if apt else "N/A",
+        "Unit": unit.Label if unit else "N/A",
+        "MonthlyRent": unit.MonthlyRent if unit else None,
+        "LastPayment": {
+            "AmountPaid": last_pmt.AmountPaid if last_pmt else 0.0,
+            "Date": last_pmt.PaymentDate.strftime("%Y-%m-%d %H:%M:%S") if last_pmt else None
+        },
+        "LatestBill": {
+            "BillingMonth": last_bill.BillingMonth if last_bill else None,
+            "TotalAmountDue": last_bill.TotalAmountDue if last_bill else 0.0,
+            "BillStatus": last_bill.BillStatus if last_bill else None,
+            "DueDate": last_bill.DueDate.strftime("%Y-%m-%d") if last_bill and last_bill.DueDate else None
+        }
+    }), 200
+# update the tenant's details partially
+
+
+@routes.route('/tenants/<int:tenant_id>', methods=['PATCH'])
+@jwt_required()
+def update_tenant(tenant_id):
+    user_id = get_jwt_identity()
+    t = Tenant.query.get(tenant_id)
+    if not t:
+        return jsonify({"message": "Tenant not found"}), 404
+    unit = RentalUnit.query.get(t.RentalUnitID) if t.RentalUnitID else None
+    apt = Apartment.query.get(unit.ApartmentID) if unit else None
+    if unit and (not apt or apt.UserID != user_id):
+        return jsonify({"message": "Unauthorized"}), 403
+
+    data = request.get_json() or {}
+    for fld in ["FullName", "Phone", "Email", "IDNumber", "Status", "MoveInDate", "MoveOutDate"]:
+        if fld in data and data[fld] is not None:
+            if fld in ["MoveInDate", "MoveOutDate"]:
+                try:
+                    setattr(t, fld, datetime.strptime(
+                        data[fld], "%Y-%m-%d").date())
+                except ValueError:
+                    return jsonify({"message": f"{fld} must be YYYY-MM-DD"}), 400
+            else:
+                setattr(t, fld, data[fld])
+    db.session.commit()
+    return jsonify({"message": "✅ Tenant updated"}), 200
+
+
+# Per-tenant statement (bills + payments)
+@routes.route('/tenants/<int:tenant_id>/statement', methods=['GET'])
+@jwt_required()
+def tenant_statement(tenant_id):
+    user_id = get_jwt_identity()
+    t = Tenant.query.get(tenant_id)
+    if not t:
+        return jsonify({"message": "Tenant not found"}), 404
+    u = RentalUnit.query.get(t.RentalUnitID)
+    a = Apartment.query.get(u.ApartmentID) if u else None
+    if not a or a.UserID != user_id:
+        return jsonify({"message": "Unauthorized"}), 403
+
+    # optional date filters
+    start = request.args.get("from")
+    end = request.args.get("to")
+
+    def in_range(dt):
+        if start and dt.date() < datetime.strptime(start, "%Y-%m-%d").date():
+            return False
+        if end and dt.date() > datetime.strptime(end, "%Y-%m-%d").date():
+            return False
+        return True
+
+    bills = []
+    for b in TenantBill.query.filter_by(TenantID=tenant_id).order_by(TenantBill.IssuedDate.asc()).all():
+        if in_range(b.IssuedDate):
+            bills.append({
+                "Issued": b.IssuedDate.strftime("%Y-%m-%d"),
+                "BillingMonth": b.BillingMonth,
+                "TotalAmountDue": b.TotalAmountDue,
+                "Status": b.BillStatus
+            })
+
+    pays = []
+    for p in RentPayment.query.filter_by(TenantID=tenant_id).order_by(RentPayment.PaymentDate.asc()).all():
+        if in_range(p.PaymentDate):
+            pays.append({
+                "Date": p.PaymentDate.strftime("%Y-%m-%d %H:%M:%S"),
+                "BillingMonth": p.BillingMonth,
+                "AmountPaid": p.AmountPaid,
+                "Method": p.PaidViaMobile,
+                "BalanceAfter": p.Balance
+            })
+
+    return jsonify({
+        "Tenant": {"TenantID": t.TenantID, "FullName": t.FullName},
+        "Apartment": a.ApartmentName if a else None,
+        "Unit": u.Label if u else None,
+        "Bills": bills, "Payments": pays
+    }), 200
+
+# Reminders (SMS/Email logging)
+
+
+@routes.route('/tenants/<int:tenant_id>/remind', methods=['POST'])
+@jwt_required()
+def remind_tenant(tenant_id):
+    user_id = get_jwt_identity()
+    data = request.get_json() or {}
+    channel = (data.get("channel") or "sms").lower()  # sms|email
+    template = (data.get("template") or "due")        # due|late|custom
+    custom = data.get("message")
+
+    t = Tenant.query.get(tenant_id)
+    if not t:
+        return jsonify({"message": "Tenant not found"}), 404
+    u = RentalUnit.query.get(t.RentalUnitID)
+    a = Apartment.query.get(u.ApartmentID) if u else None
+    if not a or a.UserID != user_id:
+        return jsonify({"message": "Unauthorized"}), 403
+
+    # build message
+    latest_bill = (TenantBill.query.filter_by(TenantID=tenant_id)
+                   .order_by(TenantBill.IssuedDate.desc()).first())
+    msg = custom or f"Hello {t.FullName}, your rent for {latest_bill.BillingMonth if latest_bill else 'this month'} is due. Kindly clear your balance."
+
+    if channel == "sms" and t.Phone:
+        try:
+            send_sms(t.Phone, msg)  # your util
+            log = SMSUsageLog(LandlordID=user_id, TenantID=tenant_id,
+                              PhoneNumber=t.Phone, Message=msg, CostPerSMS=1.0)
+            db.session.add(log)
+            db.session.commit()
+        except Exception as e:
+            return jsonify({"message": "Failed to send SMS", "error": str(e)}), 500
+    else:
+        # (optional) email integration if you want
+        pass
+
+    return jsonify({"message": "✅ Reminder sent"}), 200
+
+# # Vacant units helper for onboarding
+
+
+# @routes.route('/units/vacant', methods=['GET'])
+# @jwt_required()
+# def list_vacant_units():
+#     user_id = get_jwt_identity()
+#     apt_id = request.args.get('apartment_id', type=int)
+#     q = (RentalUnit.query
+#          .join(Apartment, RentalUnit.ApartmentID == Apartment.ApartmentID)
+#          .filter(Apartment.UserID == user_id))
+#     if apt_id:
+#         q = q.filter(RentalUnit.ApartmentID == apt_id)
+
+#     # use status name if you adopt name-based check
+#     vacant_id = get_status_id("Vacant")
+#     units = q.filter(RentalUnit.StatusID == vacant_id).order_by(
+#         RentalUnit.ApartmentID.asc()).all()
+
+#     return jsonify([{
+#         "UnitID": u.UnitID, "Label": u.Label, "ApartmentID": u.ApartmentID,
+#         "Rent": u.MonthlyRent
+#     } for u in units]), 200
+
+# Alerts for the dashboard toolbar
+
+
+@routes.route('/tenants/alerts', methods=['GET'])
+@jwt_required()
+def tenant_alerts():
+    user_id = get_jwt_identity()
+    # landlord units
+    apartment_ids = [
+        a.ApartmentID for a in Apartment.query.filter_by(UserID=user_id).all()]
+    unit_ids = [u.UnitID for u in RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids)).all()]
+
+    # due within next 7 days
+    now = datetime.utcnow()
+    # simplistic: end of month or use +7d
+    future = datetime(now.year, now.month, 28)
+    due_soon = TenantBill.query.filter(
+        TenantBill.RentalUnitID.in_(unit_ids),
+        TenantBill.DueDate <= future,
+        TenantBill.BillStatus.in_(["Unpaid", "Partially Paid"])
+    ).count()
+
+    # vacating soon
+    vacating_soon = VacateNotice.query.filter(
+        VacateNotice.RentalUnitID.in_(unit_ids),
+        VacateNotice.Status == 'Pending',
+        VacateNotice.ExpectedVacateDate >= now.date()
+    ).count()
+
+    # unmatched payments would be handled if you add that concept; placeholder 0
+    unmatched = 0
+
+    return jsonify({
+        "due_soon": due_soon,
+        "vacating_soon": vacating_soon,
+        "unmatched_payments": unmatched
+    }), 200
+
+# Edit tenant's profile
+# # Edit / update a tenant's details (name, phone, email, ID, move-in/out, status)
+
+
+# @routes.route('/edittenantsprofile/<int:tenant_id>', methods=['PUT', 'PATCH'])
+# @jwt_required()
+# def update_tenant(tenant_id):
+#     user_id = get_jwt_identity()
+#     data = request.get_json() or {}
+
+#     tenant = Tenant.query.get(tenant_id)
+#     if not tenant:
+#         return jsonify({"message": "Tenant not found."}), 404
+
+#     # Verify the landlord owns the apartment for this tenant's unit
+#     unit = RentalUnit.query.get(
+#         tenant.RentalUnitID) if tenant.RentalUnitID else None
+#     apartment = Apartment.query.get(unit.ApartmentID) if unit else None
+#     if not apartment or apartment.UserID != user_id:
+#         return jsonify({"message": "Unauthorized: You do not own the apartment for this tenant."}), 403
+
+#     # Allowed fields
+#     full_name = data.get("FullName")
+#     phone = data.get("Phone")
+#     email = data.get("Email")
+#     id_number = data.get("IDNumber")
+#     move_in = data.get("MoveInDate")
+#     move_out = data.get("MoveOutDate")
+#     status = data.get("Status")  # "Active" | "Inactive"
+
+#     # Optional validations
+#     if phone is not None:
+#         import re
+#         if phone and not re.fullmatch(r'2547\d{8}', phone):
+#             return jsonify({"message": "Invalid phone number. It must start with '2547' and be 12 digits long."}), 400
+
+#     from datetime import datetime
+
+#     def parse_date(val):
+#         if not val:
+#             return None
+#         try:
+#             return datetime.strptime(val, '%Y-%m-%d').date()
+#         except ValueError:
+#             return None
+
+#     # Apply updates only if provided
+#     if full_name is not None:
+#         tenant.FullName = full_name.strip()
+#     if phone is not None:
+#         tenant.Phone = phone.strip() if phone else None
+#     if email is not None:
+#         tenant.Email = email.strip() if email else None
+#     if id_number is not None:
+#         tenant.IDNumber = id_number.strip() if id_number else None
+
+#     if move_in is not None:
+#         dt = parse_date(move_in)
+#         if move_in and not dt:
+#             return jsonify({"message": "Invalid MoveInDate. Use YYYY-MM-DD."}), 400
+#         tenant.MoveInDate = dt
+
+#     if move_out is not None:
+#         dt = parse_date(move_out)
+#         if move_out and not dt:
+#             return jsonify({"message": "Invalid MoveOutDate. Use YYYY-MM-DD."}), 400
+#         tenant.MoveOutDate = dt
+
+#     if status is not None:
+#         if status not in ("Active", "Inactive"):
+#             return jsonify({"message": "Invalid Status. Use 'Active' or 'Inactive'."}), 400
+#         tenant.Status = status
+
+#     db.session.commit()
+
+#     return jsonify({
+#         "message": "✅ Tenant updated successfully.",
+#         "tenant": {
+#             "TenantID": tenant.TenantID,
+#             "FullName": tenant.FullName,
+#             "Phone": tenant.Phone,
+#             "Email": tenant.Email,
+#             "IDNumber": tenant.IDNumber,
+#             "Status": tenant.Status,
+#             "MoveInDate": tenant.MoveInDate.strftime('%Y-%m-%d') if tenant.MoveInDate else None,
+#             "MoveOutDate": tenant.MoveOutDate.strftime('%Y-%m-%d') if tenant.MoveOutDate else None,
+#         }
+#     }), 200
