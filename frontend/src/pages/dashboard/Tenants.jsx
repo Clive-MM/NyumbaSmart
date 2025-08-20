@@ -1,5 +1,5 @@
-// src/pages/Tenants.jsx
-import React, { useEffect, useMemo, useState } from "react";
+// src/pages/dashboard/Tenants.jsx
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import axios from "axios";
 import {
     Box, Typography, Paper, Button, Table, TableHead, TableRow, TableCell,
@@ -105,46 +105,22 @@ const StatusChip = ({ value }) => {
     );
 };
 
-/* ---------- Tiny sparkline ---------- */
-const Sparkline = ({ data = [9, 7, 6, 6, 5, 6, 7, 8, 9], w = 200, h = 44 }) => {
-    const max = Math.max(...data);
-    const min = Math.min(...data);
-    const points = data.map((d, i) => {
-        const x = (i / (data.length - 1)) * (w - 4) + 2;
-        const y = h - 2 - ((d - min) / (max - min || 1)) * (h - 4);
-        return `${x},${y}`;
-    }).join(" ");
-    return (
-        <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-            <polyline points={points} fill="none" stroke="url(#g)" strokeWidth="2.2" />
-            <defs>
-                <linearGradient id="g" x1="0" x2="1" y1="0" y2="0">
-                    <stop offset="0%" stopColor={BRAND.start} />
-                    <stop offset="100%" stopColor={BRAND.end} />
-                </linearGradient>
-            </defs>
-        </svg>
-    );
-};
-
+// currency helper
 const currency = (n) => {
     if (n === null || n === undefined) return "KES 0";
     const val = typeof n === "number" ? n : parseFloat(n || 0);
     return `KES ${isNaN(val) ? 0 : val.toLocaleString()}`;
 };
 
-/* ---------- Field styling (prevents label cropping) ---------- */
-const fieldSx = {
+// TextField label visibility fix (no cropping, always visible)
+const labelFixSx = {
     "& .MuiInputLabel-root": {
-        whiteSpace: "normal",        // allow wrapping (no ellipsis)
-        overflow: "visible",         // don't clip long labels
+        whiteSpace: "normal",
+        lineHeight: 1.2,
     },
-    "& .MuiInputLabel-root.MuiInputLabel-shrink": {
-        transformOrigin: "top left", // stable, no jump
+    "& .MuiFormLabel-root": {
+        whiteSpace: "normal",
     },
-    "& .MuiOutlinedInput-root": {
-        alignItems: "center",
-    }
 };
 
 /* ======================== Component ======================== */
@@ -183,6 +159,15 @@ const Tenants = () => {
     const [viewFor, setViewFor] = useState(null);
     const [editFor, setEditFor] = useState(null);
 
+    /* Dynamic confirm flags (appear after first click) */
+    const [showConfirmAdd, setShowConfirmAdd] = useState(false);
+    const [showConfirmVacate, setShowConfirmVacate] = useState(false);
+    const [showConfirmTransfer, setShowConfirmTransfer] = useState(false);
+    const [showConfirmNotice, setShowConfirmNotice] = useState(false);
+    const [showConfirmEdit, setShowConfirmEdit] = useState(false);
+    const [showConfirmBulkVacate, setShowConfirmBulkVacate] = useState(false);
+    const [showConfirmBulkNotice, setShowConfirmBulkNotice] = useState(false);
+
     /* Add tenant form */
     const [addForm, setAddForm] = useState({
         FullName: "", Phone: "", Email: "", IDNumber: "",
@@ -216,52 +201,30 @@ const Tenants = () => {
     /* Bulk forms */
     const [bulkVacateOpen, setBulkVacateOpen] = useState(false);
     const [bulkVacateForm, setBulkVacateForm] = useState({ Reason: "", Notes: "" });
-
     const [bulkNoticeOpen, setBulkNoticeOpen] = useState(false);
     const [bulkNoticeForm, setBulkNoticeForm] = useState({ ExpectedVacateDate: "", InspectionDate: "", Reason: "" });
-
+    const [bulkReminding, setBulkReminding] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
     /* Snackbar */
     const [snack, setSnack] = useState({ open: false, msg: "", sev: "success" });
-
-    /* Reusable confirm dialog */
-    const [confirm, setConfirm] = useState({
-        open: false,
-        title: "",
-        message: "",
-        processing: false,
-        onConfirm: null,
-    });
-
-    const askConfirm = (title, message, onConfirm) =>
-        setConfirm({ open: true, title, message, processing: false, onConfirm });
-
-    const runConfirm = async () => {
-        if (!confirm.onConfirm) return setConfirm((c) => ({ ...c, open: false }));
-        try {
-            setConfirm((c) => ({ ...c, processing: true }));
-            await confirm.onConfirm();
-            setConfirm({ open: false, title: "", message: "", processing: false, onConfirm: null });
-        } catch (e) {
-            setConfirm((c) => ({ ...c, processing: false }));
-        }
-    };
 
     const monthLabel = useMemo(() => {
         const d = new Date();
         return d.toLocaleString("en-US", { month: "long", year: "numeric" });
     }, []);
 
-    /* -------- Loaders -------- */
-    const loadApartments = async () => {
+    /* -------- Loaders (useCallback for lint) -------- */
+    const loadApartments = useCallback(async () => {
         try {
             const { data } = await api.get("/myapartments");
             setApartments(data?.Apartments || []);
-        } catch { setApartments([]); }
-    };
+        } catch {
+            setApartments([]);
+        }
+    }, []);
 
-    const loadTenants = async () => {
+    const loadTenants = useCallback(async () => {
         setLoading(true);
         try {
             const { data } = await api.get("/tenants", {
@@ -280,10 +243,12 @@ const Tenants = () => {
             setSelectedIds((prev) => prev.filter(id => pageIds.includes(id)));
         } catch (e) {
             setSnack({ open: true, msg: e?.response?.data?.message || "Failed to load tenants", sev: "error" });
-        } finally { setLoading(false); }
-    };
+        } finally {
+            setLoading(false);
+        }
+    }, [page, limit, query, status, apartmentId]);
 
-    const loadDistribution = async () => {
+    const loadDistribution = useCallback(async () => {
         try {
             const { data } = await api.get("/tenants", { params: { status: "Active", page: 1, limit: 1000000 } });
             const items = data?.items || [];
@@ -297,10 +262,12 @@ const Tenants = () => {
                 .map(([name, count]) => ({ name, count, share: totalActive ? Math.round((count / totalActive) * 100) : 0 }))
                 .sort((a, b) => b.count - a.count);
             setDist({ total: totalActive, items: list });
-        } catch { setDist({ total: 0, items: [] }); }
-    };
+        } catch {
+            setDist({ total: 0, items: [] });
+        }
+    }, []);
 
-    const loadKPIs = async () => {
+    const loadKPIs = useCallback(async () => {
         try {
             const [allRes, activeRes] = await Promise.all([
                 api.get("/tenants", { params: { page: 1, limit: 1000000 } }),
@@ -339,260 +306,229 @@ const Tenants = () => {
                 expected, collected, collectionRate, unpaidUnits
             });
         } catch { }
-    };
+    }, [monthLabel]);
 
-    const fullRefresh = async () => {
+    const fullRefresh = useCallback(async () => {
         setRefreshing(true);
         await Promise.all([loadApartments(), loadTenants(), loadDistribution(), loadKPIs()]);
         setRefreshing(false);
         setSnack({ open: true, msg: "Data refreshed", sev: "success" });
-    };
+    }, [loadApartments, loadTenants, loadDistribution, loadKPIs]);
 
-    useEffect(() => { fullRefresh(); }, []);
-    useEffect(() => { loadTenants(); }, [page, limit, query, status, apartmentId]);
+    useEffect(() => { fullRefresh(); }, [fullRefresh]);
+    useEffect(() => { loadTenants(); }, [loadTenants]);
 
     /* Helpers */
     const fetchUnitsForApartment = async (aptId, setUnits) => {
         if (!aptId) { setUnits([]); return; }
         try {
             const { data } = await api.get(`/apartments/${aptId}/units`);
-            const vacant = (data || []).filter(u => Number(u.StatusID) === 1);
+            const vacant = (data || []).filter(u => Number(u.StatusID) === 1); // 1 = Vacant
             setUnits(vacant);
-        } catch { setUnits([]); }
+        } catch {
+            setUnits([]);
+        }
     };
 
-    /* -------- Actions (now all confirm via mini modal) -------- */
-    const confirmAndAddTenant = () => {
+    /* -------- Single actions with dynamic confirm -------- */
+    const saveTenant = async () => {
         const { FullName, Phone, IDNumber, RentalUnitID, MoveInDate } = addForm;
+        if (!showConfirmAdd) { setShowConfirmAdd(true); return; }
         if (!FullName || !Phone || !IDNumber || !RentalUnitID || !MoveInDate) {
             setSnack({ open: true, msg: "Full name, phone, ID, unit & move-in date are required.", sev: "warning" });
             return;
         }
-        askConfirm(
-            "Add Tenant",
-            "Confirm you want to add this tenant to the selected unit.",
-            async () => {
-                setSaving(true);
-                try {
-                    await api.post("/tenants/add", {
-                        FullName: addForm.FullName.trim(),
-                        Phone: addForm.Phone.trim(),
-                        Email: addForm.Email?.trim() || null,
-                        IDNumber: addForm.IDNumber.trim(),
-                        RentalUnitID: Number(addForm.RentalUnitID),
-                        MoveInDate: addForm.MoveInDate
-                    });
-                    setSnack({ open: true, msg: "Tenant added ✅", sev: "success" });
-                    setAddOpen(false);
-                    setAddForm({ FullName: "", Phone: "", Email: "", IDNumber: "", ApartmentID: "", RentalUnitID: "", MoveInDate: "" });
-                    setUnitsForApartment([]);
-                    await fullRefresh();
-                } catch (e) {
-                    setSnack({ open: true, msg: e?.response?.data?.message || "Failed to add tenant", sev: "error" });
-                    throw e;
-                } finally { setSaving(false); }
-            }
-        );
+        setSaving(true);
+        try {
+            await api.post("/tenants/add", {
+                FullName: addForm.FullName.trim(),
+                Phone: addForm.Phone.trim(),
+                Email: addForm.Email?.trim() || null,
+                IDNumber: addForm.IDNumber.trim(),
+                RentalUnitID: Number(addForm.RentalUnitID),
+                MoveInDate: addForm.MoveInDate
+            });
+            setSnack({ open: true, msg: "Tenant added ✅", sev: "success" });
+            setAddOpen(false);
+            setAddForm({ FullName: "", Phone: "", Email: "", IDNumber: "", ApartmentID: "", RentalUnitID: "", MoveInDate: "" });
+            setUnitsForApartment([]);
+            setShowConfirmAdd(false);
+            await fullRefresh();
+        } catch (e) {
+            setSnack({ open: true, msg: e?.response?.data?.message || "Failed to add tenant", sev: "error" });
+        } finally { setSaving(false); }
     };
 
-    const confirmAndVacate = () => {
+    const vacateTenant = async () => {
+        if (!showConfirmVacate) { setShowConfirmVacate(true); return; }
         if (!vacateFor) return;
-        askConfirm(
-            "Confirm Vacate",
-            "Are you sure you want to vacate this tenant? This will mark their unit as vacant.",
-            async () => {
-                setVacating(true);
-                try {
-                    await api.put(`/tenants/vacate/${vacateFor.TenantID}`, {
-                        Reason: vacate.Reason || undefined, Notes: vacate.Notes || undefined
-                    });
-                    setSnack({ open: true, msg: "Tenant vacated ✅", sev: "success" });
-                    setVacateFor(null);
-                    setVacate({ Reason: "", Notes: "" });
-                    await fullRefresh();
-                } catch (e) {
-                    setSnack({ open: true, msg: e?.response?.data?.message || "Vacate failed", sev: "error" });
-                    throw e;
-                } finally { setVacating(false); }
-            }
-        );
+        setVacating(true);
+        try {
+            await api.put(`/tenants/vacate/${vacateFor.TenantID}`, {
+                Reason: vacate.Reason || undefined, Notes: vacate.Notes || undefined
+            });
+            setSnack({ open: true, msg: "Tenant vacated ✅", sev: "success" });
+            setVacateFor(null);
+            setVacate({ Reason: "", Notes: "" });
+            setShowConfirmVacate(false);
+            await fullRefresh();
+        } catch (e) {
+            setSnack({ open: true, msg: e?.response?.data?.message || "Vacate failed", sev: "error" });
+        } finally { setVacating(false); }
     };
 
-    const confirmAndTransfer = () => {
-        const { ApartmentID, NewRentalUnitID, MoveInDate, Reason } = transfer;
-        if (!transferFor) return;
+    const submitTransfer = async () => {
+        const { ApartmentID, NewRentalUnitID, MoveInDate } = transfer;
+        if (!showConfirmTransfer) { setShowConfirmTransfer(true); return; }
         if (!ApartmentID || !NewRentalUnitID || !MoveInDate) {
             setSnack({ open: true, msg: "Select apartment, vacant unit and move-in date.", sev: "warning" }); return;
         }
-        askConfirm(
-            "Confirm Transfer",
-            "Confirm you want to transfer this tenant to the new unit.",
-            async () => {
-                setTransferring(true);
-                try {
-                    await api.put(`/tenants/transfer/${transferFor.TenantID}`, {
-                        NewRentalUnitID: Number(NewRentalUnitID),
-                        MoveInDate,
-                        Reason: Reason || "Unit-to-unit transfer"
-                    });
-                    setSnack({ open: true, msg: "Transfer successful ✅", sev: "success" });
-                    setTransferFor(null);
-                    setTransfer({ ApartmentID: "", NewRentalUnitID: "", MoveInDate: "", Reason: "Unit-to-unit transfer" });
-                    setTransferUnits([]);
-                    await fullRefresh();
-                } catch (e) {
-                    setSnack({ open: true, msg: e?.response?.data?.message || "Transfer failed", sev: "error" });
-                    throw e;
-                } finally { setTransferring(false); }
-            }
-        );
+        setTransferring(true);
+        try {
+            await api.put(`/tenants/transfer/${transferFor.TenantID}`, {
+                NewRentalUnitID: Number(transfer.NewRentalUnitID),
+                MoveInDate: transfer.MoveInDate,
+                Reason: transfer.Reason || "Unit-to-unit transfer"
+            });
+            setSnack({ open: true, msg: "Transfer successful ✅", sev: "success" });
+            setTransferFor(null);
+            setTransfer({ ApartmentID: "", NewRentalUnitID: "", MoveInDate: "", Reason: "Unit-to-unit transfer" });
+            setTransferUnits([]);
+            setShowConfirmTransfer(false);
+            await fullRefresh();
+        } catch (e) {
+            setSnack({ open: true, msg: e?.response?.data?.message || "Transfer failed", sev: "error" });
+        } finally { setTransferring(false); }
     };
 
-    const confirmAndEdit = () => {
-        if (!editFor) return;
-        askConfirm(
-            "Save Changes",
-            "Confirm you want to update this tenant’s details.",
-            async () => {
-                setEditing(true);
-                try {
-                    await api.put(`/tenants/${editFor.TenantID}`, {
-                        FullName: editForm.FullName,
-                        Phone: editForm.Phone || null,
-                        Email: editForm.Email || null,
-                        IDNumber: editForm.IDNumber || null,
-                        MoveInDate: editForm.MoveInDate || null,
-                        MoveOutDate: editForm.MoveOutDate || null,
-                        Status: editForm.Status || null
-                    });
-                    setSnack({ open: true, msg: "Tenant updated ✅", sev: "success" });
-                    setEditFor(null);
-                    await fullRefresh();
-                } catch (e) {
-                    setSnack({ open: true, msg: e?.response?.data?.message || "Update failed", sev: "error" });
-                    throw e;
-                } finally { setEditing(false); }
-            }
-        );
-    };
-
-    const confirmAndNotice = () => {
+    const submitNotice = async () => {
+        if (!showConfirmNotice) { setShowConfirmNotice(true); return; }
         if (!noticeFor) return;
         if (!notice.ExpectedVacateDate) {
-            setSnack({ open: true, msg: "Expected vacate date is required.", sev: "warning" });
-            return;
+            setSnack({ open: true, msg: "Expected vacate date is required.", sev: "warning" }); return;
         }
-        askConfirm(
-            "Send Vacate Notice",
-            "Confirm you want to send a vacate notice to this tenant.",
-            async () => {
-                setNoticing(true);
-                try {
-                    await api.post(`/vacate-notice/${noticeFor.TenantID}`, {
-                        ExpectedVacateDate: notice.ExpectedVacateDate,
-                        InspectionDate: notice.InspectionDate || undefined,
-                        Reason: notice.Reason || undefined
-                    });
-                    setSnack({ open: true, msg: "Vacate notice sent ✅", sev: "success" });
-                    setNoticeFor(null);
-                    setNotice({ ExpectedVacateDate: "", InspectionDate: "", Reason: "" });
-                } catch (e) {
-                    setSnack({ open: true, msg: e?.response?.data?.message || "Failed to issue notice", sev: "error" });
-                    throw e;
-                } finally { setNoticing(false); }
-            }
-        );
+        setNoticing(true);
+        try {
+            await api.post(`/vacate-notice/${noticeFor.TenantID}`, {
+                ExpectedVacateDate: notice.ExpectedVacateDate,
+                InspectionDate: notice.InspectionDate || undefined,
+                Reason: notice.Reason || undefined
+            });
+            setSnack({ open: true, msg: "Vacate notice sent ✅", sev: "success" });
+            setNoticeFor(null);
+            setNotice({ ExpectedVacateDate: "", InspectionDate: "", Reason: "" });
+            setShowConfirmNotice(false);
+        } catch (e) {
+            setSnack({ open: true, msg: e?.response?.data?.message || "Failed to issue notice", sev: "error" });
+        } finally { setNoticing(false); }
     };
 
-    const confirmAndBulkVacate = () => {
+    const openEdit = (t) => {
+        setEditFor(t);
+        setEditForm({
+            FullName: t.FullName || "",
+            Phone: t.Phone || "",
+            Email: t.Email || "",
+            IDNumber: t.IDNumber || "",
+            MoveInDate: t.MoveInDate || "",
+            MoveOutDate: t.MoveOutDate || "",
+            Status: t.Status || "Active",
+        });
+        setShowConfirmEdit(false);
+    };
+
+    const submitEdit = async () => {
+        if (!showConfirmEdit) { setShowConfirmEdit(true); return; }
+        if (!editFor) return;
+        setEditing(true);
+        try {
+            await api.put(`/tenants/${editFor.TenantID}`, {
+                FullName: editForm.FullName,
+                Phone: editForm.Phone || null,
+                Email: editForm.Email || null,
+                IDNumber: editForm.IDNumber || null,
+                MoveInDate: editForm.MoveInDate || null,
+                MoveOutDate: editForm.MoveOutDate || null,
+                Status: editForm.Status || null
+            });
+            setSnack({ open: true, msg: "Tenant updated ✅", sev: "success" });
+            setEditFor(null);
+            setShowConfirmEdit(false);
+            await fullRefresh();
+        } catch (e) {
+            setSnack({ open: true, msg: e?.response?.data?.message || "Update failed", sev: "error" });
+        } finally { setEditing(false); }
+    };
+
+    /* -------- Bulk actions -------- */
+    const selectedTenants = tenants.filter(t => selectedIds.includes(t.TenantID));
+    const toggleSelectAll = (checked) => setSelectedIds(checked ? tenants.map(t => t.TenantID) : []);
+    const toggleSelectOne = (id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+
+    const exportSelectedCSV = () => {
+        if (selectedTenants.length === 0) return;
+        const headers = ["TenantID", "FullName", "Email", "IDNumber", "Status", "Apartment", "Unit", "MoveInDate", "MoveOutDate"];
+        const rows = selectedTenants.map(t => headers.map(h => (t[h] ?? "")).join(","));
+        const csv = [headers.join(","), ...rows].join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `tenants_selected_${Date.now()}.csv`; a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const runBulkVacate = async () => {
+        if (!showConfirmBulkVacate) { setShowConfirmBulkVacate(true); return; }
         if (selectedIds.length === 0) return;
-        askConfirm(
-            `Vacate ${selectedIds.length} tenant(s)`,
-            "Are you sure you want to vacate the selected tenants?",
-            async () => {
-                setVacating(true);
-                try {
-                    const selectedTenants = tenants.filter(t => selectedIds.includes(t.TenantID));
-                    const results = await Promise.allSettled(
-                        selectedTenants.map(t =>
-                            api.put(`/tenants/vacate/${t.TenantID}`, {
-                                Reason: bulkVacateForm.Reason || undefined,
-                                Notes: bulkVacateForm.Notes || undefined
-                            })
-                        )
-                    );
-                    const ok = results.filter(r => r.status === "fulfilled").length;
-                    const fail = results.length - ok;
-                    setSnack({ open: true, msg: `Vacated ${ok} tenant(s)${fail ? `, ${fail} failed` : ""}.`, sev: fail ? "warning" : "success" });
-                    setBulkVacateOpen(false);
-                    setSelectedIds([]);
-                    setBulkVacateForm({ Reason: "", Notes: "" });
-                    await fullRefresh();
-                } catch (e) {
-                    setSnack({ open: true, msg: "Bulk vacate failed.", sev: "error" });
-                    throw e;
-                } finally { setVacating(false); }
-            }
-        );
+        setVacating(true);
+        try {
+            const results = await Promise.allSettled(
+                selectedTenants.map(t =>
+                    api.put(`/tenants/vacate/${t.TenantID}`, {
+                        Reason: bulkVacateForm.Reason || undefined,
+                        Notes: bulkVacateForm.Notes || undefined
+                    })
+                )
+            );
+            const ok = results.filter(r => r.status === "fulfilled").length;
+            const fail = results.length - ok;
+            setSnack({ open: true, msg: `Vacated ${ok} tenant(s)${fail ? `, ${fail} failed` : ""}.`, sev: fail ? "warning" : "success" });
+            setBulkVacateOpen(false);
+            setSelectedIds([]);
+            setBulkVacateForm({ Reason: "", Notes: "" });
+            setShowConfirmBulkVacate(false);
+            await fullRefresh();
+        } catch {
+            setSnack({ open: true, msg: "Bulk vacate failed.", sev: "error" });
+        } finally { setVacating(false); }
     };
 
-    const confirmAndBulkNotice = () => {
+    const runBulkIssueNotices = async () => {
+        if (!showConfirmBulkNotice) { setShowConfirmBulkNotice(true); return; }
         if (selectedIds.length === 0 || !bulkNoticeForm.ExpectedVacateDate) {
-            setSnack({ open: true, msg: "Set an expected vacate date.", sev: "warning" });
-            return;
+            setSnack({ open: true, msg: "Set an expected vacate date.", sev: "warning" }); return;
         }
-        askConfirm(
-            `Send ${selectedIds.length} vacate notice(s)`,
-            "Confirm you want to send vacate notices to selected tenants.",
-            async () => {
-                setNoticing(true);
-                try {
-                    const selectedTenants = tenants.filter(t => selectedIds.includes(t.TenantID));
-                    const results = await Promise.allSettled(
-                        selectedTenants.map(t =>
-                            api.post(`/vacate-notice/${t.TenantID}`, {
-                                ExpectedVacateDate: bulkNoticeForm.ExpectedVacateDate,
-                                InspectionDate: bulkNoticeForm.InspectionDate || undefined,
-                                Reason: bulkNoticeForm.Reason || undefined
-                            })
-                        )
-                    );
-                    const ok = results.filter(r => r.status === "fulfilled").length;
-                    const fail = results.length - ok;
-                    setSnack({ open: true, msg: `Sent ${ok} notice(s)${fail ? `, ${fail} failed` : ""}.`, sev: fail ? "warning" : "success" });
-                    setBulkNoticeOpen(false);
-                    setSelectedIds([]);
-                    setBulkNoticeForm({ ExpectedVacateDate: "", InspectionDate: "", Reason: "" });
-                } catch (e) {
-                    setSnack({ open: true, msg: "Bulk notice failed.", sev: "error" });
-                    throw e;
-                } finally { setNoticing(false); }
-            }
-        );
-    };
-
-    const confirmAndBulkRemind = () => {
-        if (selectedIds.length === 0) return;
-        askConfirm(
-            `Send reminders to ${selectedIds.length} tenant(s)`,
-            "We’ll send due reminders via SMS.",
-            async () => {
-                try {
-                    const selectedTenants = tenants.filter(t => selectedIds.includes(t.TenantID));
-                    const results = await Promise.allSettled(
-                        selectedTenants.map(t =>
-                            api.post(`/tenants/${t.TenantID}/remind`, { channel: "sms", template: "due" })
-                        )
-                    );
-                    const ok = results.filter(r => r.status === "fulfilled").length;
-                    const fail = results.length - ok;
-                    setSnack({ open: true, msg: `Reminders: ${ok} sent${fail ? `, ${fail} failed` : ""}.`, sev: fail ? "warning" : "success" });
-                } catch (e) {
-                    setSnack({ open: true, msg: "Bulk remind failed.", sev: "error" });
-                    throw e;
-                }
-            }
-        );
+        setNoticing(true);
+        try {
+            const results = await Promise.allSettled(
+                selectedTenants.map(t =>
+                    api.post(`/vacate-notice/${t.TenantID}`, {
+                        ExpectedVacateDate: bulkNoticeForm.ExpectedVacateDate,
+                        InspectionDate: bulkNoticeForm.InspectionDate || undefined,
+                        Reason: bulkNoticeForm.Reason || undefined
+                    })
+                )
+            );
+            const ok = results.filter(r => r.status === "fulfilled").length;
+            const fail = results.length - ok;
+            setSnack({ open: true, msg: `Sent ${ok} notice(s)${fail ? `, ${fail} failed` : ""}.`, sev: fail ? "warning" : "success" });
+            setBulkNoticeOpen(false);
+            setSelectedIds([]);
+            setBulkNoticeForm({ ExpectedVacateDate: "", InspectionDate: "", Reason: "" });
+            setShowConfirmBulkNotice(false);
+        } catch {
+            setSnack({ open: true, msg: "Bulk notice failed.", sev: "error" });
+        } finally { setNoticing(false); }
     };
 
     /* -------- KPI Model -------- */
@@ -660,9 +596,7 @@ const Tenants = () => {
                     Tenants
                 </Typography>
                 <Stack direction="row" spacing={1.5}>
-                    <BrandButton startIcon={<AddIcon />} onClick={() => { setAddOpen(true); }}>
-                        Add Tenant
-                    </BrandButton>
+                    <BrandButton startIcon={<AddIcon />} onClick={() => { setAddOpen(true); setShowConfirmAdd(false); }}>Add Tenant</BrandButton>
                     <BrandButton startIcon={<RefreshRounded />} onClick={fullRefresh} disabled={refreshing}>
                         {refreshing ? "Refreshing…" : "Refresh"}
                     </BrandButton>
@@ -743,26 +677,38 @@ const Tenants = () => {
                         placeholder="Search tenant, email, ID…"
                         value={query}
                         onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-                        InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ opacity: 0.7 }} /></InputAdornment>) }}
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon sx={{ opacity: 0.7 }} />
+                                </InputAdornment>
+                            ),
+                        }}
                         sx={{
-                            flex: 1,
+                            flex: 1, ...labelFixSx,
                             "& .MuiInputBase-root": { color: "#fff", background: "#0e0a17", borderRadius: 1.5 },
                             "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
                             "& .MuiInputBase-input": { fontFamily: FONTS.subhead }
                         }}
+                        InputLabelProps={{ shrink: true }}
+                        label="Search"
                     />
                     <TextField
                         size="small" select label="Apartment"
                         value={apartmentId} onChange={(e) => { setApartmentId(e.target.value); setPage(1); }}
-                        sx={{ minWidth: 220, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" }, "& .MuiInputBase-root": { color: "#fff" } }}
+                        sx={{ minWidth: 220, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" }, "& .MuiInputBase-root": { color: "#fff" }, ...labelFixSx }}
+                        InputLabelProps={{ shrink: true }}
                     >
                         <MenuItem value="">All</MenuItem>
-                        {apartments.map(a => <MenuItem key={a.ApartmentID} value={a.ApartmentID}>{a.ApartmentName}</MenuItem>)}
+                        {apartments.map(a => (
+                            <MenuItem key={a.ApartmentID} value={a.ApartmentID}>{a.ApartmentName}</MenuItem>
+                        ))}
                     </TextField>
                     <TextField
                         size="small" select label="Status"
                         value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}
-                        sx={{ minWidth: 180, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" }, "& .MuiInputBase-root": { color: "#fff" } }}
+                        sx={{ minWidth: 180, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" }, "& .MuiInputBase-root": { color: "#fff" }, ...labelFixSx }}
+                        InputLabelProps={{ shrink: true }}
                     >
                         <MenuItem value="">All</MenuItem>
                         <MenuItem value="Active">Active</MenuItem>
@@ -784,34 +730,39 @@ const Tenants = () => {
                     </Typography>
                     <Tooltip title="Send Due Reminders (SMS)">
                         <span>
-                            <Button size="small" onClick={confirmAndBulkRemind}>
-                                <MarkEmailUnreadRounded sx={{ mr: .75 }} /> Remind
+                            <Button size="small" onClick={async () => {
+                                setBulkReminding(true);
+                                try {
+                                    const results = await Promise.allSettled(
+                                        selectedTenants.map(t =>
+                                            api.post(`/tenants/${t.TenantID}/remind`, { channel: "sms", template: "due" })
+                                        )
+                                    );
+                                    const ok = results.filter(r => r.status === "fulfilled").length;
+                                    const fail = results.length - ok;
+                                    setSnack({ open: true, msg: `Reminders: ${ok} sent${fail ? `, ${fail} failed` : ""}.`, sev: fail ? "warning" : "success" });
+                                } catch {
+                                    setSnack({ open: true, msg: "Bulk remind failed.", sev: "error" });
+                                } finally {
+                                    setBulkReminding(false);
+                                }
+                            }} disabled={bulkReminding}>
+                                <MarkEmailUnreadRounded sx={{ mr: .75 }} /> {bulkReminding ? "Reminding…" : "Remind"}
                             </Button>
                         </span>
                     </Tooltip>
                     <Tooltip title="Issue Vacate Notice">
-                        <Button size="small" onClick={() => setBulkNoticeOpen(true)}>
+                        <Button size="small" onClick={() => { setShowConfirmBulkNotice(false); setBulkNoticeOpen(true); }}>
                             <CampaignRounded sx={{ mr: .75 }} /> Vacate Notice
                         </Button>
                     </Tooltip>
                     <Tooltip title="Vacate Selected Tenants">
-                        <Button size="small" onClick={() => setBulkVacateOpen(true)}>
+                        <Button size="small" onClick={() => { setShowConfirmBulkVacate(false); setBulkVacateOpen(true); }}>
                             <LogoutRounded sx={{ mr: .75 }} /> Vacate
                         </Button>
                     </Tooltip>
                     <Tooltip title="Export CSV">
-                        <Button size="small" onClick={() => {
-                            const headers = ["TenantID", "FullName", "Email", "IDNumber", "Status", "Apartment", "Unit", "MoveInDate", "MoveOutDate"];
-                            const rows = tenants.filter(t => selectedIds.includes(t.TenantID))
-                                .map(t => headers.map(h => (t[h] ?? "")).join(","));
-                            if (rows.length === 0) return;
-                            const csv = [headers.join(","), ...rows].join("\n");
-                            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a"); a.href = url;
-                            a.download = `tenants_selected_${Date.now()}.csv`; a.click();
-                            URL.revokeObjectURL(url);
-                        }}>
+                        <Button size="small" onClick={exportSelectedCSV}>
                             <DownloadRounded sx={{ mr: .75 }} /> Export
                         </Button>
                     </Tooltip>
@@ -834,7 +785,7 @@ const Tenants = () => {
                                     color="primary"
                                     checked={tenants.length > 0 && selectedIds.length === tenants.length}
                                     indeterminate={selectedIds.length > 0 && selectedIds.length < tenants.length}
-                                    onChange={(e) => setSelectedIds(e.target.checked ? tenants.map(t => t.TenantID) : [])}
+                                    onChange={(e) => toggleSelectAll(e.target.checked)}
                                 />
                             </TableCell>
                             {["Name", "Rental Unit", "Apartment", "Status", "Move In", "Move Out", "Actions"].map((h) => (
@@ -863,7 +814,7 @@ const Tenants = () => {
                                     <Checkbox
                                         color="primary"
                                         checked={selectedIds.includes(t.TenantID)}
-                                        onChange={() => setSelectedIds(prev => prev.includes(t.TenantID) ? prev.filter(i => i !== t.TenantID) : [...prev, t.TenantID])}
+                                        onChange={() => toggleSelectOne(t.TenantID)}
                                     />
                                 </TableCell>
                                 <TableCell sx={{ fontWeight: 600 }}>{t.FullName}</TableCell>
@@ -879,22 +830,22 @@ const Tenants = () => {
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Edit Tenant">
-                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => { setEditFor(t); }}>
+                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => openEdit(t)}>
                                             <EditRounded fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Transfer Tenant">
-                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => setTransferFor(t)}>
+                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => { setShowConfirmTransfer(false); setTransferFor(t); }}>
                                             <SwapHorizRounded fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Vacate Tenant">
-                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => setVacateFor(t)}>
+                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => { setShowConfirmVacate(false); setVacateFor(t); }}>
                                             <LogoutRounded fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Issue Vacate Notice">
-                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => setNoticeFor(t)}>
+                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => { setShowConfirmNotice(false); setNoticeFor(t); }}>
                                             <CampaignRounded fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
@@ -921,105 +872,77 @@ const Tenants = () => {
             {/* ---------------- Dialogs ---------------- */}
 
             {/* Add Tenant */}
-            <Dialog
-                open={addOpen}
-                onClose={() => setAddOpen(false)}
-                maxWidth="sm"
-                fullWidth
-            >
+            <Dialog open={addOpen} onClose={() => { setAddOpen(false); setShowConfirmAdd(false); }} maxWidth="sm" fullWidth>
                 <DialogTitle>Add Tenant</DialogTitle>
-                <DialogContent
-                    dividers
-                    sx={{ pt: 2, overflowY: "visible" }} // keep labels/popovers visible
-                >
+                <DialogContent dividers sx={{ pt: 2 }}>
                     <Grid container spacing={2}>
                         <Grid item xs={12}>
-                            <TextField
-                                fullWidth label="Full Name"
-                                value={addForm.FullName}
+                            <TextField fullWidth label="Full Name" value={addForm.FullName}
                                 onChange={e => setAddForm(f => ({ ...f, FullName: e.target.value }))}
-                                InputLabelProps={{ shrink: true }}
-                                sx={fieldSx}
-                            />
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx} />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <TextField
-                                fullWidth label="Phone (2547XXXXXXXX)"
-                                value={addForm.Phone}
+                            <TextField fullWidth label="Phone (2547XXXXXXXX)" value={addForm.Phone}
                                 onChange={e => setAddForm(f => ({ ...f, Phone: e.target.value }))}
-                                InputLabelProps={{ shrink: true }}
-                                sx={fieldSx}
-                            />
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx} />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <TextField
-                                fullWidth label="Email (optional)"
-                                value={addForm.Email}
+                            <TextField fullWidth label="Email (optional)" value={addForm.Email}
                                 onChange={e => setAddForm(f => ({ ...f, Email: e.target.value }))}
-                                InputLabelProps={{ shrink: true }}
-                                sx={fieldSx}
-                            />
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx} />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <TextField
-                                fullWidth label="ID Number"
-                                value={addForm.IDNumber}
+                            <TextField fullWidth label="ID Number" value={addForm.IDNumber}
                                 onChange={e => setAddForm(f => ({ ...f, IDNumber: e.target.value }))}
-                                InputLabelProps={{ shrink: true }}
-                                sx={fieldSx}
-                            />
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx} />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <TextField
-                                fullWidth type="date" label="Move In"
-                                InputLabelProps={{ shrink: true }}
-                                value={addForm.MoveInDate}
-                                onChange={e => setAddForm(f => ({ ...f, MoveInDate: e.target.value }))}
-                                sx={fieldSx}
-                            />
+                            <TextField fullWidth type="date" label="Move In" InputLabelProps={{ shrink: true }}
+                                value={addForm.MoveInDate} onChange={e => setAddForm(f => ({ ...f, MoveInDate: e.target.value }))}
+                                sx={labelFixSx} />
                         </Grid>
 
                         <Grid item xs={12} md={6}>
-                            <TextField
-                                select fullWidth label="Apartment"
-                                value={addForm.ApartmentID}
+                            <TextField select fullWidth label="Apartment" value={addForm.ApartmentID}
                                 onChange={(e) => {
                                     const v = e.target.value;
                                     setAddForm(f => ({ ...f, ApartmentID: v, RentalUnitID: "" }));
                                     fetchUnitsForApartment(v, setUnitsForApartment);
                                 }}
-                                InputLabelProps={{ shrink: true }}
-                                sx={fieldSx}
-                            >
-                                {apartments.map(a => (
-                                    <MenuItem key={a.ApartmentID} value={a.ApartmentID}>{a.ApartmentName}</MenuItem>
-                                ))}
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx}>
+                                {apartments.map(a => <MenuItem key={a.ApartmentID} value={a.ApartmentID}>{a.ApartmentName}</MenuItem>)}
                             </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <TextField
-                                select fullWidth label="Vacant Unit"
-                                value={addForm.RentalUnitID}
-                                onChange={(e) => setAddForm(f => ({ ...f, RentalUnitID: e.target.value }))}
-                                disabled={!addForm.ApartmentID}
-                                InputLabelProps={{ shrink: true }}
-                                sx={fieldSx}
-                            >
-                                {(!unitsForApartment || unitsForApartment.length === 0) && (
-                                    <MenuItem value="" disabled>No vacant units</MenuItem>
-                                )}
+                            <TextField select fullWidth label="Vacant Unit" value={addForm.RentalUnitID}
+                                onChange={(e) => setAddForm(f => ({ ...f, RentalUnitID: e.target.value }))} disabled={!addForm.ApartmentID}
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx}>
+                                {unitsForApartment.length === 0 && <MenuItem value="" disabled>No vacant units</MenuItem>}
                                 {unitsForApartment.map(u => (
                                     <MenuItem key={u.UnitID} value={u.UnitID}>{u.Label}</MenuItem>
                                 ))}
                             </TextField>
                         </Grid>
                     </Grid>
+
+                    {showConfirmAdd && (
+                        <Alert severity="warning" sx={{ mt: 2 }}>
+                            Confirm you want to add this tenant to the selected unit.
+                        </Alert>
+                    )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setAddOpen(false)}>Cancel</Button>
-                    <Button variant="contained" onClick={confirmAndAddTenant} disabled={saving}>
-                        {saving ? "Saving…" : "Save"}
-                    </Button>
+                    {showConfirmAdd ? (
+                        <>
+                            <Button onClick={() => setShowConfirmAdd(false)}>Back</Button>
+                            <Button onClick={saveTenant} variant="contained" disabled={saving}>{saving ? "Saving..." : "Confirm & Save"}</Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button onClick={() => setAddOpen(false)}>Cancel</Button>
+                            <Button onClick={saveTenant} variant="contained">Continue</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
 
@@ -1045,199 +968,248 @@ const Tenants = () => {
             </Dialog>
 
             {/* Edit Tenant */}
-            <Dialog open={!!editFor} onClose={() => setEditFor(null)} maxWidth="sm" fullWidth>
+            <Dialog open={!!editFor} onClose={() => { setEditFor(null); setShowConfirmEdit(false); }} maxWidth="sm" fullWidth>
                 <DialogTitle>Edit Tenant — {editFor?.FullName}</DialogTitle>
-                <DialogContent dividers sx={{ overflowY: "visible" }}>
+                <DialogContent dividers>
                     <Grid container spacing={2}>
                         <Grid item xs={12}>
                             <TextField fullWidth label="Full Name" value={editForm.FullName}
                                 onChange={e => setEditForm(f => ({ ...f, FullName: e.target.value }))}
-                                InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx} />
                         </Grid>
                         <Grid item xs={12} md={6}>
                             <TextField fullWidth label="Phone (2547XXXXXXXX)" value={editForm.Phone}
                                 onChange={e => setEditForm(f => ({ ...f, Phone: e.target.value }))}
-                                InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx} />
                         </Grid>
                         <Grid item xs={12} md={6}>
                             <TextField fullWidth label="Email" value={editForm.Email}
                                 onChange={e => setEditForm(f => ({ ...f, Email: e.target.value }))}
-                                InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx} />
                         </Grid>
                         <Grid item xs={12} md={6}>
                             <TextField fullWidth label="ID Number" value={editForm.IDNumber}
                                 onChange={e => setEditForm(f => ({ ...f, IDNumber: e.target.value }))}
-                                InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx} />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <TextField fullWidth type="date" label="Move In" value={editForm.MoveInDate}
-                                onChange={e => setEditForm(f => ({ ...f, MoveInDate: e.target.value }))}
-                                InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                            <TextField fullWidth type="date" label="Move In" InputLabelProps={{ shrink: true }}
+                                value={editForm.MoveInDate} onChange={e => setEditForm(f => ({ ...f, MoveInDate: e.target.value }))}
+                                sx={labelFixSx} />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <TextField fullWidth type="date" label="Move Out" value={editForm.MoveOutDate}
-                                onChange={e => setEditForm(f => ({ ...f, MoveOutDate: e.target.value }))}
-                                InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                            <TextField fullWidth type="date" label="Move Out" InputLabelProps={{ shrink: true }}
+                                value={editForm.MoveOutDate} onChange={e => setEditForm(f => ({ ...f, MoveOutDate: e.target.value }))}
+                                sx={labelFixSx} />
                         </Grid>
                         <Grid item xs={12} md={6}>
                             <TextField fullWidth select label="Status" value={editForm.Status}
                                 onChange={e => setEditForm(f => ({ ...f, Status: e.target.value }))}
-                                InputLabelProps={{ shrink: true }} sx={fieldSx}>
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx}>
                                 <MenuItem value="Active">Active</MenuItem>
                                 <MenuItem value="Inactive">Inactive</MenuItem>
                             </TextField>
                         </Grid>
                     </Grid>
+
+                    {showConfirmEdit && (
+                        <Alert severity="warning" sx={{ mt: 2 }}>
+                            Confirm you want to update this tenant’s details.
+                        </Alert>
+                    )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setEditFor(null)}>Cancel</Button>
-                    <Button variant="contained" onClick={confirmAndEdit} disabled={editing}>
-                        {editing ? "Saving…" : "Save Changes"}
-                    </Button>
+                    {showConfirmEdit ? (
+                        <>
+                            <Button onClick={() => setShowConfirmEdit(false)}>Back</Button>
+                            <Button variant="contained" disabled={editing} onClick={submitEdit}>{editing ? "Saving…" : "Confirm & Save"}</Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button onClick={() => setEditFor(null)}>Cancel</Button>
+                            <Button variant="contained" onClick={submitEdit}>Continue</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
 
             {/* Vacate Tenant */}
-            <Dialog open={!!vacateFor} onClose={() => setVacateFor(null)} maxWidth="sm" fullWidth>
+            <Dialog open={!!vacateFor} onClose={() => { setVacateFor(null); setShowConfirmVacate(false); }} maxWidth="sm" fullWidth>
                 <DialogTitle>Vacate Tenant — {vacateFor?.FullName}</DialogTitle>
-                <DialogContent dividers sx={{ display: "grid", gap: 1.5, overflowY: "visible" }}>
-                    <TextField label="Reason" value={vacate.Reason}
-                        onChange={e => setVacate(v => ({ ...v, Reason: e.target.value }))}
-                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
-                    <TextField label="Notes" value={vacate.Notes}
-                        onChange={e => setVacate(v => ({ ...v, Notes: e.target.value }))}
-                        multiline rows={3} InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                <DialogContent dividers sx={{ display: "grid", gap: 1.5 }}>
+                    <TextField label="Reason" value={vacate.Reason} onChange={e => setVacate(v => ({ ...v, Reason: e.target.value }))}
+                        InputLabelProps={{ shrink: true }} sx={labelFixSx} />
+                    <TextField label="Notes" value={vacate.Notes} onChange={e => setVacate(v => ({ ...v, Notes: e.target.value }))}
+                        multiline rows={3} InputLabelProps={{ shrink: true }} sx={labelFixSx} />
+                    {showConfirmVacate && (
+                        <Alert severity="warning">Are you sure you want to vacate this tenant? This will mark their unit as vacant.</Alert>
+                    )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setVacateFor(null)}>Cancel</Button>
-                    <Button variant="contained" onClick={confirmAndVacate} disabled={vacating}>
-                        {vacating ? "Processing…" : "Confirm Vacate"}
-                    </Button>
+                    {showConfirmVacate ? (
+                        <>
+                            <Button onClick={() => setShowConfirmVacate(false)}>Back</Button>
+                            <Button variant="contained" disabled={vacating} onClick={vacateTenant}>{vacating ? "Processing…" : "Confirm Vacate"}</Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button onClick={() => setVacateFor(null)}>Cancel</Button>
+                            <Button variant="contained" onClick={vacateTenant}>Continue</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
 
             {/* Transfer Tenant */}
-            <Dialog open={!!transferFor} onClose={() => setTransferFor(null)} maxWidth="sm" fullWidth>
+            <Dialog open={!!transferFor} onClose={() => { setTransferFor(null); setShowConfirmTransfer(false); }} maxWidth="sm" fullWidth>
                 <DialogTitle>Transfer Tenant — {transferFor?.FullName}</DialogTitle>
-                <DialogContent dividers sx={{ overflowY: "visible" }}>
+                <DialogContent dividers>
                     <Grid container spacing={2} sx={{ mt: .5 }}>
                         <Grid item xs={12} md={6}>
-                            <TextField
-                                select fullWidth label="New Apartment"
-                                value={transfer.ApartmentID}
+                            <TextField select fullWidth label="New Apartment" value={transfer.ApartmentID}
                                 onChange={(e) => {
                                     const v = e.target.value;
                                     setTransfer(t => ({ ...t, ApartmentID: v, NewRentalUnitID: "" }));
                                     fetchUnitsForApartment(v, setTransferUnits);
                                 }}
-                                InputLabelProps={{ shrink: true }}
-                                sx={fieldSx}
-                            >
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx}>
                                 {apartments.map(a => <MenuItem key={a.ApartmentID} value={a.ApartmentID}>{a.ApartmentName}</MenuItem>)}
                             </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <TextField
-                                select fullWidth label="Vacant Unit"
-                                value={transfer.NewRentalUnitID}
-                                onChange={(e) => setTransfer(t => ({ ...t, NewRentalUnitID: e.target.value }))}
-                                disabled={!transfer.ApartmentID}
-                                InputLabelProps={{ shrink: true }}
-                                sx={fieldSx}
-                            >
+                            <TextField select fullWidth label="Vacant Unit" value={transfer.NewRentalUnitID}
+                                onChange={(e) => setTransfer(t => ({ ...t, NewRentalUnitID: e.target.value }))} disabled={!transfer.ApartmentID}
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx}>
                                 {transferUnits.length === 0 && <MenuItem value="" disabled>No vacant units</MenuItem>}
                                 {transferUnits.map(u => <MenuItem key={u.UnitID} value={u.UnitID}>{u.Label}</MenuItem>)}
                             </TextField>
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <TextField fullWidth type="date" label="New Move-In"
-                                value={transfer.MoveInDate}
-                                onChange={(e) => setTransfer(t => ({ ...t, MoveInDate: e.target.value }))}
-                                InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                            <TextField fullWidth type="date" label="New Move-In" InputLabelProps={{ shrink: true }}
+                                value={transfer.MoveInDate} onChange={(e) => setTransfer(t => ({ ...t, MoveInDate: e.target.value }))}
+                                sx={labelFixSx} />
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <TextField fullWidth label="Reason"
-                                value={transfer.Reason}
-                                onChange={(e) => setTransfer(t => ({ ...t, Reason: e.target.value }))}
-                                InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                            <TextField fullWidth label="Reason" value={transfer.Reason} onChange={(e) => setTransfer(t => ({ ...t, Reason: e.target.value }))}
+                                InputLabelProps={{ shrink: true }} sx={labelFixSx} />
                         </Grid>
                     </Grid>
+
+                    {showConfirmTransfer && (
+                        <Alert severity="warning" sx={{ mt: 2 }}>
+                            Confirm you want to transfer this tenant to the new unit.
+                        </Alert>
+                    )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setTransferFor(null)}>Cancel</Button>
-                    <Button variant="contained" onClick={confirmAndTransfer} disabled={transferring}>
-                        {transferring ? "Transferring…" : "Confirm Transfer"}
-                    </Button>
+                    {showConfirmTransfer ? (
+                        <>
+                            <Button onClick={() => setShowConfirmTransfer(false)}>Back</Button>
+                            <Button variant="contained" disabled={transferring} onClick={submitTransfer}>
+                                {transferring ? "Transferring…" : "Confirm Transfer"}
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button onClick={() => setTransferFor(null)}>Cancel</Button>
+                            <Button variant="contained" onClick={submitTransfer}>Continue</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
 
             {/* Issue Vacate Notice (single) */}
-            <Dialog open={!!noticeFor} onClose={() => setNoticeFor(null)} maxWidth="sm" fullWidth>
+            <Dialog open={!!noticeFor} onClose={() => { setNoticeFor(null); setShowConfirmNotice(false); }} maxWidth="sm" fullWidth>
                 <DialogTitle>Vacate Notice — {noticeFor?.FullName}</DialogTitle>
-                <DialogContent dividers sx={{ display: "grid", gap: 1.5, overflowY: "visible" }}>
-                    <TextField type="date" label="Expected Vacate Date"
-                        value={notice.ExpectedVacateDate}
-                        onChange={(e) => setNotice(n => ({ ...n, ExpectedVacateDate: e.target.value }))}
-                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
-                    <TextField type="date" label="Inspection Date (optional)"
-                        value={notice.InspectionDate}
-                        onChange={(e) => setNotice(n => ({ ...n, InspectionDate: e.target.value }))}
-                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
-                    <TextField label="Reason (optional)" value={notice.Reason}
-                        onChange={(e) => setNotice(n => ({ ...n, Reason: e.target.value }))}
-                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                <DialogContent dividers sx={{ display: "grid", gap: 1.5 }}>
+                    <TextField type="date" label="Expected Vacate Date" InputLabelProps={{ shrink: true }}
+                        value={notice.ExpectedVacateDate} onChange={(e) => setNotice(n => ({ ...n, ExpectedVacateDate: e.target.value }))}
+                        sx={labelFixSx} />
+                    <TextField type="date" label="Inspection Date (optional)" InputLabelProps={{ shrink: true }}
+                        value={notice.InspectionDate} onChange={(e) => setNotice(n => ({ ...n, InspectionDate: e.target.value }))}
+                        sx={labelFixSx} />
+                    <TextField label="Reason (optional)" value={notice.Reason} onChange={(e) => setNotice(n => ({ ...n, Reason: e.target.value }))}
+                        InputLabelProps={{ shrink: true }} sx={labelFixSx} />
+                    {showConfirmNotice && (
+                        <Alert severity="warning">Confirm you want to send a vacate notice to this tenant.</Alert>
+                    )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setNoticeFor(null)}>Cancel</Button>
-                    <Button variant="contained" onClick={confirmAndNotice} disabled={noticing}>
-                        {noticing ? "Sending…" : "Send Notice"}
-                    </Button>
+                    {showConfirmNotice ? (
+                        <>
+                            <Button onClick={() => setShowConfirmNotice(false)}>Back</Button>
+                            <Button variant="contained" disabled={noticing} onClick={submitNotice}>
+                                {noticing ? "Sending…" : "Confirm & Send"}
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button onClick={() => setNoticeFor(null)}>Cancel</Button>
+                            <Button variant="contained" onClick={submitNotice}>Continue</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
 
             {/* Bulk Vacate */}
-            <Dialog open={bulkVacateOpen} onClose={() => setBulkVacateOpen(false)} maxWidth="sm" fullWidth>
+            <Dialog open={bulkVacateOpen} onClose={() => { setBulkVacateOpen(false); setShowConfirmBulkVacate(false); }} maxWidth="sm" fullWidth>
                 <DialogTitle>Vacate {selectedCount} tenant(s)</DialogTitle>
-                <DialogContent dividers sx={{ display: "grid", gap: 1.5, overflowY: "visible" }}>
-                    <TextField label="Reason"
-                        value={bulkVacateForm.Reason}
-                        onChange={e => setBulkVacateForm(v => ({ ...v, Reason: e.target.value }))}
-                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
-                    <TextField label="Notes"
-                        value={bulkVacateForm.Notes}
-                        onChange={e => setBulkVacateForm(v => ({ ...v, Notes: e.target.value }))}
-                        multiline rows={3} InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                <DialogContent dividers sx={{ display: "grid", gap: 1.5 }}>
+                    <TextField label="Reason" value={bulkVacateForm.Reason} onChange={e => setBulkVacateForm(v => ({ ...v, Reason: e.target.value }))}
+                        InputLabelProps={{ shrink: true }} sx={labelFixSx} />
+                    <TextField label="Notes" value={bulkVacateForm.Notes} onChange={e => setBulkVacateForm(v => ({ ...v, Notes: e.target.value }))}
+                        multiline rows={3} InputLabelProps={{ shrink: true }} sx={labelFixSx} />
+                    {showConfirmBulkVacate && (
+                        <Alert severity="warning">Are you sure you want to vacate these tenants?</Alert>
+                    )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setBulkVacateOpen(false)}>Cancel</Button>
-                    <Button variant="contained" onClick={confirmAndBulkVacate} disabled={vacating}>
-                        {vacating ? "Processing…" : "Confirm Vacate"}
-                    </Button>
+                    {showConfirmBulkVacate ? (
+                        <>
+                            <Button onClick={() => setShowConfirmBulkVacate(false)}>Back</Button>
+                            <Button variant="contained" disabled={vacating} onClick={runBulkVacate}>
+                                {vacating ? "Processing…" : "Confirm Vacate"}
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button onClick={() => setBulkVacateOpen(false)}>Cancel</Button>
+                            <Button variant="contained" onClick={runBulkVacate}>Continue</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
 
             {/* Bulk Vacate Notices */}
-            <Dialog open={bulkNoticeOpen} onClose={() => setBulkNoticeOpen(false)} maxWidth="sm" fullWidth>
+            <Dialog open={bulkNoticeOpen} onClose={() => { setBulkNoticeOpen(false); setShowConfirmBulkNotice(false); }} maxWidth="sm" fullWidth>
                 <DialogTitle>Send vacate notices to {selectedCount} tenant(s)</DialogTitle>
-                <DialogContent dividers sx={{ display: "grid", gap: 1.5, overflowY: "visible" }}>
-                    <TextField type="date" label="Expected Vacate Date"
-                        value={bulkNoticeForm.ExpectedVacateDate}
-                        onChange={(e) => setBulkNoticeForm(n => ({ ...n, ExpectedVacateDate: e.target.value }))}
-                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
-                    <TextField type="date" label="Inspection Date (optional)"
-                        value={bulkNoticeForm.InspectionDate}
-                        onChange={(e) => setBulkNoticeForm(n => ({ ...n, InspectionDate: e.target.value }))}
-                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
-                    <TextField label="Reason (optional)"
-                        value={bulkNoticeForm.Reason}
-                        onChange={(e) => setBulkNoticeForm(n => ({ ...n, Reason: e.target.value }))}
-                        InputLabelProps={{ shrink: true }} sx={fieldSx} />
+                <DialogContent dividers sx={{ display: "grid", gap: 1.5 }}>
+                    <TextField type="date" label="Expected Vacate Date" InputLabelProps={{ shrink: true }}
+                        value={bulkNoticeForm.ExpectedVacateDate} onChange={(e) => setBulkNoticeForm(n => ({ ...n, ExpectedVacateDate: e.target.value }))}
+                        sx={labelFixSx} />
+                    <TextField type="date" label="Inspection Date (optional)" InputLabelProps={{ shrink: true }}
+                        value={bulkNoticeForm.InspectionDate} onChange={(e) => setBulkNoticeForm(n => ({ ...n, InspectionDate: e.target.value }))}
+                        sx={labelFixSx} />
+                    <TextField label="Reason (optional)" value={bulkNoticeForm.Reason} onChange={(e) => setBulkNoticeForm(n => ({ ...n, Reason: e.target.value }))}
+                        InputLabelProps={{ shrink: true }} sx={labelFixSx} />
+                    {showConfirmBulkNotice && (
+                        <Alert severity="warning">Confirm you want to send vacate notices to selected tenants.</Alert>
+                    )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setBulkNoticeOpen(false)}>Cancel</Button>
-                    <Button variant="contained" onClick={confirmAndBulkNotice} disabled={noticing}>
-                        {noticing ? "Sending…" : "Send Notices"}
-                    </Button>
+                    {showConfirmBulkNotice ? (
+                        <>
+                            <Button onClick={() => setShowConfirmBulkNotice(false)}>Back</Button>
+                            <Button variant="contained" disabled={noticing} onClick={runBulkIssueNotices}>
+                                {noticing ? "Sending…" : "Confirm & Send"}
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <Button onClick={() => setBulkNoticeOpen(false)}>Cancel</Button>
+                            <Button variant="contained" onClick={runBulkIssueNotices}>Continue</Button>
+                        </>
+                    )}
                 </DialogActions>
             </Dialog>
 
@@ -1252,20 +1224,6 @@ const Tenants = () => {
                     {snack.msg}
                 </Alert>
             </Snackbar>
-
-            {/* Reusable Confirm Dialog */}
-            <Dialog open={confirm.open} onClose={() => confirm.processing ? null : setConfirm(c => ({ ...c, open: false }))} maxWidth="xs" fullWidth>
-                <DialogTitle>{confirm.title}</DialogTitle>
-                <DialogContent dividers>
-                    <Typography>{confirm.message}</Typography>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setConfirm(c => ({ ...c, open: false }))} disabled={confirm.processing}>Back</Button>
-                    <Button variant="contained" onClick={runConfirm} disabled={confirm.processing}>
-                        {confirm.processing ? "Working…" : "Confirm"}
-                    </Button>
-                </DialogActions>
-            </Dialog>
         </Box>
     );
 };
