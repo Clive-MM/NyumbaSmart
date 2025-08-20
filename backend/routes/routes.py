@@ -56,6 +56,10 @@ def register_mail_instance(mail_instance):
     mail = mail_instance
 
 
+def _fmt_date(d):
+    return d.strftime("%Y-%m-%d") if d else None
+
+
 KRA_RE = re.compile(r'^[A-Z]\d{9}[A-Z]$')
 
 
@@ -646,7 +650,7 @@ def view_apartment(apartment_id):
             "Label": unit.Label,
             "Description": unit.Description,
             "MonthlyRent": unit.MonthlyRent,
-            "AdditionalBills": unit.AdditionalBills,
+            # "AdditionalBills": unit.AdditionalBills,
             "Status": unit.status.StatusName if unit.status else None,
             "Category": unit.category.CategoryName if unit.category else None,
             "CreatedAt": unit.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
@@ -801,7 +805,7 @@ def create_rental_unit():
     label = data.get('Label')
     description = data.get('Description')
     monthly_rent = data.get('MonthlyRent')
-    additional_bills = data.get('AdditionalBills', 0.0)
+    # additional_bills = data.get('AdditionalBills', 0.0)
     status_id = data.get('StatusID')  # Typically Vacant by default
     category_id = data.get('CategoryID')
 
@@ -820,7 +824,7 @@ def create_rental_unit():
         Label=label,
         Description=description,
         MonthlyRent=monthly_rent,
-        AdditionalBills=additional_bills,
+        # AdditionalBills=additional_bills,
         StatusID=status_id,
         CategoryID=category_id
     )
@@ -834,7 +838,7 @@ def create_rental_unit():
             "UnitID": rental_unit.UnitID,
             "Label": rental_unit.Label,
             "MonthlyRent": rental_unit.MonthlyRent,
-            "AdditionalBills": rental_unit.AdditionalBills,
+            # "AdditionalBills": rental_unit.AdditionalBills,
             "CategoryID": rental_unit.CategoryID,
             "StatusID": rental_unit.StatusID,
             "ApartmentID": rental_unit.ApartmentID,
@@ -869,7 +873,7 @@ def update_rental_unit(unit_id):
     unit.Label = data.get('Label', unit.Label)
     unit.Description = data.get('Description', unit.Description)
     unit.MonthlyRent = data.get('MonthlyRent', unit.MonthlyRent)
-    unit.AdditionalBills = data.get('AdditionalBills', unit.AdditionalBills)
+    # unit.AdditionalBills = data.get('AdditionalBills', unit.AdditionalBills)
     unit.StatusID = data.get('StatusID', unit.StatusID)
     unit.CategoryID = data.get('CategoryID', unit.CategoryID)
 
@@ -882,7 +886,7 @@ def update_rental_unit(unit_id):
             "Label": unit.Label,
             "Description": unit.Description,
             "MonthlyRent": unit.MonthlyRent,
-            "AdditionalBills": unit.AdditionalBills,
+            # "AdditionalBills": unit.AdditionalBills,
             "StatusID": unit.StatusID,
             "CategoryID": unit.CategoryID,
             "ApartmentID": unit.ApartmentID,
@@ -1244,21 +1248,17 @@ def transfer_tenant_by_id(id):
     if new_unit.StatusID != 1:
         return jsonify({"message": "New unit is not vacant."}), 400
 
-    # 1. Vacate old unit
     old_unit.StatusID = 1
     old_unit.CurrentTenantID = None
 
-    # 2. Update tenant
     tenant.RentalUnitID = new_unit_id
     tenant.MoveInDate = new_move_in
     tenant.MoveOutDate = None
     tenant.Status = 'Active'
 
-    # 3. Occupy new unit
     new_unit.StatusID = 2
     new_unit.CurrentTenantID = tenant.TenantID
 
-    # 4. Log transfer
     log = TransferLog(
         TenantID=tenant.TenantID,
         OldUnitID=old_unit.UnitID,
@@ -1269,7 +1269,6 @@ def transfer_tenant_by_id(id):
     db.session.add(log)
     db.session.flush()  # ✅ Ensures log.TransferDate and ID are populated before access
 
-    # 5. Commit all changes
     db.session.commit()
 
     # 6. Optional: Send SMS notification to the tenant (commented out)
@@ -2120,163 +2119,381 @@ def record_rent_payment():
     }), 201
 
 
-# route for creating landlord expenses for a particular apartment
+# Add new expense
+# -------------------------------
 @routes.route("/landlord-expenses/add", methods=["POST"])
 @jwt_required()
 def add_landlord_expense():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-
-    # ✅ Only landlords (admins) can add expenses
     if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized. Only landlords can add expenses."}), 403
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
 
     apartment_id = data.get("ApartmentID")
     expense_type = data.get("ExpenseType")
     amount = data.get("Amount")
     description = data.get("Description", "")
 
-    # ✅ Validate required fields
+    # New fields
+    payee = data.get("Payee")
+    payment_method = data.get("PaymentMethod")
+    payment_ref = data.get("PaymentRef")
+    # YYYY-MM-DD (period)
+    expense_date_in = data.get("ExpenseDate")
+    # YYYY-MM-DD (actual paid date)
+    expense_paid_date_in = data.get("ExpensePaymentDate")
+
+    # Validate required
     if not apartment_id or not expense_type or amount is None:
         return jsonify({"status": "error", "message": "ApartmentID, ExpenseType, and Amount are required."}), 400
 
     try:
         amount = float(amount)
-    except ValueError:
+        if amount <= 0:
+            return jsonify({"status": "error", "message": "Amount must be greater than zero."}), 400
+    except Exception:
         return jsonify({"status": "error", "message": "Amount must be a valid number."}), 400
 
-    # ✅ Check if apartment exists
+    # Apartment exists?
     apartment = Apartment.query.get(apartment_id)
     if not apartment:
         return jsonify({"status": "error", "message": "Apartment not found."}), 404
 
-    # ✅ Create the expense record
+    # Parse dates
+    try:
+        expense_date = datetime.strptime(
+            expense_date_in, "%Y-%m-%d") if expense_date_in else datetime.utcnow()
+    except ValueError:
+        return jsonify({"status": "error", "message": "ExpenseDate must be YYYY-MM-DD."}), 400
+
+    try:
+        expense_payment_date = (
+            datetime.strptime(expense_paid_date_in, "%Y-%m-%d")
+            if expense_paid_date_in else None
+        )
+    except ValueError:
+        return jsonify({"status": "error", "message": "ExpensePaymentDate must be YYYY-MM-DD."}), 400
+
+    # Optional: validate payment method (if provided)
+    valid_methods = {"Cash", "Bank Transfer", "M-Pesa", "Cheque", "Other"}
+    if payment_method and payment_method not in valid_methods:
+        return jsonify({"status": "error", "message": f"PaymentMethod must be one of {sorted(valid_methods)}"}), 400
+
+    # Save
     new_expense = LandlordExpense(
         ApartmentID=apartment_id,
         ExpenseType=expense_type,
         Amount=amount,
         Description=description,
-        ExpenseDate=datetime.utcnow()  # You can allow user to pass custom date if needed
+        ExpenseDate=expense_date,
+        ExpensePaymentDate=expense_payment_date,
+        Payee=payee,
+        PaymentMethod=payment_method,
+        PaymentRef=payment_ref,
     )
-
     db.session.add(new_expense)
     db.session.commit()
 
     return jsonify({
         "status": "success",
-        "message": "Expense added successfully.",
+        "message": "Expense recorded successfully.",
         "expense": {
             "ExpenseID": new_expense.ExpenseID,
-            "ApartmentID": new_expense.ApartmentID,
+            "Apartment": apartment.ApartmentName,
             "ExpenseType": new_expense.ExpenseType,
             "Amount": new_expense.Amount,
             "Description": new_expense.Description,
-            "ExpenseDate": new_expense.ExpenseDate.strftime("%Y-%m-%d")
+            "ExpenseDate": _fmt_date(new_expense.ExpenseDate),
+            "ExpensePaymentDate": _fmt_date(new_expense.ExpensePaymentDate),
+            "Payee": new_expense.Payee,
+            "PaymentMethod": new_expense.PaymentMethod,
+            "PaymentRef": new_expense.PaymentRef,
         }
     }), 201
 
-# Routes for fetching the landlord expenses grouped by apartment
 
-
+# -------------------------------
+# View expenses grouped by Apartment
+# -------------------------------
 @routes.route("/landlord-expenses/by-apartment", methods=["GET"])
 @jwt_required()
 def view_expenses_by_apartment():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-
     if not user or not user.IsAdmin:
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
 
-    # ✅ Get all expenses grouped by apartment
     expenses = LandlordExpense.query.join(Apartment).all()
-
     result = {}
+
     for exp in expenses:
-        apt_name = exp.apartment.ApartmentName  # Assuming Apartment has ApartmentName
-        if apt_name not in result:
-            result[apt_name] = []
-        result[apt_name].append({
+        apt_name = exp.apartment.ApartmentName
+        result.setdefault(apt_name, []).append({
             "ExpenseID": exp.ExpenseID,
             "ExpenseType": exp.ExpenseType,
             "Amount": exp.Amount,
             "Description": exp.Description,
-            "ExpenseDate": exp.ExpenseDate.strftime("%Y-%m-%d")
+            "ExpenseDate": _fmt_date(exp.ExpenseDate),
+            "ExpensePaymentDate": _fmt_date(exp.ExpensePaymentDate),
+            "Payee": exp.Payee,
+            "PaymentMethod": exp.PaymentMethod,
+            "PaymentRef": exp.PaymentRef,
         })
 
     return jsonify({"status": "success", "expenses": result}), 200
 
-# View landlord expenses per month
 
-
+# -------------------------------
+# View expenses grouped by Month (period month)
+# -------------------------------
 @routes.route("/landlord-expenses/by-month", methods=["GET"])
 @jwt_required()
 def view_expenses_by_month():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-
     if not user or not user.IsAdmin:
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
 
-    expenses = LandlordExpense.query.all()
-
+    expenses = LandlordExpense.query.join(Apartment).all()
     result = {}
+
     for exp in expenses:
         month_key = exp.ExpenseDate.strftime("%B %Y")
-        if month_key not in result:
-            result[month_key] = []
-        result[month_key].append({
+        result.setdefault(month_key, []).append({
             "ExpenseID": exp.ExpenseID,
             "Apartment": exp.apartment.ApartmentName,
             "ExpenseType": exp.ExpenseType,
             "Amount": exp.Amount,
             "Description": exp.Description,
-            "ExpenseDate": exp.ExpenseDate.strftime("%Y-%m-%d")
+            "ExpenseDate": _fmt_date(exp.ExpenseDate),
+            "ExpensePaymentDate": _fmt_date(exp.ExpensePaymentDate),
+            "Payee": exp.Payee,
+            "PaymentMethod": exp.PaymentMethod,
+            "PaymentRef": exp.PaymentRef,
         })
 
     return jsonify({"status": "success", "expenses": result}), 200
 
-# Get summary of landlord expenses for a specific month
 
-
+# -------------------------------
+# Monthly expense totals (by period)
+# -------------------------------
 @routes.route("/landlord-expenses/monthly-summary", methods=["GET"])
 @jwt_required()
 def monthly_expense_summary():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-
     if not user or not user.IsAdmin:
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
 
     expenses = LandlordExpense.query.all()
-
     summary = {}
+
     for exp in expenses:
         month_key = exp.ExpenseDate.strftime("%B %Y")
-        summary[month_key] = summary.get(month_key, 0) + exp.Amount
+        summary[month_key] = summary.get(month_key, 0) + float(exp.Amount or 0)
 
     return jsonify({"status": "success", "summary": summary}), 200
 
 
-# Get expenses summary per apartment
+# -------------------------------
+# Annual expense totals (by period)
+# -------------------------------
+@routes.route("/landlord-expenses/annual-summary", methods=["GET"])
+@jwt_required()
+def annual_expense_summary():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
+
+    expenses = LandlordExpense.query.all()
+    summary = {}
+
+    for exp in expenses:
+        year = exp.ExpenseDate.strftime("%Y")
+        summary[year] = summary.get(year, 0) + float(exp.Amount or 0)
+
+    return jsonify({"status": "success", "summary": summary}), 200
+
+
+# -------------------------------
+# Expense totals per Apartment
+# -------------------------------
 @routes.route("/landlord-expenses/apartment-summary", methods=["GET"])
 @jwt_required()
 def apartment_expense_summary():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
 
+    expenses = LandlordExpense.query.join(Apartment).all()
+    summary = {}
+
+    for exp in expenses:
+        apt_name = exp.apartment.ApartmentName
+        summary[apt_name] = summary.get(apt_name, 0) + float(exp.Amount or 0)
+
+    return jsonify({"status": "success", "summary": summary}), 200
+
+
+# -------------------------------
+# Expense totals by Type
+# -------------------------------
+@routes.route("/landlord-expenses/by-type", methods=["GET"])
+@jwt_required()
+def expenses_by_type():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
+
+    expenses = LandlordExpense.query.all()
+    summary = {}
+
+    for exp in expenses:
+        summary[exp.ExpenseType] = summary.get(
+            exp.ExpenseType, 0) + float(exp.Amount or 0)
+
+    return jsonify({"status": "success", "summary": summary}), 200
+
+
+# -------------------------------
+# Export CSV (includes both dates)
+# -------------------------------
+@routes.route("/landlord-expenses/export", methods=["GET"])
+@jwt_required()
+def export_expenses():
+    import csv
+    from io import StringIO
+    from flask import Response
+
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
     if not user or not user.IsAdmin:
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
 
     expenses = LandlordExpense.query.join(Apartment).all()
 
-    summary = {}
-    for exp in expenses:
-        apt_name = exp.apartment.ApartmentName
-        summary[apt_name] = summary.get(apt_name, 0) + exp.Amount
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ExpenseID", "Apartment", "ExpenseType", "Amount", "Description",
+        "ExpenseDate", "ExpensePaymentDate", "Payee", "PaymentMethod", "PaymentRef"
+    ])
 
-    return jsonify({"status": "success", "summary": summary}), 200
+    for exp in expenses:
+        writer.writerow([
+            exp.ExpenseID,
+            exp.apartment.ApartmentName,
+            exp.ExpenseType,
+            float(exp.Amount or 0),
+            exp.Description or "",
+            _fmt_date(exp.ExpenseDate) or "",
+            _fmt_date(exp.ExpensePaymentDate) or "",
+            exp.Payee or "",
+            exp.PaymentMethod or "",
+            exp.PaymentRef or "",
+        ])
+
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=landlord_expenses.csv"}
+    )
+
+
+# -------------------------------
+# Filter by date range
+#   ?start=YYYY-MM-DD&end=YYYY-MM-DD&field=period|paid
+#   - field=period (default) => ExpenseDate
+#   - field=paid             => ExpensePaymentDate
+# -------------------------------
+@routes.route("/landlord-expenses/filter", methods=["GET"])
+@jwt_required()
+def filter_expenses():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
+
+    start_date = request.args.get("start")
+    end_date = request.args.get("end")
+    field = (request.args.get("field") or "period").lower()
+
+    # choose column
+    col = LandlordExpense.ExpenseDate if field == "period" else LandlordExpense.ExpensePaymentDate
+
+    # parse dates
+    try:
+        start_dt = datetime.strptime(
+            start_date, "%Y-%m-%d") if start_date else None
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d") if end_date else None
+    except ValueError:
+        return jsonify({"status": "error", "message": "Dates must be YYYY-MM-DD."}), 400
+
+    q = LandlordExpense.query.join(Apartment)
+    if start_dt:
+        q = q.filter(col >= start_dt)
+    if end_dt:
+        q = q.filter(col <= end_dt)
+
+    expenses = q.all()
+    result = [{
+        "ExpenseID": exp.ExpenseID,
+        "Apartment": exp.apartment.ApartmentName,
+        "ExpenseType": exp.ExpenseType,
+        "Amount": float(exp.Amount or 0),
+        "Description": exp.Description,
+        "ExpenseDate": _fmt_date(exp.ExpenseDate),
+        "ExpensePaymentDate": _fmt_date(exp.ExpensePaymentDate),
+        "Payee": exp.Payee,
+        "PaymentMethod": exp.PaymentMethod,
+        "PaymentRef": exp.PaymentRef,
+    } for exp in expenses]
+
+    return jsonify({"status": "success", "expenses": result}), 200
+
+
+# -------------------------------
+# Unpaid expenses (no payment date OR empty ref)
+# -------------------------------
+@routes.route("/landlord-expenses/unpaid", methods=["GET"])
+@jwt_required()
+def unpaid_expenses():
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    if not user or not user.IsAdmin:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
+
+    expenses = (
+        LandlordExpense.query
+        .filter(
+            (LandlordExpense.ExpensePaymentDate == None) |
+            (func.nullif(LandlordExpense.PaymentRef, '') == None)
+        )
+        .join(Apartment)
+        .all()
+    )
+
+    result = [{
+        "ExpenseID": exp.ExpenseID,
+        "Apartment": exp.apartment.ApartmentName,
+        "ExpenseType": exp.ExpenseType,
+        "Amount": float(exp.Amount or 0),
+        "Description": exp.Description,
+        "ExpenseDate": _fmt_date(exp.ExpenseDate),
+        "ExpensePaymentDate": _fmt_date(exp.ExpensePaymentDate),
+        "Payee": exp.Payee,
+        "PaymentMethod": exp.PaymentMethod,
+        "PaymentRef": exp.PaymentRef,
+    } for exp in expenses]
+
+    return jsonify({"status": "success", "unpaid_expenses": result}), 200
 
 
 @routes.route("/upload", methods=["POST"])

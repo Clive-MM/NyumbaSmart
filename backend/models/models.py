@@ -202,13 +202,29 @@ class LandlordExpense(db.Model):
     ExpenseType = db.Column(db.String(100), nullable=False)
     Amount = db.Column(db.Float, nullable=False)
     Description = db.Column(db.String(300))
-    ExpenseDate = db.Column(db.DateTime,  default=datetime.utcnow)
-    CreatedAt = db.Column(db.DateTime,  default=datetime.utcnow)
+
+    # Dates
+    # Date the expense is for
+    ExpenseDate = db.Column(db.DateTime, nullable=False,
+                            default=datetime.utcnow)
+    # Date it was paid
+    ExpensePaymentDate = db.Column(db.DateTime, nullable=True)
+
+    # Payment details
+    # Vendor or recipient
+    Payee = db.Column(db.String(150), nullable=True)
+    # Cash, M-Pesa, Bank, etc.
+    PaymentMethod = db.Column(db.String(50), nullable=True)
+    # Transaction reference
+    PaymentRef = db.Column(db.String(100), nullable=True)
+
+    # Audit trail
+    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
 
     apartment = db.relationship('Apartment', backref='expenses')
 
     def __repr__(self):
-        return f"<Expense {self.ExpenseType} | {self.Amount} | {self.ExpenseDate.strftime('%B %Y')}>"
+        return f"<Expense {self.ExpenseType} | {self.Amount} | For: {self.ExpenseDate.strftime('%B %Y')} | Paid: {self.ExpensePaymentDate.strftime('%Y-%m-%d') if self.ExpensePaymentDate else 'Unpaid'}>"
 
 
 class NotificationTag(db.Model):

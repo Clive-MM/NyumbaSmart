@@ -1,12 +1,6 @@
 // src/components/LandingPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  useMediaQuery,
-  useTheme,
-} from "@mui/material";
+import { Box, Typography, Button, useMediaQuery, useTheme } from "@mui/material";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
@@ -35,8 +29,7 @@ const BRAND_BG = `
 `;
 
 /* Orbitron once */
-const ORBITRON_URL =
-  "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&display=swap";
+const ORBITRON_URL = "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&display=swap";
 function ensureOrbitronLoaded() {
   if (typeof document === "undefined") return;
   if (!document.head.querySelector('link[data-orbitron="true"]')) {
@@ -92,20 +85,18 @@ const SLIDE_MS = 6000; // autoplay cadence
 export default function LandingPage() {
   const navigate = useNavigate();
 
-  // Responsive decisions (card size & spacing)
   const theme = useTheme();
   const xs = useMediaQuery(theme.breakpoints.down("sm"));   // <600
   const mdUp = useMediaQuery(theme.breakpoints.up("md"));   // >=900
 
-  // Card size: phone / tablet / desktop
   const cardSize = xs ? 140 : mdUp ? 210 : 170;
-  const gapX = Math.round(cardSize * 1.1); // horizontal step
+  const gapX = Math.round(cardSize * 1.1);
   const stepY1 = Math.round(cardSize * 0.08);
   const stepY2 = Math.round(cardSize * 0.16);
-  const rowWidth = gapX * 2 + cardSize; // 3 cards in stepped row
+  const rowWidth = gapX * 2 + cardSize;
 
   const [active, setActive] = useState(0);
-  const [, setLoaded] = useState({}); // only setter needed (preload registry)
+  const [, setLoaded] = useState({});
   const timerRef = useRef(null);
 
   useEffect(() => ensureOrbitronLoaded(), []);
@@ -121,6 +112,11 @@ export default function LandingPage() {
     []
   );
 
+  const hasSlides = slides.length > 0;
+  const safeActive = hasSlides ? active % slides.length : 0;
+  const order = hasSlides ? [safeActive, (safeActive + 1) % slides.length, (safeActive + 2) % slides.length] : [];
+  const currentSlide = hasSlides ? slides[safeActive] : null;
+
   // Preload heroes so background never flashes
   useEffect(() => {
     slides.forEach((s) => {
@@ -134,24 +130,21 @@ export default function LandingPage() {
       else if (img.decode) img.decode().then(done).catch(() => (img.onload = done));
       else img.onload = done;
     });
-  }, [slides, setLoaded]);
+  }, [slides]);
 
-  // Autoplay single-cycle timeout (robust in StrictMode)
+  // Autoplay only if we have slides
   useEffect(() => {
+    if (!hasSlides) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       setActive((p) => (p + 1) % slides.length);
     }, SLIDE_MS);
     return () => timerRef.current && clearTimeout(timerRef.current);
-  }, [active, slides.length]);
+  }, [active, slides.length, hasSlides]);
 
-  // Order of the 3 cards: active, next, next2
-  const order = [active, (active + 1) % slides.length, (active + 2) % slides.length];
-
-  // Layout targets depend on cardSize
   const roleLayout = {
     lead: { x: 0, y: 0, scale: 1.0, z: 3, shadow: "0 14px 40px rgba(0,0,0,.35)" },
-    mid:  { x: gapX, y: stepY1, scale: 0.92, z: 2, shadow: "0 12px 32px rgba(0,0,0,.30)" },
+    mid: { x: gapX, y: stepY1, scale: 0.92, z: 2, shadow: "0 12px 32px rgba(0,0,0,.30)" },
     tail: { x: gapX * 2, y: stepY2, scale: 0.84, z: 1, shadow: "0 10px 26px rgba(0,0,0,.25)" },
   };
 
@@ -185,27 +178,30 @@ export default function LandingPage() {
         }}
       >
         {/* Background = first card (active) */}
-        <AnimatePresence mode="popLayout">
-          <motion.img
-            key={slides[active]?.heroSrc}
-            src={slides[active]?.heroSrc}
-            alt=""
-            decoding="async"
-            loading="eager"
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              filter: "brightness(.82) contrast(1.08) saturate(1.05)",
-            }}
-            initial={{ opacity: 0, scale: 1.02 }}
-            animate={{ opacity: 1, scale: 1.06 }}
-            exit={{ opacity: 0, scale: 1.01 }}
-            transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-          />
-        </AnimatePresence>
+        {hasSlides && (
+          <AnimatePresence mode="popLayout">
+            <motion.img
+              key={currentSlide.heroSrc}
+              src={currentSlide.heroSrc}
+              alt=""
+              decoding="async"
+              loading="eager"
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                filter: "brightness(.82) contrast(1.08) saturate(1.05)",
+                zIndex: 1
+              }}
+              initial={{ opacity: 0, scale: 1.02 }}
+              animate={{ opacity: 1, scale: 1.06 }}
+              exit={{ opacity: 0, scale: 1.01 }}
+              transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+            />
+          </AnimatePresence>
+        )}
 
         {/* Copy block */}
         <Box
@@ -216,7 +212,7 @@ export default function LandingPage() {
             maxWidth: { xs: 520, sm: 600, md: 720 },
             pr: 1,
             textAlign: "left",
-            zIndex: 4,
+            zIndex: 6, // above cards
           }}
         >
           <Typography
@@ -233,7 +229,7 @@ export default function LandingPage() {
               textShadow: "0 4px 22px rgba(0,0,0,.35)",
             }}
           >
-            {slides[active]?.title}
+            {currentSlide?.title || "Welcome to PayNest"}
           </Typography>
 
           <Typography
@@ -246,7 +242,7 @@ export default function LandingPage() {
               textShadow: "0 3px 16px rgba(0,0,0,.35)",
             }}
           >
-            {slides[active]?.question}
+            {currentSlide?.question || ""}
           </Typography>
 
           <Typography
@@ -259,7 +255,7 @@ export default function LandingPage() {
               textShadow: "0 2px 14px rgba(0,0,0,.30)",
             }}
           >
-            {slides[active]?.answer}
+            {currentSlide?.answer || ""}
           </Typography>
 
           <Button
@@ -285,59 +281,61 @@ export default function LandingPage() {
           </Button>
         </Box>
 
-        {/* Horizontal cards (auto only; no drag, no arrows) */}
-        <Box
-          sx={{
-            position: "absolute",
-            right: { xs: 10, sm: 16, md: 40 },
-            bottom: { xs: 14, sm: 20, md: 44 },
-            width: rowWidth,
-            height: cardSize + stepY2 + 20,
-            zIndex: 5,
-          }}
-        >
-          {order.map((slideIdx, i) => {
-            const role = i === 0 ? "lead" : i === 1 ? "mid" : "tail";
-            const target = roleLayout[role];
-            const card = slides[slideIdx];
+        {/* Horizontal cards */}
+        {hasSlides && (
+          <Box
+            sx={{
+              position: "absolute",
+              right: { xs: -28, sm: 12, md: 40 }, // nudge out on small screens
+              bottom: { xs: 12, sm: 20, md: 44 },
+              width: rowWidth,
+              height: cardSize + stepY2 + 20,
+              zIndex: 4,               // below text
+              pointerEvents: "none",   // never block text/UI
+            }}
+          >
+            {order.map((slideIdx, i) => {
+              const card = slides[slideIdx];
+              if (!card) return null;
+              const role = i === 0 ? "lead" : i === 1 ? "mid" : "tail";
+              const target = {
+                lead: { x: 0, y: 0, scale: 1.0, z: 3, shadow: "0 14px 40px rgba(0,0,0,.35)" },
+                mid: { x: gapX, y: stepY1, scale: 0.92, z: 2, shadow: "0 12px 32px rgba(0,0,0,.30)" },
+                tail: { x: gapX * 2, y: stepY2, scale: 0.84, z: 1, shadow: "0 10px 26px rgba(0,0,0,.25)" },
+              }[role];
 
-            return (
-              <motion.div
-                key={`${active}-${role}-${card.cardSrc}`}
-                initial={false}
-                animate={{
-                  x: target.x,
-                  y: target.y,
-                  scale: target.scale,
-                  zIndex: target.z,
-                }}
-                transition={{ type: "spring", stiffness: 260, damping: 28 }}
-                style={{
-                  position: "absolute",
-                  width: cardSize,
-                  height: cardSize,
-                  borderRadius: 22,
-                  backgroundImage: `url(${card.cardSrc})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                  boxShadow: target.shadow,
-                  cursor: "default",
-                  overflow: "hidden",
-                }}
-              >
-                <div
+              return (
+                <motion.div
+                  key={`${safeActive}-${role}-${card.cardSrc}`}
+                  initial={false}
+                  animate={{ x: target.x, y: target.y, scale: target.scale, zIndex: target.z }}
+                  transition={{ type: "spring", stiffness: 260, damping: 28 }}
                   style={{
                     position: "absolute",
-                    inset: 0,
-                    background:
-                      "radial-gradient(120% 100% at 0% 100%, rgba(255,255,255,.10), rgba(255,255,255,0) 55%)",
-                    pointerEvents: "none",
+                    width: cardSize,
+                    height: cardSize,
+                    borderRadius: 22,
+                    backgroundImage: `url(${card.cardSrc})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    boxShadow: target.shadow,
+                    overflow: "hidden",
                   }}
-                />
-              </motion.div>
-            );
-          })}
-        </Box>
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "radial-gradient(120% 100% at 0% 100%, rgba(255,255,255,.10), rgba(255,255,255,0) 55%)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                </motion.div>
+              );
+            })}
+          </Box>
+        )}
       </Box>
 
       {/* other sections */}
