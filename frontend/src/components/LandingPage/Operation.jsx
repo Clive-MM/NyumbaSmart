@@ -1,5 +1,5 @@
 // src/sections/Operation.jsx
-import React from "react";
+import React, { useRef } from "react";
 import {
   Box,
   Container,
@@ -9,7 +9,14 @@ import {
   Button,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
-import { motion, useReducedMotion } from "framer-motion";
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+  useSpring,
+  useMotionValue,
+} from "framer-motion";
 import { Link as RouterLink } from "react-router-dom";
 
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
@@ -29,7 +36,6 @@ const BRAND = {
   cyan: "#00C8FF",
   lilac: "#8A6BFF",
 
-  // section bg tones (dark gradient like navbar/landing)
   bgViolet: "#140A1E",
   bgNavy: "#0E1220",
   bgDeep: "#0A0D16",
@@ -114,7 +120,6 @@ const ServiceCard = styled(
     transition: "opacity .25s ease",
   },
   "&:hover": {
-    transform: "translateY(-6px)",
     borderColor: "rgba(255,46,196,0.38)",
     boxShadow:
       "0 18px 42px rgba(0,200,255,0.22), 0 12px 28px rgba(212,18,78,0.18)",
@@ -162,8 +167,15 @@ const containerVariants = {
 };
 
 const cardVariants = {
-  hidden: { opacity: 0, y: 20, scale: 0.985, filter: "blur(4px)" },
-  show: { opacity: 1, y: 0, scale: 1, filter: "blur(0)", transition: { duration: 0.35 } },
+  hidden: { opacity: 0, y: 24, scale: 0.985, rotateX: 6, filter: "blur(6px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    rotateX: 0,
+    filter: "blur(0px)",
+    transition: { duration: 0.42, ease: [0.22, 0.61, 0.36, 1] },
+  },
   hover: { y: -6, transition: { duration: 0.2 } },
 };
 
@@ -207,44 +219,113 @@ const buttonVariants = {
 
 /* ---------- Content ---------- */
 const SERVICES = [
-  {
-    icon: <HomeRoundedIcon fontSize="medium" />,
-    title: "All In One Solution",
-    desc: "Everything you need to manage your properties, all in one smart platform.",
-  },
-  {
-    icon: <PersonAddAlt1RoundedIcon fontSize="medium" />,
-    title: "Time Saving and Automation",
-    desc: "Let automation handle rent tracking and billing — so you don’t have to.",
-  },
-  {
-    icon: <ReceiptLongRoundedIcon fontSize="medium" />,
-    title: "Secure, Reliable & Accessibility",
-    desc: "Bank-level security with 24/7 cloud access — your data, always safe.",
-  },
-  {
-    icon: <AccountBalanceWalletRoundedIcon fontSize="medium" />,
-    title: "Real-Time Insights",
-    desc: "Know exactly what’s happening, the moment it happens.",
-  },
-  {
-    icon: <QueryStatsRoundedIcon fontSize="medium" />,
-    title: "Reports & Tax Filing Support",
-    desc: "Generate reports that make decision-making and tax filing a breeze.",
-  },
-  {
-    icon: <NotificationsActiveRoundedIcon fontSize="medium" />,
-    title: "Notifications & Alerts",
-    desc: "Never miss a payment — smart reminders keep you in control.",
-  },
+  { icon: <HomeRoundedIcon fontSize="medium" />, title: "All In One Solution", desc: "Everything you need to manage your properties, all in one smart platform." },
+  { icon: <PersonAddAlt1RoundedIcon fontSize="medium" />, title: "Time Saving and Automation", desc: "Let automation handle rent tracking and billing — so you don’t have to." },
+  { icon: <ReceiptLongRoundedIcon fontSize="medium" />, title: "Secure, Reliable & Accessibility", desc: "Bank-level security with 24/7 cloud access — your data, always safe." },
+  { icon: <AccountBalanceWalletRoundedIcon fontSize="medium" />, title: "Real-Time Insights", desc: "Know exactly what’s happening, the moment it happens." },
+  { icon: <QueryStatsRoundedIcon fontSize="medium" />, title: "Reports & Tax Filing Support", desc: "Generate reports that make decision-making and tax filing a breeze." },
+  { icon: <NotificationsActiveRoundedIcon fontSize="medium" />, title: "Notifications & Alerts", desc: "Never miss a payment — smart reminders keep you in control." },
 ];
+
+/* ---------- Helpers ---------- */
+function tiltFromMouse(e, el) {
+  const rect = el.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width;
+  const y = (e.clientY - rect.top) / rect.height;
+  const rotateY = (x - 0.5) * 8;  // deg
+  const rotateX = (0.5 - y) * 8;  // deg
+  return { rotateX, rotateY };
+}
+
+/* ---------- Child component so hooks are at top level ---------- */
+function MotionServiceCard({ item, idx, accent, prefersReduced, smooth }) {
+  // Scroll-linked parallax per card
+  const base = (idx % 3) - 1; // -1,0,1 slight variance
+  const yParallax = useTransform(smooth, [0, 1], [base * 16, base * -16]);
+  const opacity = useTransform(smooth, [0, 0.15, 0.85, 1], [0.65, 1, 1, 0.9]);
+
+  // Magnetic drift + 3D tilt
+  const dx = useMotionValue(0);
+  const dy = useMotionValue(0);
+  const mx = useSpring(dx, { stiffness: 300, damping: 30, mass: 0.2 });
+  const my = useSpring(dy, { stiffness: 300, damping: 30, mass: 0.2 });
+  const rotateX = useMotionValue(0);
+  const rotateY = useMotionValue(0);
+
+  const onMove = (e) => {
+    if (prefersReduced) return;
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    const x = e.clientX - (rect.left + rect.width / 2);
+    const y = e.clientY - (rect.top + rect.height / 2);
+    dx.set(Math.max(-8, Math.min(8, x * 0.06)));
+    dy.set(Math.max(-8, Math.min(8, y * 0.06)));
+    const r = tiltFromMouse(e, el);
+    rotateX.set(r.rotateX);
+    rotateY.set(r.rotateY);
+  };
+
+  const onLeave = () => {
+    dx.set(0); dy.set(0);
+    rotateX.set(0); rotateY.set(0);
+  };
+
+  return (
+    <motion.div
+      variants={cardVariants}
+      whileHover={!prefersReduced ? "hover" : undefined}
+      style={{ width: "100%", y: yParallax, opacity }}
+    >
+      <motion.div
+        onMouseMove={onMove}
+        onMouseLeave={onLeave}
+        style={{
+          x: mx,
+          y: my,
+          rotateX,
+          rotateY,
+          transformStyle: "preserve-3d",
+          willChange: "transform",
+        }}
+      >
+        <ServiceCard variant="outlined" accent={accent} sx={{ mx: "auto" }}>
+          <CardContent
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 1,
+              px: 2.2,
+              py: 2.4,
+              height: "100%",
+              textAlign: "center",
+            }}
+          >
+            <IconWrap>{item.icon}</IconWrap>
+            <TitleText>{item.title}</TitleText>
+            <BodyText>{item.desc}</BodyText>
+          </CardContent>
+        </ServiceCard>
+      </motion.div>
+    </motion.div>
+  );
+}
 
 /* ---------- Component ---------- */
 export default function Operation() {
   const prefersReduced = useReducedMotion();
 
+  // Section-level scroll progress
+  const sectionRef = useRef(null);
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start 85%", "end 15%"],
+  });
+  const smooth = useSpring(scrollYProgress, { stiffness: 120, damping: 20 });
+
   return (
-    <Section id="services">
+    <Section id="services" ref={sectionRef}>
       <Container maxWidth="lg">
         <TitleWrap>
           <GradientText variant="h3" component="h2">
@@ -271,36 +352,14 @@ export default function Operation() {
             }}
           >
             {SERVICES.map((item, idx) => (
-              <motion.div
+              <MotionServiceCard
                 key={idx}
-                variants={cardVariants}
-                whileHover={!prefersReduced ? "hover" : undefined}
-                style={{ width: "100%" }}
-              >
-                <ServiceCard
-                  variant="outlined"
-                  accent={ACCENTS[idx % ACCENTS.length]}
-                  sx={{ mx: "auto" }}
-                >
-                  <CardContent
-                    sx={{
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      gap: 1,
-                      px: 2.2,
-                      py: 2.4,
-                      height: "100%",
-                      textAlign: "center",
-                    }}
-                  >
-                    <IconWrap>{item.icon}</IconWrap>
-                    <TitleText>{item.title}</TitleText>
-                    <BodyText>{item.desc}</BodyText>
-                  </CardContent>
-                </ServiceCard>
-              </motion.div>
+                item={item}
+                idx={idx}
+                accent={ACCENTS[idx % ACCENTS.length]}
+                prefersReduced={prefersReduced}
+                smooth={smooth}
+              />
             ))}
           </Box>
         </motion.div>
