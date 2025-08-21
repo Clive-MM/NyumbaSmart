@@ -10,6 +10,7 @@ import os
 import re
 import time
 import cloudinary.uploader
+from datetime import datetime, timedelta, date
 
 from utils.sms_helper import send_sms
 from utils.billing_helper import calculate_bill_amount
@@ -178,6 +179,51 @@ def serialize_profile(user, profile):
         "completeness": profile_completeness(profile, user) if profile else 25,
         "next_steps": profile_next_steps(profile) if profile else ["Complete your profile to personalize statements."]
     }
+
+
+def _fmt_dt(d):
+    """Format datetime → 'YYYY-MM-DD HH:MM:SS' (or None)."""
+    return d.strftime("%Y-%m-%d %H:%M:%S") if d else None
+
+
+def _parse_month_any(month_str: str):
+    """
+    Accepts either 'YYYY-MM' or 'MMMM YYYY' (e.g., '2025-08' or 'August 2025').
+    Returns (year:int, month:int) or (None, None) if invalid/empty.
+    """
+    if not month_str:
+        return None, None
+    month_str = month_str.strip()
+    # try YYYY-MM
+    try:
+        y, m = month_str.split("-")
+        return int(y), int(m)
+    except Exception:
+        pass
+    # try 'MMMM YYYY'
+    try:
+        dt = datetime.strptime(month_str, "%B %Y")
+        return dt.year, dt.month
+    except Exception:
+        return None, None
+
+
+def _landlord_scope_ids(user_id: int, apartment_id: int | None = None):
+    """
+    Returns (apartment_ids, unit_ids, unit_by_id) scoped to the landlord.
+    Optionally restrict to a specific apartment_id.
+    """
+    a_q = Apartment.query.filter_by(UserID=user_id)
+    if apartment_id:
+        a_q = a_q.filter(Apartment.ApartmentID == apartment_id)
+    apartments = a_q.all()
+    apartment_ids = [a.ApartmentID for a in apartments]
+
+    units = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids)).all()
+    unit_ids = [u.UnitID for u in units]
+    unit_by_id = {u.UnitID: u for u in units}
+    return apartment_ids, unit_ids, unit_by_id
 
 
 # ✅ Landlord registration route with full validation
@@ -1208,7 +1254,7 @@ def transfer_tenant(tenant_id):
     }), 200
 
 
-# Route for allocating a tenant to a different rental unit in the same apartment
+# # Route for allocating a tenant to a different rental unit in the same apartment
 @routes.route('/tenants/transfer/<int:id>', methods=['PUT'])
 @jwt_required()
 def transfer_tenant_by_id(id):
@@ -1288,7 +1334,7 @@ def transfer_tenant_by_id(id):
             'message': message
         }
         response = requests.post('https://api.smsprovider.com/send', json=sms_payload)
-        
+
         # Optional: log or handle response status
         if response.status_code != 200:
             print(f"Failed to send SMS: {response.text}")
@@ -1450,6 +1496,395 @@ def create_vacate_notice(tenant_id):
         "InspectionDate": inspection.strftime('%Y-%m-%d') if inspection else "Not Scheduled"
     }), 201
 
+
+@routes.route('/logs/timeline', methods=['GET'])
+@jwt_required()
+def logs_timeline():
+    user_id = get_jwt_identity()
+    month_in = (request.args.get("month") or "").strip()
+    log_type = (request.args.get("type") or "all").lower()
+    search = (request.args.get("q") or request.args.get(
+        "search") or "").strip().lower()
+    apartment_filter = request.args.get("apartment_id", type=int)
+    page = max(int(request.args.get("page", 1)), 1)
+    limit = min(max(int(request.args.get("limit", 100)), 1), 500)
+
+    y, m = _parse_month_any(month_in)
+    apt_ids, unit_ids, unit_by_id = _landlord_scope_ids(
+        user_id, apartment_filter)
+
+    # Transfers that touch landlord units (from OR to)
+    tq = TransferLog.query.filter(
+        (TransferLog.OldUnitID.in_(unit_ids)) | (
+            TransferLog.NewUnitID.in_(unit_ids))
+    )
+    if y and m:
+        tq = tq.filter(func.extract('year', TransferLog.TransferDate) == y,
+                       func.extract('month', TransferLog.TransferDate) == m)
+
+    # Vacates within landlord apartments
+    vq = VacateLog.query.filter(VacateLog.ApartmentID.in_(apt_ids))
+    if y and m:
+        vq = vq.filter(func.extract('year', VacateLog.VacateDate) == y,
+                       func.extract('month', VacateLog.VacateDate) == m)
+
+    items = []
+
+    # Transfers
+    if log_type in ("all", "transfer"):
+        for t in tq.all():
+            tenant = Tenant.query.get(t.TenantID)
+            old_u = unit_by_id.get(t.OldUnitID)
+            new_u = unit_by_id.get(t.NewUnitID)
+            hay = " ".join([
+                (t.Reason or ""),
+                (tenant.FullName if tenant else ""),
+                (old_u.Label if old_u else ""),
+                (new_u.Label if new_u else "")
+            ]).lower()
+            if search and search not in hay:
+                continue
+            items.append({
+                "id": f"T-{t.LogID}",
+                "type": "transfer",
+                "TenantID": t.TenantID,
+                "TenantName": tenant.FullName if tenant else "Unknown",
+                "FromUnit": old_u.Label if old_u else "N/A",
+                "ToUnit": new_u.Label if new_u else "N/A",
+                "Reason": t.Reason or "",
+                "Timestamp": _fmt_dt(t.TransferDate)
+            })
+
+    # Vacates
+    if log_type in ("all", "vacate"):
+        for v in vq.all():
+            tenant = Tenant.query.get(v.TenantID)
+            unit = unit_by_id.get(v.UnitID)
+            hay = " ".join([
+                (v.Reason or ""), (v.Notes or ""),
+                (tenant.FullName if tenant else ""),
+                (unit.Label if unit else "")
+            ]).lower()
+            if search and search not in hay:
+                continue
+            items.append({
+                "id": f"V-{v.LogID}",
+                "type": "vacate",
+                "TenantID": v.TenantID,
+                "TenantName": tenant.FullName if tenant else "Unknown",
+                "Unit": unit.Label if unit else "N/A",
+                "Reason": v.Reason or "",
+                "Notes": v.Notes or "",
+                "Timestamp": _fmt_dt(v.VacateDate)
+            })
+
+    # Sort + paginate
+    items.sort(key=lambda e: e["Timestamp"] or "", reverse=True)
+    start = (page - 1) * limit
+    end = start + limit
+    sliced = items[start:end]
+
+    return jsonify({
+        "page": page,
+        "limit": limit,
+        "total": len(items),
+        "items": sliced
+    }), 200
+
+# GET /logs/stats
+# KPI summary for the selected month: transfers, vacates, unitsImpacted, topReason.
+# Filters: month (YYYY-MM or 'MMMM YYYY'), apartment_id (optional)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@routes.route('/logs/stats', methods=['GET'])
+@jwt_required()
+def logs_stats():
+    user_id = get_jwt_identity()
+    month_in = (request.args.get("month") or "").strip()
+    apartment_filter = request.args.get("apartment_id", type=int)
+
+    y, m = _parse_month_any(month_in)
+    apt_ids, unit_ids, _ = _landlord_scope_ids(user_id, apartment_filter)
+
+    tq = TransferLog.query.filter(
+        (TransferLog.OldUnitID.in_(unit_ids)) | (
+            TransferLog.NewUnitID.in_(unit_ids))
+    )
+    vq = VacateLog.query.filter(VacateLog.ApartmentID.in_(apt_ids))
+
+    if y and m:
+        tq = tq.filter(func.extract('year', TransferLog.TransferDate) == y,
+                       func.extract('month', TransferLog.TransferDate) == m)
+        vq = vq.filter(func.extract('year', VacateLog.VacateDate) == y,
+                       func.extract('month', VacateLog.VacateDate) == m)
+
+    transfers = tq.all()
+    vacates = vq.all()
+
+    units_impacted = len({t.NewUnitID for t in transfers}
+                         | {v.UnitID for v in vacates})
+
+    reasons = [t.Reason for t in transfers if t.Reason] + \
+        [v.Reason for v in vacates if v.Reason]
+    top_reason = "—"
+    if reasons:
+        counts = {}
+        for r in reasons:
+            counts[r] = counts.get(r, 0) + 1
+        top_reason = max(counts, key=counts.get)
+
+    return jsonify({
+        "month": month_in or "All",
+        "transfers": len(transfers),
+        "vacates": len(vacates),
+        "unitsImpacted": units_impacted,
+        "topReason": top_reason
+    }), 200
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /logs/recent
+# Latest N transfer logs and vacate logs (for the two side tables).
+# Filters: limit (default 5), apartment_id (optional)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@routes.route('/logs/recent', methods=['GET'])
+@jwt_required()
+def logs_recent():
+    user_id = get_jwt_identity()
+    lim = min(max(request.args.get("limit", default=5, type=int), 1), 50)
+    apartment_filter = request.args.get("apartment_id", type=int)
+
+    apt_ids, unit_ids, unit_by_id = _landlord_scope_ids(
+        user_id, apartment_filter)
+
+    transfers = (TransferLog.query
+                 .filter((TransferLog.OldUnitID.in_(unit_ids)) | (TransferLog.NewUnitID.in_(unit_ids)))
+                 .order_by(TransferLog.TransferDate.desc())
+                 .limit(lim).all())
+    vacates = (VacateLog.query
+               .filter(VacateLog.ApartmentID.in_(apt_ids))
+               .order_by(VacateLog.VacateDate.desc())
+               .limit(lim).all())
+
+    recent_transfers = []
+    for t in transfers:
+        tenant = Tenant.query.get(t.TenantID)
+        recent_transfers.append({
+            "Date": _fmt_dt(t.TransferDate),
+            "TenantID": t.TenantID,
+            "TenantName": tenant.FullName if tenant else "Unknown",
+            "From": unit_by_id.get(t.OldUnitID).Label if unit_by_id.get(t.OldUnitID) else "N/A",
+            "To": unit_by_id.get(t.NewUnitID).Label if unit_by_id.get(t.NewUnitID) else "N/A",
+            "Reason": t.Reason or "—"
+        })
+
+    recent_vacates = []
+    for v in vacates:
+        tenant = Tenant.query.get(v.TenantID)
+        recent_vacates.append({
+            "Date": _fmt_dt(v.VacateDate),
+            "TenantID": v.TenantID,
+            "TenantName": tenant.FullName if tenant else "Unknown",
+            "Unit": unit_by_id.get(v.UnitID).Label if unit_by_id.get(v.UnitID) else "N/A",
+            "Reason": v.Reason or "—",
+            "Notes": v.Notes or "—"
+        })
+
+    return jsonify({
+        "recentTransfers": recent_transfers,
+        "recentVacates": recent_vacates
+    }), 200
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /logs/alerts/repeat-transfers
+# Detect tenants with more than <threshold> transfers in the last <months>.
+# Filters: months=6 (default), threshold=2 (default), apartment_id (optional)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@routes.route('/logs/alerts/repeat-transfers', methods=['GET'])
+@jwt_required()
+def logs_alerts_repeat_transfers():
+    user_id = get_jwt_identity()
+    months = request.args.get("months", type=int) or 6
+    threshold = request.args.get("threshold", type=int) or 2
+    apartment_filter = request.args.get("apartment_id", type=int)
+    cutoff = datetime.utcnow() - timedelta(days=30 * months)
+
+    _, unit_ids, _ = _landlord_scope_ids(user_id, apartment_filter)
+
+    q = (TransferLog.query
+         .filter(((TransferLog.OldUnitID.in_(unit_ids)) | (TransferLog.NewUnitID.in_(unit_ids))),
+                 TransferLog.TransferDate >= cutoff))
+
+    counts = {}
+    last_dates = {}
+    for t in q.all():
+        counts[t.TenantID] = counts.get(t.TenantID, 0) + 1
+        last_dates[t.TenantID] = max(last_dates.get(
+            t.TenantID, datetime.min), t.TransferDate or datetime.min)
+
+    flagged_ids = [tid for tid, c in counts.items() if c > threshold]
+    flagged = []
+    for tid in flagged_ids:
+        tenant = Tenant.query.get(tid)
+        flagged.append({
+            "TenantID": tid,
+            "TenantName": tenant.FullName if tenant else "Unknown",
+            "TransfersInPeriod": counts[tid],
+            "LastTransfer": _fmt_dt(last_dates.get(tid))
+        })
+
+    flagged.sort(key=lambda x: x["LastTransfer"] or "", reverse=True)
+    return jsonify({
+        "months": months,
+        "threshold": threshold,
+        "flagged": flagged
+    }), 200
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /logs/upcoming-vacates
+# List pending vacate notices in the future (optionally within X days).
+# Filters: days (optional horizon), apartment_id (optional)
+# ──────────────────────────────────────────────────────────────────────────────
+@routes.route('/logs/upcoming-vacates', methods=['GET'])
+@jwt_required()
+def logs_upcoming_vacates():
+    user_id = get_jwt_identity()
+    days = request.args.get("days", type=int)  # if None => all future
+    apartment_filter = request.args.get("apartment_id", type=int)
+    today = date.today()
+
+    apt_ids, unit_ids, unit_by_id = _landlord_scope_ids(
+        user_id, apartment_filter)
+
+    q = (VacateNotice.query
+         .filter(VacateNotice.RentalUnitID.in_(unit_ids),
+                 VacateNotice.Status == 'Pending',
+                 VacateNotice.ExpectedVacateDate >= today))
+    if days:
+        q = q.filter(VacateNotice.ExpectedVacateDate <=
+                     (today + timedelta(days=days)))
+
+    notices = q.order_by(VacateNotice.ExpectedVacateDate.asc()).all()
+
+    out = []
+    for n in notices:
+        tenant = Tenant.query.get(n.TenantID)
+        unit = unit_by_id.get(n.RentalUnitID)
+        days_left = (n.ExpectedVacateDate - today).days
+        out.append({
+            "TenantID": n.TenantID,
+            "TenantName": tenant.FullName if tenant else "Unknown",
+            "Unit": unit.Label if unit else "N/A",
+            "ExpectedVacateDate": n.ExpectedVacateDate.strftime("%Y-%m-%d"),
+            "InspectionDate": n.InspectionDate.strftime("%Y-%m-%d") if n.InspectionDate else None,
+            "Reason": n.Reason or "—",
+            "Status": n.Status,
+            "DaysLeft": days_left
+        })
+
+    return jsonify({"upcoming": out}), 200
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /logs/export
+# Download CSV of merged transfer + vacate events. Supports same filters
+# as /logs/timeline (month, type, q/search, apartment_id).
+# ──────────────────────────────────────────────────────────────────────────────
+@routes.route('/logs/export', methods=['GET'])
+@jwt_required()
+def logs_export_csv():
+    from io import StringIO
+    import csv
+    from flask import Response
+
+    user_id = get_jwt_identity()
+    month_in = (request.args.get("month") or "").strip()
+    log_type = (request.args.get("type") or "all").lower()
+    search = (request.args.get("q") or request.args.get(
+        "search") or "").strip().lower()
+    apartment_filter = request.args.get("apartment_id", type=int)
+
+    y, m = _parse_month_any(month_in)
+    apt_ids, unit_ids, unit_by_id = _landlord_scope_ids(
+        user_id, apartment_filter)
+
+    tq = TransferLog.query.filter(
+        (TransferLog.OldUnitID.in_(unit_ids)) | (
+            TransferLog.NewUnitID.in_(unit_ids))
+    )
+    vq = VacateLog.query.filter(VacateLog.ApartmentID.in_(apt_ids))
+
+    if y and m:
+        tq = tq.filter(func.extract('year', TransferLog.TransferDate) == y,
+                       func.extract('month', TransferLog.TransferDate) == m)
+        vq = vq.filter(func.extract('year', VacateLog.VacateDate) == y,
+                       func.extract('month', VacateLog.VacateDate) == m)
+
+    rows = []
+
+    # Transfers
+    if log_type in ("all", "transfer"):
+        for t in tq.all():
+            tenant = Tenant.query.get(t.TenantID)
+            old_u = unit_by_id.get(t.OldUnitID)
+            new_u = unit_by_id.get(t.NewUnitID)
+            hay = " ".join([
+                (t.Reason or ""),
+                (tenant.FullName if tenant else ""),
+                (old_u.Label if old_u else ""),
+                (new_u.Label if new_u else "")
+            ]).lower()
+            if search and search not in hay:
+                continue
+            rows.append([
+                "Transfer",
+                tenant.FullName if tenant else "Unknown",
+                f"{(old_u.Label if old_u else 'N/A')} -> {(new_u.Label if new_u else 'N/A')}",
+                _fmt_dt(t.TransferDate),
+                t.Reason or "",
+                ""
+            ])
+
+    # Vacates
+    if log_type in ("all", "vacate"):
+        for v in vq.all():
+            tenant = Tenant.query.get(v.TenantID)
+            unit = unit_by_id.get(v.UnitID)
+            hay = " ".join([
+                (v.Reason or ""), (v.Notes or ""),
+                (tenant.FullName if tenant else ""),
+                (unit.Label if unit else "")
+            ]).lower()
+            if search and search not in hay:
+                continue
+            rows.append([
+                "Vacate",
+                tenant.FullName if tenant else "Unknown",
+                (unit.Label if unit else "N/A"),
+                _fmt_dt(v.VacateDate),
+                v.Reason or "",
+                v.Notes or ""
+            ])
+
+    rows.sort(key=lambda r: r[3] or "", reverse=True)
+
+    sio = StringIO()
+    writer = csv.writer(sio)
+    writer.writerow(["Type", "Tenant", "Unit / From → To",
+                    "Date", "Reason", "Notes"])
+    writer.writerows(rows)
+    sio.seek(0)
+
+    filename = f"logs_{(month_in or 'all').replace(' ', '_')}.csv"
+    return Response(
+        sio.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 # View All Transfers for a Landlord
 
 

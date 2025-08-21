@@ -1,23 +1,24 @@
-// src/pages/HistoryLogs.jsx
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    Box, Grid, Paper, Typography, Stack, Button, IconButton, Tooltip,
+    Box, Paper, Typography, Stack, Button, IconButton, Tooltip,
     Chip, Divider, Table, TableHead, TableRow, TableCell, TableBody,
-    TextField, MenuItem, InputAdornment, Avatar
+    MenuItem, InputAdornment, Avatar, Select, FormControl, InputLabel, TextField
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
-import NoteAddIcon from "@mui/icons-material/NoteAdd";
 import SearchIcon from "@mui/icons-material/Search";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import LogoutIcon from "@mui/icons-material/Logout";
 import ApartmentIcon from "@mui/icons-material/Apartment";
-import {
-    ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RTooltip, Legend
-} from "recharts";
 import dayjs from "dayjs";
 
-/* ---------- Brand + Fonts (consistent with Properties/Billing/Payments/Expenses) ---------- */
+/* ---------- API base (fixes “import.meta” warning) ---------- */
+const API_BASE =
+    process.env.REACT_APP_API_BASE ||
+    (typeof window !== "undefined" && window.__API_URL__) ||
+    "http://localhost:5000";
+
+/* ---------- Theme bits ---------- */
 const BRAND = {
     start: "#FF0080",
     end: "#7E00A6",
@@ -34,128 +35,92 @@ const softCard = {
     borderRadius: 3,
     color: "#fff",
     background: "#0e0a17",
-    boxShadow:
-        "9px 9px 18px rgba(0,0,0,.55), -9px -9px 18px rgba(255,255,255,.03), inset 0 0 0 rgba(255,255,255,0)",
+    boxShadow: "9px 9px 18px rgba(0,0,0,.55), -9px -9px 18px rgba(255,255,255,.03)",
     border: "1px solid rgba(255,255,255,0.06)",
     transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
     "&:hover": {
-        transform: "translateY(-3px)",
+        transform: "translateY(-2px)",
         boxShadow: "12px 12px 24px rgba(0,0,0,.6), -12px -12px 24px rgba(255,255,255,.035)",
         borderColor: "transparent",
-        background:
-            "linear-gradient(#0e0a17,#0e0a17) padding-box, " + BRAND.gradient + " border-box",
+        background: "linear-gradient(#0e0a17,#0e0a17) padding-box, " + BRAND.gradient + " border-box",
         filter: "drop-shadow(0 18px 28px rgba(255,0,128,.16))",
     },
 };
-const fmtKES = (n) =>
-    `KES ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(Number(n || 0))}`;
+const COLORS = { transfer: "#60A5FA", vacate: "#F59E0B" };
+const monthsList = Array.from({ length: 18 }, (_, i) => dayjs().subtract(i, "month").format("MMMM YYYY"));
+const fmtTs = (s) => (s ? dayjs(s).format("DD MMM YYYY, HH:mm") : "—");
 
-/* ---------- Tiny reusable ---------- */
-function Kpi({ label, value }) {
+/* ---------- tiny UI pieces ---------- */
+function KpiSquare({ label, value, sub }) {
     return (
-        <Paper elevation={0} sx={{ ...softCard, height: 118 }}>
-            <Typography variant="body2" sx={{ opacity: .9, fontFamily: FONTS.subhead }}>
+        <Paper elevation={0} sx={{ ...softCard, p: 2, borderRadius: 2 }}>
+            <Typography variant="caption" sx={{ opacity: .8, fontFamily: FONTS.subhead }}>
                 {label}
             </Typography>
             <Typography variant="h5" sx={{ mt: .5, fontWeight: 900, fontFamily: FONTS.number }}>
                 {value}
             </Typography>
+            {sub && (
+                <Typography variant="caption" sx={{ opacity: .7, mt: .25, display: "block", fontFamily: FONTS.subhead }}>
+                    {sub}
+                </Typography>
+            )}
         </Paper>
     );
 }
 function Insight({ text }) {
     return (
-        <Paper elevation={0} sx={{ ...softCard, borderRadius: 2, height: 74, display: "flex", alignItems: "center", px: 2.25 }}>
-            <Typography variant="body2" sx={{ fontFamily: FONTS.subhead, opacity: .92 }}>
+        <Paper elevation={0} sx={{ ...softCard, borderRadius: 2, height: 60, display: "flex", alignItems: "center", px: 2 }}>
+            <Typography variant="body2" sx={{ fontFamily: FONTS.subhead, opacity: .92 }} noWrap>
                 {text}
             </Typography>
         </Paper>
     );
 }
-
-/* ---------- Mock data (mirrors your DB screenshot) ---------- */
-// TransferLogs
-const transferLogs = [
-    { LogID: 2, TenantID: 2, OldUnitID: null, NewUnitID: 4, TransferredBy: 1, TransferDate: "2025-06-24 18:20:39.653", Reason: "Returning tenant" },
-    { LogID: 3, TenantID: 2, OldUnitID: 5, NewUnitID: 1, TransferredBy: 1, TransferDate: "2025-06-25 18:11:47.543", Reason: "Moved to smaller unit" },
-    { LogID: 4, TenantID: 1003, OldUnitID: 2, NewUnitID: 5, TransferredBy: 1, TransferDate: "2025-06-25 16:18:53.523", Reason: "Requested better lighting" },
-    { LogID: 5, TenantID: 1003, OldUnitID: 1004, NewUnitID: 4, TransferredBy: 1, TransferDate: "2025-07-25 19:37:34.693", Reason: "Tenant requested a bigger unit" },
-    { LogID: 6, TenantID: 1003, OldUnitID: 1004, NewUnitID: 1005, TransferredBy: 1, TransferDate: "2025-07-25 19:42:58.500", Reason: "Moving to a different house in the same apartment" },
-];
-// VacateLogs
-const vacateLogs = [
-    { LogID: 1, TenantID: 2, UnitID: 2, ApartmentID: 1, VacatedBy: 1, VacateDate: "2025-06-24 17:19:22.277", Reason: null, Notes: null },
-    { LogID: 2, TenantID: 2, UnitID: 3, ApartmentID: 2, VacatedBy: 1, VacateDate: "2025-06-24 18:06:11.430", Reason: null, Notes: null },
-    { LogID: 3, TenantID: 1003, UnitID: 1002, ApartmentID: 2, VacatedBy: 1, VacateDate: "2025-06-25 17:57:12.873", Reason: "Tenant requested to leave", Notes: "Moved to another town for work" },
-    { LogID: 4, TenantID: 1009, UnitID: 1005, ApartmentID: 1002, VacatedBy: 1, VacateDate: "2025-07-25 19:32:18.793", Reason: null, Notes: null },
-];
-
-/* ---------- Helpers ---------- */
-const monthsList = Array.from({ length: 12 }, (_, i) =>
-    dayjs().subtract(i, "month").format("MMMM YYYY")
-);
-const COLORS = { transfer: "#60A5FA", vacate: "#F59E0B" };
-
-function toEvents(transfers, vacates) {
-    const t = transfers.map((x) => ({
-        id: `T-${x.LogID}`,
-        ts: dayjs(x.TransferDate),
-        type: "transfer",
-        title: "Transfer",
-        detail: x.Reason || "Transfer",
-        meta: x,
-    }));
-    const v = vacates.map((x) => ({
-        id: `V-${x.LogID}`,
-        ts: dayjs(x.VacateDate),
-        type: "vacate",
-        title: "Vacate",
-        detail: x.Reason || "Vacate recorded",
-        meta: x,
-    }));
-    return [...t, ...v].sort((a, b) => b.ts.valueOf() - a.ts.valueOf());
-}
-
-/* ---------- Timeline item ---------- */
 function TimelineItem({ e }) {
     const isTransfer = e.type === "transfer";
     const icon = isTransfer ? <SwapHorizIcon /> : <LogoutIcon />;
     const chipColor = isTransfer ? COLORS.transfer : COLORS.vacate;
 
     return (
-        <Stack direction="row" spacing={1.5} sx={{ position: "relative", pl: 2 }}>
-            <Box
-                sx={{
-                    position: "absolute", left: 0, top: 0, bottom: 0,
-                    width: 2, bgcolor: "rgba(255,255,255,0.08)",
-                }}
-            />
-            <Avatar sx={{ width: 28, height: 28, bgcolor: chipColor }}>{icon}</Avatar>
-            <Box sx={{ flex: 1 }}>
-                <Stack direction="row" alignItems="center" spacing={1}>
-                    <Typography sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>
-                        {e.title}
+        <Stack direction="row" spacing={1.25} sx={{ p: 1.25, borderRadius: 2, background: "rgba(255,255,255,.02)" }}>
+            <Avatar sx={{ width: 26, height: 26, bgcolor: chipColor }}>{icon}</Avatar>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 800, fontFamily: FONTS.subhead }} noWrap>
+                        {isTransfer ? "Transfer" : "Vacate"}
                     </Typography>
-                    <Chip
-                        size="small"
-                        label={isTransfer ? "Transfer" : "Vacate"}
-                        sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)" }}
-                    />
-                    {isTransfer && (
+                    <Chip size="small" label={isTransfer ? "Transfer" : "Vacate"} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)" }} />
+                    {isTransfer ? (
                         <Chip
                             size="small"
                             icon={<ApartmentIcon sx={{ color: "#fff!important" }} />}
-                            label={`Unit ${e.meta.OldUnitID ?? "—"} → ${e.meta.NewUnitID}`}
+                            label={`${e.FromUnit || "—"} → ${e.ToUnit || "—"}`}
+                            sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)" }}
+                        />
+                    ) : (
+                        <Chip
+                            size="small"
+                            icon={<ApartmentIcon sx={{ color: "#fff!important" }} />}
+                            label={e.Unit || "—"}
                             sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)" }}
                         />
                     )}
+                    <Box sx={{ flexGrow: 1 }} />
+                    <Typography variant="caption" sx={{ opacity: .7, fontFamily: FONTS.subhead }} noWrap>
+                        {fmtTs(e.Timestamp)}
+                    </Typography>
                 </Stack>
-                <Typography variant="body2" sx={{ opacity: .9, mt: .25, fontFamily: FONTS.subhead }}>
-                    {e.detail}
-                </Typography>
-                <Typography variant="caption" sx={{ opacity: .7, fontFamily: FONTS.subhead }}>
-                    {e.ts.format("DD MMM YYYY, HH:mm")}
-                </Typography>
+                {e.Reason && (
+                    <Typography variant="body2" sx={{ opacity: .9, mt: .25, fontFamily: FONTS.subhead }} noWrap>
+                        {e.Reason}
+                    </Typography>
+                )}
+                {e.Notes && (
+                    <Typography variant="body2" sx={{ opacity: .75, mt: .25, fontFamily: FONTS.subhead }} noWrap>
+                        {e.Notes}
+                    </Typography>
+                )}
             </Box>
         </Stack>
     );
@@ -163,110 +128,121 @@ function TimelineItem({ e }) {
 
 /* ---------- Page ---------- */
 export default function HistoryLogs() {
-    const [filter, setFilter] = useState({
-        q: "",
-        month: monthsList[0],
-        type: "All",
-    });
+    const token = localStorage.getItem("token");
+    const abortRef = useRef(null);
 
-    const events = useMemo(() => toEvents(transferLogs, vacateLogs), []);
-    const eventsFiltered = events.filter((e) => {
-        const inMonth = e.ts.format("MMMM YYYY") === filter.month;
-        const byType = filter.type === "All" || e.type === filter.type;
-        const byQ =
-            !filter.q ||
-            (e.detail + " " + (e.meta?.Notes || "")).toLowerCase().includes(filter.q.toLowerCase());
-        return inMonth && byType && byQ;
-    });
+    const [apartments, setApartments] = useState([{ ApartmentID: 0, ApartmentName: "All Apartments" }]);
+    const [filter, setFilter] = useState({ apartment_id: 0, month: monthsList[0], type: "all" });
 
-    // KPIs
-    const transfersCount = eventsFiltered.filter((e) => e.type === "transfer").length;
-    const vacatesCount = eventsFiltered.filter((e) => e.type === "vacate").length;
-    const unitsImpacted = new Set(
-        eventsFiltered
-            .map((e) => (e.type === "transfer" ? e.meta.NewUnitID : e.meta.UnitID))
-            .filter(Boolean)
-    ).size;
+    // NOTE: removed from the filter bar on purpose (per request)
+    const [tableSearch, setTableSearch] = useState("");
 
-    // Donut breakdown
-    const donut = [
-        { name: "Transfers", value: transfersCount, c: COLORS.transfer },
-        { name: "Vacates", value: vacatesCount, c: COLORS.vacate },
-    ].filter((d) => d.value > 0);
+    const [loading, setLoading] = useState(false);
+    const [stats, setStats] = useState({ transfers: 0, vacates: 0, unitsImpacted: 0, topReason: "—" });
+    const [timeline, setTimeline] = useState([]);
+    const [recent, setRecent] = useState({ recentTransfers: [], recentVacates: [] });
 
-    // Insights
-    const topReason =
-        eventsFiltered
-            .filter((e) => e.detail)
-            .map((e) => e.detail)
-            .sort(
-                (a, b) =>
-                    eventsFiltered.filter((e) => e.detail === b).length -
-                    eventsFiltered.filter((e) => e.detail === a).length
-            )[0] || "—";
+    /* -------- helpers -------- */
+    const authFetch = useCallback(async (url, opts = {}) => {
+        abortRef.current?.abort?.();
+        const controller = new AbortController();
+        abortRef.current = controller;
 
-    const recentTransfers = transferLogs
-        .slice()
-        .sort((a, b) => dayjs(b.TransferDate).valueOf() - dayjs(a.TransferDate).valueOf())
-        .slice(0, 5);
-    const recentVacates = vacateLogs
-        .slice()
-        .sort((a, b) => dayjs(b.VacateDate).valueOf() - dayjs(a.VacateDate).valueOf())
-        .slice(0, 5);
+        const res = await fetch(url, {
+            ...opts,
+            signal: controller.signal,
+            headers: {
+                "Content-Type": opts.body instanceof FormData ? undefined : "application/json",
+                Authorization: `Bearer ${token}`,
+                ...(opts.headers || {})
+            }
+        });
+        if (!res.ok) throw new Error((await res.text()) || "Request failed");
+        return res;
+    }, [token]);
 
-    const exportCsv = () => {
-        const rows = eventsFiltered.map((e) => ({
-            Type: e.type,
-            Date: e.ts.format("YYYY-MM-DD HH:mm"),
-            TenantID: e.meta.TenantID ?? "",
-            Unit_From: e.meta.OldUnitID ?? "",
-            Unit_To: e.meta.NewUnitID ?? "",
-            Unit: e.meta.UnitID ?? "",
-            ApartmentID: e.meta.ApartmentID ?? "",
-            Reason: e.detail || "",
-            Notes: e.meta.Notes || "",
-        }));
-        if (rows.length === 0) return;
+    const loadAll = useCallback(async () => {
+        setLoading(true);
+        try {
+            // 1) apartments for filter
+            const a = await authFetch(`${API_BASE}/myapartments`);
+            const ajson = await a.json();
+            const aps = [{ ApartmentID: 0, ApartmentName: "All Apartments" }, ...(ajson.Apartments || [])];
+            setApartments(aps);
 
-        const head = Object.keys(rows[0]).join(",");
-        const body = rows
-            .map((r) =>
-                Object.values(r)
-                    .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-                    .join(",")
-            )
-            .join("\n");
-        const blob = new Blob([head + "\n" + body], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `history_${dayjs().format("YYYYMMDD_HHmmss")}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+            const params = new URLSearchParams();
+            if (filter.month) params.append("month", filter.month);
+            if (filter.apartment_id) params.append("apartment_id", String(filter.apartment_id));
+            if (filter.type && filter.type !== "all") params.append("type", filter.type);
+
+            // 2) stats for KPIs
+            const s = await authFetch(`${API_BASE}/logs/stats?${params.toString()}`);
+            setStats(await s.json());
+
+            // 3) timeline (no search in filter bar; search stays with list)
+            const tl = await authFetch(`${API_BASE}/logs/timeline?${params.toString()}${tableSearch ? `&q=${encodeURIComponent(tableSearch)}` : ""}`);
+            const tjson = await tl.json();
+            setTimeline(tjson.items || []);
+
+            // 4) recent tables
+            const rc = await authFetch(`${API_BASE}/logs/recent?${filter.apartment_id ? `apartment_id=${filter.apartment_id}` : ""}`);
+            setRecent(await rc.json());
+        } catch (e) {
+            console.error("loadAll error:", e);
+        } finally {
+            setLoading(false);
+        }
+    }, [authFetch, filter.apartment_id, filter.month, filter.type, tableSearch]);
+
+    useEffect(() => { loadAll(); }, []); // initial
+    useEffect(() => { loadAll(); }, [filter.apartment_id, filter.month, filter.type]); // on filter change
+
+    const exportCsv = async () => {
+        try {
+            const params = new URLSearchParams();
+            if (filter.month) params.append("month", filter.month);
+            if (filter.apartment_id) params.append("apartment_id", String(filter.apartment_id));
+            if (filter.type && filter.type !== "all") params.append("type", filter.type);
+            if (tableSearch) params.append("q", tableSearch);
+
+            const res = await authFetch(`${API_BASE}/logs/export?${params.toString()}`);
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `history_${dayjs().format("YYYYMMDD_HHmmss")}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error("Export failed:", e);
+        }
     };
 
+    /* -------- UI -------- */
     return (
-        <Box sx={{ p: 3, bgcolor: "#0b0714", minHeight: "100vh" }}>
-            {/* Title + actions */}
+        <Box sx={{ p: 3, bgcolor: "#0b0714", minHeight: "100vh", overflowX: "hidden" }}>
+            {/* Title / actions */}
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
                 <Typography
                     variant="h4"
                     sx={{
                         fontWeight: 800,
-                        background: BRAND.gradient,
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        fontFamily: FONTS.display,
                         letterSpacing: .5,
+                        fontFamily: FONTS.display,
+                        background: BRAND.gradient,
+                        backgroundClip: "text",
+                        color: "transparent"
                     }}
                 >
                     History Logs
                 </Typography>
                 <Box sx={{ flexGrow: 1 }} />
                 <Tooltip title="Refresh">
-                    <IconButton sx={{ color: "#fff" }}>
-                        <RefreshIcon />
-                    </IconButton>
+                    <span>
+                        <IconButton onClick={loadAll} disabled={loading} sx={{ color: "#fff" }}>
+                            <RefreshIcon sx={{ animation: loading ? "spin 900ms linear infinite" : "none" }} />
+                        </IconButton>
+                    </span>
                 </Tooltip>
                 <Button
                     startIcon={<FileDownloadOutlinedIcon />}
@@ -274,198 +250,206 @@ export default function HistoryLogs() {
                     variant="outlined"
                     sx={{
                         textTransform: "none",
-                        borderRadius: 2,
-                        color: "#fff",
+                        borderRadius: 2, color: "#fff",
                         borderColor: "rgba(255,255,255,0.35)",
                         "&:hover": { borderColor: BRAND.end, background: "rgba(126,0,166,.08)" },
                     }}
                 >
                     Export
                 </Button>
-                <Button
-                    startIcon={<NoteAddIcon />}
-                    variant="contained"
-                    sx={{
-                        textTransform: "none",
-                        borderRadius: 2,
-                        background: BRAND.gradient,
-                        boxShadow: "none",
-                        "&:hover": { boxShadow: BRAND.glow },
-                    }}
-                    onClick={() => console.log("Open Add Note modal")}
-                >
-                    Add Note
-                </Button>
             </Stack>
 
-            {/* KPIs */}
-            <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Kpi label={`Transfers — ${filter.month}`} value={transfersCount} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Kpi label={`Vacates — ${filter.month}`} value={vacatesCount} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Kpi label="Units Impacted" value={unitsImpacted} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <Kpi label="Top Reason" value={topReason} />
-                </Grid>
-            </Grid>
+            {/* KPI Squares — transfers & vacates for selected month */}
+            <Box
+                sx={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat( auto-fit, minmax(180px, 1fr) )",
+                    gap: 1.5,
+                    mb: 2,
+                }}
+            >
+                <KpiSquare label={`Transfers — ${filter.month}`} value={stats.transfers ?? 0} />
+                <KpiSquare label={`Vacates — ${filter.month}`} value={stats.vacates ?? 0} />
+                <KpiSquare label="Units Impacted" value={stats.unitsImpacted ?? 0} sub="Unique units moved or vacated" />
+            </Box>
 
-            {/* Insights */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={6}>
-                    <Insight text="Keep an eye on repeat transfers — they often signal unit mismatch or pricing friction." />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                    <Insight text="Vacates cluster near month end; consider automated retention messages 10 days before." />
-                </Grid>
-            </Grid>
+            {/* Insights (kept slim) */}
+            <Box
+                sx={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat( auto-fit, minmax(260px, 1fr) )",
+                    gap: 1.5,
+                    mb: 2,
+                }}
+            >
+                <Insight text="Keep an eye on repeat transfers — they often signal unit mismatch or pricing friction." />
+                <Insight text="Vacates cluster near month end; consider automated retention messages 10 days before." />
+            </Box>
 
-            {/* Filters */}
+            {/* Filters — WITHOUT search (per request) */}
             <Paper elevation={0} sx={{ ...softCard, borderRadius: 2, mb: 2 }}>
                 <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} alignItems="center">
-                    <TextField
-                        size="small"
-                        placeholder="Search reason, notes…"
-                        value={filter.q}
-                        onChange={(e) => setFilter({ ...filter, q: e.target.value })}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchIcon fontSize="small" />
-                                </InputAdornment>
-                            ),
-                        }}
-                        sx={{ flex: 1, "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    />
-                    <TextField
-                        select size="small" label="Month" value={filter.month}
-                        onChange={(e) => setFilter({ ...filter, month: e.target.value })}
-                        sx={{ minWidth: 180, "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    >
-                        {monthsList.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-                    </TextField>
-                    <TextField
-                        select size="small" label="Type" value={filter.type}
-                        onChange={(e) => setFilter({ ...filter, type: e.target.value })}
-                        sx={{ minWidth: 160, "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
-                    >
-                        {["All", "transfer", "vacate"].map((t) => <MenuItem key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</MenuItem>)}
-                    </TextField>
+                    <FormControl size="small" sx={{ minWidth: 220 }}>
+                        <InputLabel id="apt-lb" sx={{ color: "#aaa" }}>Apartment</InputLabel>
+                        <Select
+                            labelId="apt-lb"
+                            label="Apartment"
+                            value={filter.apartment_id}
+                            onChange={(e) => setFilter((f) => ({ ...f, apartment_id: e.target.value }))}
+                            sx={{ color: "#fff", "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        >
+                            {apartments.map((a) => (
+                                <MenuItem key={a.ApartmentID} value={a.ApartmentID || 0}>
+                                    {a.ApartmentName || "All Apartments"}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+
+                    <FormControl size="small" sx={{ minWidth: 200 }}>
+                        <InputLabel id="mn-lb" sx={{ color: "#aaa" }}>Month</InputLabel>
+                        <Select
+                            labelId="mn-lb"
+                            label="Month"
+                            value={filter.month}
+                            onChange={(e) => setFilter((f) => ({ ...f, month: e.target.value }))}
+                            sx={{ color: "#fff", "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        >
+                            {monthsList.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                        </Select>
+                    </FormControl>
+
+                    <FormControl size="small" sx={{ minWidth: 160 }}>
+                        <InputLabel id="tp-lb" sx={{ color: "#aaa" }}>Type</InputLabel>
+                        <Select
+                            labelId="tp-lb"
+                            label="Type"
+                            value={filter.type}
+                            onChange={(e) => setFilter((f) => ({ ...f, type: e.target.value }))}
+                            sx={{ color: "#fff", "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                        >
+                            <MenuItem value="all">All</MenuItem>
+                            <MenuItem value="transfer">Transfer</MenuItem>
+                            <MenuItem value="vacate">Vacate</MenuItem>
+                        </Select>
+                    </FormControl>
                 </Stack>
             </Paper>
 
-            {/* Charts + Timeline + Side tables */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-                {/* Donut breakdown */}
-                <Grid item xs={12} md={4}>
-                    <Paper elevation={0} sx={{ ...softCard, height: 280, display: "flex", flexDirection: "column" }}>
-                        <Typography variant="body2" sx={{ fontFamily: FONTS.subhead, opacity: .9, mb: 1 }}>
-                            Events by Type — {filter.month}
-                        </Typography>
-                        <Box sx={{ flex: 1 }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie data={donut} dataKey="value" nameKey="name" innerRadius={62} outerRadius={95} stroke="none">
-                                        {donut.map((d, i) => <Cell key={i} fill={d.c} />)}
-                                    </Pie>
-                                    <RTooltip />
-                                    <Legend />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </Box>
-                    </Paper>
-                </Grid>
+            {/* Search now lives with the list/tables only */}
+            <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
+                <TextField
+                    size="small"
+                    placeholder="Search tenant, reason, notes…"
+                    value={tableSearch}
+                    onChange={(e) => setTableSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") loadAll(); }}
+                    InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>) }}
+                    sx={{ flex: 1, "& .MuiInputBase-root": { color: "#fff" }, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" } }}
+                />
+                <Button onClick={loadAll} disabled={loading} sx={{ textTransform: "none" }}>
+                    Apply
+                </Button>
+            </Stack>
 
-                {/* Timeline */}
-                <Grid item xs={12} md={8}>
-                    <Paper elevation={0} sx={{ ...softCard }}>
-                        <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>
-                            Timeline — {filter.month}
-                        </Typography>
-                        <Divider sx={{ mb: 1, borderColor: "rgba(255,255,255,0.08)" }} />
-                        {eventsFiltered.length === 0 ? (
-                            <Typography variant="body2" sx={{ opacity: .72, fontFamily: FONTS.subhead, py: 4, textAlign: "center" }}>
-                                No events for the selected filters.
-                            </Typography>
-                        ) : (
-                            <Stack spacing={1.5} sx={{ pb: 1 }}>
-                                {eventsFiltered.map((e) => (
-                                    <Paper key={e.id} elevation={0} sx={{ ...softCard, p: 1.5, "&:hover": { transform: "none" } }}>
-                                        <TimelineItem e={e} />
-                                    </Paper>
-                                ))}
-                            </Stack>
-                        )}
-                    </Paper>
-                </Grid>
-            </Grid>
+            {/* Timeline (compact; no horizontal scroll) */}
+            <Paper elevation={0} sx={{ ...softCard, mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>
+                    Timeline — {filter.month}
+                </Typography>
+                <Divider sx={{ mb: 1, borderColor: "rgba(255,255,255,0.08)" }} />
+                {timeline.length === 0 ? (
+                    <Typography variant="body2" sx={{ opacity: .72, fontFamily: FONTS.subhead, py: 4, textAlign: "center" }}>
+                        No events for the selected filters.
+                    </Typography>
+                ) : (
+                    <Stack spacing={1.25}>
+                        {timeline.map((e) => (
+                            <TimelineItem key={e.id} e={e} />
+                        ))}
+                    </Stack>
+                )}
+            </Paper>
 
-            {/* Recent Transfers & Vacates */}
-            <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                    <Paper elevation={0} sx={{ ...softCard }}>
-                        <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>
-                            Recent Transfers
-                        </Typography>
-                        <Divider sx={{ mb: 1, borderColor: "rgba(255,255,255,0.08)" }} />
-                        <Table size="small" sx={{ "& th, & td": { borderColor: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: FONTS.subhead } }}>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Date</TableCell>
-                                    <TableCell>TenantID</TableCell>
-                                    <TableCell>From → To</TableCell>
-                                    <TableCell>Reason</TableCell>
+            {/* Recent tables — stacked vertically, fixed layout, even columns */}
+            <Box sx={{ display: "grid", gridTemplateColumns: "1fr", gap: 2 }}>
+                {/* Transfers */}
+                <Paper elevation={0} sx={{ ...softCard }}>
+                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>
+                        Recent Transfers
+                    </Typography>
+                    <Divider sx={{ mb: 1, borderColor: "rgba(255,255,255,0.08)" }} />
+                    <Table
+                        size="small"
+                        sx={{
+                            width: "100%",
+                            tableLayout: "fixed",
+                            "& th, & td": { borderColor: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: FONTS.subhead, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+                            mb: .5
+                        }}
+                    >
+                        <TableHead>
+                            <TableRow>
+                                <TableCell sx={{ width: "22%" }}>Date</TableCell>
+                                <TableCell sx={{ width: "24%" }}>Tenant</TableCell>
+                                <TableCell sx={{ width: "28%" }}>From → To</TableCell>
+                                <TableCell sx={{ width: "26%" }}>Reason</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {(recent.recentTransfers || []).map((r, idx) => (
+                                <TableRow key={idx} hover>
+                                    <TableCell>{fmtTs(r.Date)}</TableCell>
+                                    <TableCell>{r.TenantName}</TableCell>
+                                    <TableCell>{`${r.From} → ${r.To}`}</TableCell>
+                                    <TableCell>{r.Reason || "—"}</TableCell>
                                 </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {recentTransfers.map((r) => (
-                                    <TableRow key={r.LogID} hover>
-                                        <TableCell>{dayjs(r.TransferDate).format("DD MMM YYYY, HH:mm")}</TableCell>
-                                        <TableCell>{r.TenantID}</TableCell>
-                                        <TableCell>{(r.OldUnitID ?? "—")} → {r.NewUnitID}</TableCell>
-                                        <TableCell>{r.Reason || "—"}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </Paper>
-                </Grid>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </Paper>
 
-                <Grid item xs={12} md={6}>
-                    <Paper elevation={0} sx={{ ...softCard }}>
-                        <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>
-                            Recent Vacates
-                        </Typography>
-                        <Divider sx={{ mb: 1, borderColor: "rgba(255,255,255,0.08)" }} />
-                        <Table size="small" sx={{ "& th, & td": { borderColor: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: FONTS.subhead } }}>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Date</TableCell>
-                                    <TableCell>TenantID</TableCell>
-                                    <TableCell>UnitID</TableCell>
-                                    <TableCell>Reason</TableCell>
-                                    <TableCell>Notes</TableCell>
+                {/* Vacates */}
+                <Paper elevation={0} sx={{ ...softCard }}>
+                    <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>
+                        Recent Vacates
+                    </Typography>
+                    <Divider sx={{ mb: 1, borderColor: "rgba(255,255,255,0.08)" }} />
+                    <Table
+                        size="small"
+                        sx={{
+                            width: "100%",
+                            tableLayout: "fixed",
+                            "& th, & td": { borderColor: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: FONTS.subhead, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+                            mb: .5
+                        }}
+                    >
+                        <TableHead>
+                            <TableRow>
+                                <TableCell sx={{ width: "22%" }}>Date</TableCell>
+                                <TableCell sx={{ width: "22%" }}>Tenant</TableCell>
+                                <TableCell sx={{ width: "18%" }}>Unit</TableCell>
+                                <TableCell sx={{ width: "20%" }}>Reason</TableCell>
+                                <TableCell sx={{ width: "18%" }}>Notes</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {(recent.recentVacates || []).map((r, idx) => (
+                                <TableRow key={idx} hover>
+                                    <TableCell>{fmtTs(r.Date)}</TableCell>
+                                    <TableCell>{r.TenantName}</TableCell>
+                                    <TableCell>{r.Unit}</TableCell>
+                                    <TableCell>{r.Reason || "—"}</TableCell>
+                                    <TableCell>{r.Notes || "—"}</TableCell>
                                 </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {recentVacates.map((r) => (
-                                    <TableRow key={r.LogID} hover>
-                                        <TableCell>{dayjs(r.VacateDate).format("DD MMM YYYY, HH:mm")}</TableCell>
-                                        <TableCell>{r.TenantID}</TableCell>
-                                        <TableCell>{r.UnitID}</TableCell>
-                                        <TableCell>{r.Reason || "—"}</TableCell>
-                                        <TableCell>{r.Notes || "—"}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </Paper>
-                </Grid>
-            </Grid>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </Paper>
+            </Box>
+
+            {/* spin keyframes */}
+            <style>{`@keyframes spin { from {transform: rotate(0)} to {transform: rotate(360deg)} }`}</style>
         </Box>
     );
 }
