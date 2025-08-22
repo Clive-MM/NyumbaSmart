@@ -63,7 +63,7 @@ const ForgotPassword = () => {
       sx={{
         position: "relative",
         minHeight: "100vh",
-        backgroundColor: "#fff",
+        background: "#e0e0e0", // light gray bg suits neumorphism
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -71,19 +71,6 @@ const ForgotPassword = () => {
         px: 2,
       }}
     >
-      <Box
-        sx={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          background:
-            "linear-gradient(135deg, rgba(255,0,128,0.15), rgba(126,0,166,0.15), rgba(69,107,188,0.1))",
-          zIndex: 0,
-        }}
-      />
-
       <motion.div
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -94,19 +81,18 @@ const ForgotPassword = () => {
           sx={{
             p: 4,
             width: { xs: "90vw", sm: 400 },
-            borderRadius: 4,
-            background: "rgba(255, 255, 255, 0.9)",
-            backdropFilter: "blur(12px)",
-            color: "#111", // base text color for the card
+            borderRadius: "30px",
+            background: "#e0e0e0",
             boxShadow:
-              "0 0 10px #FF0080, 0 0 20px #D4124E, 0 0 30px #7E00A6, 8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+              "9px 9px 16px #bebebe, -9px -9px 16px #ffffff", // 🔽 soft raised shadow
+            textAlign: "center",
           }}
         >
           <Link to="/" style={{ textDecoration: "none" }}>
             <motion.div
               whileHover={{ scale: 1.05 }}
               transition={{ type: "spring", stiffness: 300 }}
-              style={{ cursor: "pointer", marginBottom: "1.5rem", textAlign: "center" }}
+              style={{ cursor: "pointer", marginBottom: "1.5rem" }}
             >
               <motion.img
                 src={logoUrl}
@@ -120,7 +106,7 @@ const ForgotPassword = () => {
                   borderRadius: "50%",
                   marginBottom: "1rem",
                   boxShadow:
-                    "0 0 10px rgba(212, 18, 78, 0.4), 0 0 15px rgba(69, 107, 188, 0.3)",
+                    "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff", // 🔽 inset for logo circle
                 }}
               />
               <Typography
@@ -135,13 +121,7 @@ const ForgotPassword = () => {
               >
                 PayNest Login
               </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: "#333",
-                  fontWeight: 500,
-                }}
-              >
+              <Typography variant="body2" sx={{ color: "#555", fontWeight: 500 }}>
                 Smart Homes, Smarter Payments.
               </Typography>
             </motion.div>
@@ -149,14 +129,13 @@ const ForgotPassword = () => {
 
           <Typography
             variant="h5"
-            align="center"
             gutterBottom
-            sx={{ fontWeight: "bold", color: "#1a1a1a", mb: 1 }}
+            sx={{ fontWeight: "bold", color: "#222", mb: 1 }}
           >
             Forgot Your Password?
           </Typography>
 
-          <Typography variant="body2" align="center" sx={{ mb: 2, color: "#444" }}>
+          <Typography variant="body2" sx={{ mb: 2, color: "#555" }}>
             Enter your email address. We'll send a secure link so you can reset your
             password and regain access.
           </Typography>
@@ -172,33 +151,20 @@ const ForgotPassword = () => {
               required
               sx={{
                 "& .MuiOutlinedInput-root": {
-                  borderRadius: 3,
-                  background: "#fff",
+                  borderRadius: "20px",
+                  background: "#e0e0e0",
                   boxShadow:
-                    "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff",
+                    "inset 5px 5px 10px #bebebe, inset -5px -5px 10px #ffffff", // 🔽 pressed look
                 },
-                // 🔽 make the text/placeholder/label clearly visible
                 "& .MuiInputBase-input": {
-                  color: "#111", // typed text
-                },
-                "& .MuiInputBase-input::placeholder": {
-                  color: "#666",
-                  opacity: 1,
+                  color: "#111",
+                  fontWeight: 500,
                 },
                 "& .MuiInputLabel-root": {
-                  color: "#555", // label default
+                  color: "#666",
                 },
                 "& .MuiInputLabel-root.Mui-focused": {
-                  color: "#D4124E", // label when focused
-                },
-                "& .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#d9d9d9",
-                },
-                "&:hover .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#C04CFD",
-                },
-                "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#456BBC",
+                  color: "#D4124E",
                 },
               }}
             />
@@ -208,18 +174,23 @@ const ForgotPassword = () => {
               variant="contained"
               fullWidth
               sx={{
-                mt: 2,
+                mt: 3,
                 py: 1.2,
-                background: "linear-gradient(45deg, #FF416C, #FF4B2B, #C04CFD)",
+                borderRadius: "20px",
                 fontWeight: "bold",
-                borderRadius: 3,
-                boxShadow: "4px 4px 10px #bebebe, -4px -4px 10px #ffffff",
-                transition: "transform 0.3s ease",
-                "&:hover": { transform: "scale(1.03)" },
+                background: "#e0e0e0",
+                color: "#333",
+                boxShadow:
+                  "6px 6px 12px #bebebe, -6px -6px 12px #ffffff", // 🔽 raised effect
+                "&:hover": {
+                  background: "#e0e0e0",
+                  boxShadow:
+                    "inset 5px 5px 10px #bebebe, inset -5px -5px 10px #ffffff", // 🔽 pressed effect on hover
+                },
               }}
               disabled={loading}
               startIcon={
-                loading && <CircularProgress size={20} sx={{ color: "white" }} />
+                loading && <CircularProgress size={20} sx={{ color: "#D4124E" }} />
               }
             >
               {loading ? "Sending..." : "Send Reset Link"}
