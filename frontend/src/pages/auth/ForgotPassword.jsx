@@ -18,6 +18,20 @@ const API_URL = process.env.REACT_APP_API_URL;
 const logoUrl =
   "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
 
+/* Same BRAND palette the Login page uses */
+const BRAND = {
+  pink: "#FF0080",
+  magenta: "#D4124E",
+  orange: "#E8511E",
+  purple: "#7E00A6",
+  blue: "#456BBC",
+  text: "#e6e6e6",
+  subtext: "#b8b8b8",
+  card: "#11131A",
+  insetLight: "#2a2d36",
+  insetDark: "#07080d",
+};
+
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -63,7 +77,10 @@ const ForgotPassword = () => {
       sx={{
         position: "relative",
         minHeight: "100vh",
-        background: "#e0e0e0", // light gray bg suits neumorphism
+        // ✅ Same background as the Login page’s <Screen>
+        background:
+          "linear-gradient(180deg, rgba(10,10,10,1) 0%, rgba(16,0,36,0.95) 50%, rgba(5,5,5,1) 100%)",
+        color: BRAND.text,
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -75,16 +92,16 @@ const ForgotPassword = () => {
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
-        style={{ position: "relative", zIndex: 1 }}
+        style={{ position: "relative", zIndex: 1, width: "100%" }}
       >
         <Paper
           sx={{
             p: 4,
-            width: { xs: "90vw", sm: 400 },
-            borderRadius: "30px",
-            background: "#e0e0e0",
-            boxShadow:
-              "9px 9px 16px #bebebe, -9px -9px 16px #ffffff", // 🔽 soft raised shadow
+            width: { xs: "92vw", sm: 420 },
+            mx: "auto",
+            borderRadius: 3,
+            background: BRAND.card, // dark card to match login
+            boxShadow: `inset 6px 6px 14px ${BRAND.insetDark}, inset -6px -6px 14px ${BRAND.insetLight}, 0 0 18px rgba(255,0,128,0.15)`,
             textAlign: "center",
           }}
         >
@@ -106,7 +123,7 @@ const ForgotPassword = () => {
                   borderRadius: "50%",
                   marginBottom: "1rem",
                   boxShadow:
-                    "inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff", // 🔽 inset for logo circle
+                    "inset 3px 3px 6px #0a0b10, inset -3px -3px 6px #1b1f29",
                 }}
               />
               <Typography
@@ -114,28 +131,24 @@ const ForgotPassword = () => {
                 fontWeight="bold"
                 sx={{
                   mb: 0.5,
-                  background: "linear-gradient(to right, #D4124E, #456BBC, #FF0080)",
+                  background: `linear-gradient(90deg, ${BRAND.magenta}, ${BRAND.blue}, ${BRAND.pink})`,
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                 }}
               >
                 PayNest Login
               </Typography>
-              <Typography variant="body2" sx={{ color: "#555", fontWeight: 500 }}>
+              <Typography variant="body2" sx={{ color: BRAND.subtext, fontWeight: 500 }}>
                 Smart Homes, Smarter Payments.
               </Typography>
             </motion.div>
           </Link>
 
-          <Typography
-            variant="h5"
-            gutterBottom
-            sx={{ fontWeight: "bold", color: "#222", mb: 1 }}
-          >
+          <Typography variant="h5" gutterBottom sx={{ fontWeight: "bold", color: BRAND.text, mb: 1 }}>
             Forgot Your Password?
           </Typography>
 
-          <Typography variant="body2" sx={{ mb: 2, color: "#555" }}>
+          <Typography variant="body2" sx={{ mb: 2, color: BRAND.subtext }}>
             Enter your email address. We'll send a secure link so you can reset your
             password and regain access.
           </Typography>
@@ -151,20 +164,20 @@ const ForgotPassword = () => {
               required
               sx={{
                 "& .MuiOutlinedInput-root": {
-                  borderRadius: "20px",
-                  background: "#e0e0e0",
-                  boxShadow:
-                    "inset 5px 5px 10px #bebebe, inset -5px -5px 10px #ffffff", // 🔽 pressed look
+                  borderRadius: 2,
+                  background: "#0f1219",
+                  color: BRAND.text,
+                  boxShadow: `inset 3px 3px 6px ${BRAND.insetDark}, inset -3px -3px 6px ${BRAND.insetLight}`,
                 },
-                "& .MuiInputBase-input": {
-                  color: "#111",
-                  fontWeight: 500,
+                "& .MuiInputBase-input": { color: BRAND.text },
+                "& .MuiInputLabel-root": { color: BRAND.subtext },
+                "& .MuiInputLabel-root.Mui-focused": { color: BRAND.purple },
+                "& .MuiOutlinedInput-notchedOutline": { borderColor: "transparent" },
+                "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+                  borderColor: BRAND.magenta,
                 },
-                "& .MuiInputLabel-root": {
-                  color: "#666",
-                },
-                "& .MuiInputLabel-root.Mui-focused": {
-                  color: "#D4124E",
+                "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                  borderColor: BRAND.blue,
                 },
               }}
             />
@@ -176,21 +189,19 @@ const ForgotPassword = () => {
               sx={{
                 mt: 3,
                 py: 1.2,
-                borderRadius: "20px",
+                borderRadius: 2,
                 fontWeight: "bold",
-                background: "#e0e0e0",
-                color: "#333",
-                boxShadow:
-                  "6px 6px 12px #bebebe, -6px -6px 12px #ffffff", // 🔽 raised effect
+                background: `linear-gradient(90deg, ${BRAND.magenta}, ${BRAND.orange}, ${BRAND.pink}, ${BRAND.blue})`,
+                color: "#fff",
+                boxShadow: `6px 6px 12px ${BRAND.insetDark}, -6px -6px 12px ${BRAND.insetLight}`,
                 "&:hover": {
-                  background: "#e0e0e0",
-                  boxShadow:
-                    "inset 5px 5px 10px #bebebe, inset -5px -5px 10px #ffffff", // 🔽 pressed effect on hover
+                  transform: "translateY(-1px)",
+                  background: `linear-gradient(90deg, ${BRAND.blue}, ${BRAND.pink}, ${BRAND.magenta})`,
                 },
               }}
               disabled={loading}
               startIcon={
-                loading && <CircularProgress size={20} sx={{ color: "#D4124E" }} />
+                loading && <CircularProgress size={20} sx={{ color: "#fff" }} />
               }
             >
               {loading ? "Sending..." : "Send Reset Link"}
