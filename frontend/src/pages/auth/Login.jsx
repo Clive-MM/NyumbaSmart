@@ -14,7 +14,7 @@ import {
   LinearProgress,
   CircularProgress,
 } from "@mui/material";
-import { styled } from "@mui/material/styles";
+  import { styled } from "@mui/material/styles";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Visibility, VisibilityOff, Email, Phone, Lock, Login as LoginIcon } from "@mui/icons-material";
@@ -22,9 +22,9 @@ import axios from "axios";
 
 /* ----------------------------------------------
    PayNest Auth Double Slider (refined)
-   - Header is a Home link
+   - Header is a Home link (animated)
    - Overlay never covers the active form
-   - Compact shell
+   - Compact shell (height reduced)
    - Slide back to Login from Register, incl. after success
 ----------------------------------------------- */
 
@@ -60,7 +60,7 @@ const Shell = styled(Paper)({
   position: "relative",
   width: 1140,
   maxWidth: "98vw",
-  height: 560,
+  height: 520, // reduced from 560
   borderRadius: 24,
   overflow: "hidden",
   background: "linear-gradient(135deg, rgba(20,20,28,0.94), rgba(12,12,16,0.98))",
@@ -189,7 +189,7 @@ function RegisterForm({ onSuccess, onBackToLogin }) {
     password: "",
     confirm_password: "",
     terms: false,
-    showConfirm: false, // drives confirm field visibility, avoids unused vars
+    showConfirm: false, // drives confirm visibility
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -416,23 +416,48 @@ export default function AuthDoubleSliderRefined() {
   return (
     <Screen>
       <Shell as={motion.div} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
-        {/* Clickable header => Home */}
+        {/* Clickable header => Home with animation */}
         <HeaderBar to="/">
-          <img src={logoUrl} alt="PayNest" style={{ height: 40, borderRadius: 8 }} />
-          <Box sx={{ textAlign: "center" }}>
-            <Typography
-              variant="h6"
-              fontWeight={800}
-              sx={{
-                background: `linear-gradient(90deg, ${BRAND.magenta}, ${BRAND.blue}, ${BRAND.pink})`,
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                letterSpacing: 0.3,
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: "spring", stiffness: 300 }}
+            style={{ display: "flex", alignItems: "center", gap: 12 }}
+          >
+            <motion.img
+              src={logoUrl}
+              alt="PayNest"
+              initial={{ scale: 1 }}
+              whileHover={{ scale: 1.08, rotate: 2 }}
+              transition={{ duration: 0.3 }}
+              style={{
+                height: 42,
+                width: 42,
+                borderRadius: 8,
+                boxShadow: "inset 3px 3px 6px #0a0b10, inset -3px -3px 6px #1b1f29",
               }}
-            >
-              PayNest  Smart Homes, Smarter Payments
-            </Typography>
-          </Box>
+            />
+            <Box sx={{ textAlign: "center" }}>
+              <motion.div
+                initial={{ y: 0, opacity: 1 }}
+                whileHover={{ y: -1, opacity: 1 }}
+                transition={{ duration: 0.25 }}
+              >
+                <Typography
+                  variant="h6"
+                  fontWeight={800}
+                  sx={{
+                    background: `linear-gradient(90deg, ${BRAND.magenta}, ${BRAND.blue}, ${BRAND.pink})`,
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    letterSpacing: 0.3,
+                    textShadow: "0 0 14px rgba(255,0,128,0.18)",
+                  }}
+                >
+                  PayNest&nbsp;&nbsp;Smart Homes, Smarter Payments
+                </Typography>
+              </motion.div>
+            </Box>
+          </motion.div>
         </HeaderBar>
 
         {/* Forms */}
