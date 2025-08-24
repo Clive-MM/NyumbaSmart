@@ -20,7 +20,10 @@ import {
     Tooltip as RTooltip, Legend
 } from "recharts";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
 import axios from "axios";
+
+dayjs.extend(utc);
 
 /* ---------- Config ---------- */
 const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
@@ -42,8 +45,11 @@ const FONTS = {
 /* ---------- Utilities ---------- */
 const fmtNum = (n) => new Intl.NumberFormat().format(Number(n || 0));
 const fmtPct = (n) => `${Math.round(Number(n || 0))}%`;
-const fmtKES = (n) => `KES ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(Number(n || 0))}`;
-const monthOptions = Array.from({ length: 13 }, (_, i) => dayjs().subtract(i, "month").format("MMMM YYYY"));
+const fmtKES = (n) =>
+    `KES ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(Number(n || 0))}`;
+const monthOptions = Array.from({ length: 13 }, (_, i) =>
+    dayjs().subtract(i, "month").format("MMMM YYYY")
+);
 const STATUS_OPTIONS = ["All", "Unpaid", "Paid", "Partially Paid", "Overpaid"];
 
 /* ---------- Cards ---------- */
@@ -98,7 +104,7 @@ export default function Billing() {
     const [rows, setRows] = useState([]);
     const [statusFilter, setStatusFilter] = useState("All");
     const [monthFilter, setMonthFilter] = useState(NOW_MONTH);
-    const [apartmentFilter, setApartmentFilter] = useState("All");
+    const [apartmentFilter, setApartmentFilter] = useState("All"); // string name for now
     const [search, setSearch] = useState("");
     const searchRef = useRef();
     const [selected, setSelected] = useState([]);
@@ -113,7 +119,8 @@ export default function Billing() {
     // KPIs & insights
     const [kpis, setKpis] = useState({
         totalBills: 0, expected: 0, collected: 0, outstanding: 0,
-        overduePct: 0, overdueCount: 0, unpaidCount: 0, avgDaysOverdue: 0, collectionRate: 0
+        overduePct: 0, overdueCount: 0, unpaidCount: 0, avgDaysOverdue: 0, collectionRate: 0,
+        countsByStatus: {}
     });
     const [insights, setInsights] = useState([]);
 
@@ -126,15 +133,15 @@ export default function Billing() {
 
     const [editForm, setEditForm] = useState({ WaterBill: 0, ElectricityBill: 0, Garbage: 0, Internet: 0 });
 
-    const [yearSeries] = useState([
-        // Placeholder until you expose a trend endpoint
-        { m: "Jan", billed: 140, collected: 90 }, { m: "Feb", billed: 220, collected: 160 },
-        { m: "Mar", billed: 210, collected: 170 }, { m: "Apr", billed: 260, collected: 200 },
-        { m: "May", billed: 200, collected: 180 }, { m: "Jun", billed: 310, collected: 240 },
-        { m: "Jul", billed: 330, collected: 260 }, { m: "Aug", billed: 350, collected: 270 },
-        { m: "Sep", billed: 360, collected: 300 }, { m: "Oct", billed: 370, collected: 310 },
-        { m: "Nov", billed: 380, collected: 320 }, { m: "Dec", billed: 390, collected: 330 },
-    ]);
+    // Payment dialog
+    const [payOpen, setPayOpen] = useState(false);
+    const [payForm, setPayForm] = useState({
+        AmountPaid: "", PaidViaMobile: "MPesa", TxRef: "", PaymentNote: "",
+        TenantID: "", RentalUnitID: "", BillingMonth: NOW_MONTH
+    });
+
+    // Cashflow series (from backend)
+    const [cashflowSeries, setCashflowSeries] = useState([]);
 
     const token = useMemo(() => localStorage.getItem("token"), []);
     const api = useMemo(() => axios.create({
@@ -150,6 +157,12 @@ export default function Billing() {
             if (monthFilter && monthFilter !== "All") params.month = monthFilter;
             if (statusFilter && statusFilter !== "All") params.status = statusFilter;
 
+            // Only pass apartment_id if filter is a numeric id (current UI uses name)
+            const maybeId = Number(apartmentFilter);
+            if (!Number.isNaN(maybeId) && String(maybeId) === String(apartmentFilter)) {
+                params.apartment_id = maybeId;
+            }
+
             const { data } = await api.get("/bills", { params });
 
             const normalized = (data?.bills || []).map((b) => ({
@@ -160,48 +173,19 @@ export default function Billing() {
                 apt: b.ApartmentName || "—",
                 type: "Total",
                 amount: b.TotalAmountDue,
+                paid: b.PaidToDate ?? 0,
+                balance: b.Balance ?? Math.max((b.TotalAmountDue || 0), 0),
                 dueISO: b.DueDate, // yyyy-mm-dd
-                due: dayjs(b.DueDate).format("DD MMM"),
+                due: b.DueDate ? dayjs(b.DueDate).format("DD MMM") : "—",
                 status: b.BillStatus,
                 month: b.BillingMonth,
                 issued: b.IssuedDate,
+                // If you add IDs to backend response, these will prefill payment dialog:
+                TenantID: b.TenantID,
+                RentalUnitID: b.RentalUnitID
             }));
 
             setRows(normalized);
-
-            // KPI calculations
-            const totalBills = normalized.length;
-            const expected = normalized.reduce((s, r) => s + Number(r.amount || 0), 0);
-            const collected = normalized
-                .filter(r => r.status === "Paid" || r.status === "Overpaid")
-                .reduce((s, r) => s + Number(r.amount || 0), 0);
-            const outstanding = Math.max(expected - collected, 0);
-
-            const today = dayjs();
-            const overdueRows = normalized.filter(r => r.status !== "Paid" && dayjs(r.dueISO).isBefore(today, "day"));
-            const overdueCount = overdueRows.length;
-            const overduePct = totalBills ? Math.round((overdueCount / totalBills) * 100) : 0;
-            const unpaidCount = normalized.filter(r => r.status === "Unpaid").length;
-            const avgDaysOverdue = overdueCount
-                ? Math.round(overdueRows.reduce((s, r) => s + today.diff(dayjs(r.dueISO), "day"), 0) / overdueCount)
-                : 0;
-            const collectionRate = expected ? (collected / expected) * 100 : 0;
-
-            setKpis({ totalBills, expected, collected, outstanding, overduePct, overdueCount, unpaidCount, avgDaysOverdue, collectionRate });
-
-            // Insights
-            const partially = normalized.filter(r => r.status === "Partially Paid").length;
-            const byApt = normalized.reduce((m, r) => {
-                if (r.status !== "Paid") m[r.apt] = (m[r.apt] || 0) + 1;
-                return m;
-            }, {});
-            const topApt = Object.entries(byApt).sort((a, b) => b[1] - a[1])[0]?.[0];
-
-            setInsights([
-                overdueCount ? `${overdueCount} tenant${overdueCount > 1 ? "s" : ""} are overdue (past due date).` : "No overdue tenants. Great job!",
-                partially ? `${partially} bill${partially > 1 ? "s are" : " is"} partially paid.` : "No partial payments recorded.",
-                topApt ? `Highest unpaid concentration: ${topApt}.` : "No apartment risk concentration detected."
-            ]);
 
             // Reset apartment filter if it no longer exists
             const apts = ["All", ...Array.from(new Set(normalized.map(r => r.apt).filter(Boolean)))];
@@ -214,7 +198,81 @@ export default function Billing() {
         }
     };
 
+    const loadKpis = async () => {
+        try {
+            const params = {};
+            if (monthFilter && monthFilter !== "All") params.month = monthFilter;
+            const maybeId = Number(apartmentFilter);
+            if (!Number.isNaN(maybeId) && String(maybeId) === String(apartmentFilter)) {
+                params.apartment_id = maybeId;
+            }
+
+            // KPIs
+            const { data } = await api.get("/billing/kpis", { params });
+            const counts = data?.kpis?.counts_by_status || {};
+            const totals = data?.kpis?.totals || {};
+            const totalBills = Object.values(counts).reduce((s, n) => s + Number(n || 0), 0);
+            const unpaidCount = Number(counts["Unpaid"] || 0);
+
+            // Overdue details from arrears
+            const arrears = await api.get("/billing/arrears", { params: { apartment_id: params.apartment_id } });
+            const items = arrears?.data?.arrears || [];
+            const overdueCount = items.length;
+            const avgDaysOverdue = overdueCount
+                ? Math.round(items.reduce((s, r) => s + Number(r.DaysOverdue || 0), 0) / overdueCount)
+                : 0;
+
+            setKpis({
+                totalBills,
+                expected: totals.sum_due || 0,
+                collected: totals.sum_paid || 0,
+                outstanding: totals.sum_balance || 0,
+                overduePct: totalBills ? Math.round((overdueCount / totalBills) * 100) : 0,
+                overdueCount,
+                unpaidCount,
+                avgDaysOverdue,
+                collectionRate: totals.sum_due ? ((totals.sum_paid / totals.sum_due) * 100) : 0,
+                countsByStatus: counts
+            });
+
+            // Insights
+            const partially = Number(counts["Partially Paid"] || 0);
+            const topApt = items
+                .reduce((m, r) => {
+                    const key = `${r.Apartment || "—"}`;
+                    m[key] = (m[key] || 0) + 1;
+                    return m;
+                }, {});
+            const topAptName = Object.entries(topApt).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+            setInsights([
+                overdueCount ? `${overdueCount} tenant${overdueCount > 1 ? "s" : ""} are overdue (past due date).` : "No overdue tenants. Great job!",
+                partially ? `${partially} bill${partially > 1 ? "s are" : " is"} partially paid.` : "No partial payments recorded.",
+                topAptName ? `Highest unpaid concentration: ${topAptName}.` : "No apartment risk concentration detected."
+            ]);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const loadCashflow = async () => {
+        try {
+            const start = (monthFilter === "All")
+                ? dayjs().startOf("month")
+                : dayjs(monthFilter, "MMMM YYYY").startOf("month");
+            const end = start.endOf("month");
+            const { data } = await api.get("/billing/cashflow", {
+                params: { from: start.format("YYYY-MM-DD"), to: end.format("YYYY-MM-DD") }
+            });
+            setCashflowSeries(data?.series || []);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     useEffect(() => { load(); /* eslint-disable-next-line */ }, [monthFilter, statusFilter]);
+    useEffect(() => { loadKpis().catch(console.error); /* eslint-disable-next-line */ }, [monthFilter, apartmentFilter]);
+    useEffect(() => { loadCashflow().catch(console.error); /* eslint-disable-next-line */ }, [monthFilter]);
 
     /* ---------- Generate Bills ---------- */
     const handleGenerate = async () => {
@@ -222,6 +280,7 @@ export default function Billing() {
             const { data } = await api.post("/bills/generate-or-update", { BillingMonth: monthFilter || NOW_MONTH });
             setSnack({ open: true, severity: "success", msg: data?.alert || `Bills generated for ${monthFilter}.` });
             load();
+            loadKpis();
         } catch (e) {
             console.error(e);
             setSnack({ open: true, severity: "error", msg: "Failed to generate/update bills." });
@@ -245,7 +304,7 @@ export default function Billing() {
     const sortedRows = [...filteredRows].sort((a, b) => {
         const dir = orderDir === "asc" ? 1 : -1;
         const va = a[orderBy], vb = b[orderBy];
-        if (orderBy === "amount") return (Number(va) - Number(vb)) * dir;
+        if (orderBy === "amount" || orderBy === "paid" || orderBy === "balance") return (Number(va) - Number(vb)) * dir;
         if (orderBy === "tenant" || orderBy === "apt" || orderBy === "unit" || orderBy === "status")
             return String(va).localeCompare(String(vb)) * dir;
         // dates
@@ -272,8 +331,8 @@ export default function Billing() {
     const toggleSelectOne = (id) => setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
     const exportCSV = () => {
-        const hdr = ["BillID", "Tenant", "Apartment", "Unit", "Month", "Amount", "DueDate", "Status"];
-        const pick = (r) => [r.BillID, r.tenant, r.apt, r.unit, r.month, r.amount, r.dueISO, r.status];
+        const hdr = ["BillID", "Tenant", "Apartment", "Unit", "Month", "Amount", "Paid", "Balance", "DueDate", "Status"];
+        const pick = (r) => [r.BillID, r.tenant, r.apt, r.unit, r.month, r.amount, r.paid, r.balance, r.dueISO, r.status];
         const base = selected.length ? filteredRows.filter(r => selected.includes(r.BillID)) : filteredRows;
         const data = base.map(pick);
         const lines = [hdr, ...data].map(arr => arr.map(val => `"${String(val ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -284,8 +343,19 @@ export default function Billing() {
     };
 
     const bulkRemind = async () => {
-        const count = selected.length || filteredRows.filter(r => r.status !== "Paid").length;
-        setSnack({ open: true, severity: "info", msg: `Reminder queued for ${count} tenant(s).` });
+        try {
+            const bill_ids = selected.length ? selected : filteredRows.filter(r => r.status !== "Paid").map(r => r.BillID);
+            const body = {
+                bill_ids,
+                dry_run: false,
+                message: "Dear {name}, your balance {balance} for {month} (unit {unit}) is overdue. Kindly clear. Thank you."
+            };
+            const { data } = await api.post("/billing/reminders", body);
+            setSnack({ open: true, severity: "success", msg: `Reminders sent: ${data?.count || bill_ids.length}` });
+        } catch (e) {
+            console.error(e);
+            setSnack({ open: true, severity: "error", msg: "Failed to send reminders." });
+        }
     };
 
     /* ---------- Row actions ---------- */
@@ -301,21 +371,27 @@ export default function Billing() {
     const onReminder = () => { setRemindOpen(true); closeMenu(); };
 
     const saveEdit = async () => {
-        // Hook to PUT /bills/{id} when available
+        // Hook to POST /bills/generate-or-update with utilities to update this bill's month & tenant
         setEditOpen(false);
         setSnack({ open: true, severity: "success", msg: "Bill updated." });
         load();
+        loadKpis();
     };
     const sendReminder = async () => {
-        // Hook to your notifications service
+        try {
+            const body = { bill_ids: [menuRow?.BillID], dry_run: false };
+            await api.post("/billing/reminders", body);
+            setSnack({ open: true, severity: "success", msg: "Reminder sent." });
+        } catch {
+            setSnack({ open: true, severity: "error", msg: "Failed to send reminder." });
+        }
         setRemindOpen(false);
-        setSnack({ open: true, severity: "success", msg: "Reminder sent." });
     };
 
-    /* ---------- Derived for charts (status breakdown) ---------- */
-    const statusCounts = STATUS_ORDER.map(s => ({
-        name: s,
-        value: rows.filter(r => r.status === s).length
+    /* ---------- Status chart data ---------- */
+    const statusCounts = STATUS_ORDER.map(name => ({
+        name,
+        value: Number(kpis.countsByStatus?.[name] || 0)
     })).filter(x => x.value > 0);
     const STATUS_COLORS = {
         Paid: "#34D399", "Partially Paid": "#F59E0B", Overpaid: "#60A5FA", Unpaid: "#A78BFA"
@@ -346,7 +422,7 @@ export default function Billing() {
                 </Typography>
                 <Box sx={{ flexGrow: 1 }} />
                 <Tooltip title="Refresh">
-                    <IconButton onClick={load} sx={{ color: "#fff" }}>
+                    <IconButton onClick={() => { load(); loadKpis(); loadCashflow(); }} sx={{ color: "#fff" }}>
                         <RefreshIcon />
                     </IconButton>
                 </Tooltip>
@@ -375,7 +451,7 @@ export default function Billing() {
                 <Grid item xs={12} sm={6} md={3}><Kpi label="Outstanding" value={fmtKES(kpis.outstanding)} hint={`Overdue ${kpis.overduePct}%`} icon={<WarningAmberIcon fontSize="small" />} /></Grid>
             </Grid>
 
-            {/* KPI Row 2 (operational) */}
+            {/* KPI Row 2 */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
                 <Grid item xs={12} sm={6} md={3}><Kpi label="Collection Rate" value={fmtPct(kpis.collectionRate)} hint="Collected / Expected" icon={<TrendingUpIcon fontSize="small" />} /></Grid>
                 <Grid item xs={12} sm={6} md={3}><Kpi label="Overdue Count" value={fmtNum(kpis.overdueCount)} onClick={() => setStatusFilter("All")} icon={<WarningAmberIcon fontSize="small" />} /></Grid>
@@ -397,15 +473,15 @@ export default function Billing() {
                 <Grid item xs={12} md={7}>
                     <Paper elevation={0} sx={{ ...softCard, height: 280 }}>
                         <Typography variant="body2" sx={{ fontFamily: FONTS.subhead, opacity: .9, mb: 1 }}>
-                            Billed vs Collected (This Year)
+                            Expected vs Collected (This Month)
                         </Typography>
                         <ResponsiveContainer width="100%" height="85%">
-                            <LineChart data={yearSeries}>
-                                <XAxis dataKey="m" stroke="#aaa" />
+                            <LineChart data={cashflowSeries}>
+                                <XAxis dataKey="date" stroke="#aaa" />
                                 <YAxis stroke="#aaa" />
                                 <RTooltip />
                                 <Legend />
-                                <Line type="monotone" dataKey="billed" stroke="#7E00A6" strokeWidth={2} dot={false} />
+                                <Line type="monotone" dataKey="expected" stroke="#7E00A6" strokeWidth={2} dot={false} />
                                 <Line type="monotone" dataKey="collected" stroke="#FF0080" strokeWidth={2} dot={false} />
                             </LineChart>
                         </ResponsiveContainer>
@@ -453,7 +529,7 @@ export default function Billing() {
                 </Grid>
             </Grid>
 
-            {/* Filter Toolbar — organized & styled */}
+            {/* Filter Toolbar */}
             <Paper elevation={0} sx={{ ...softCard, mb: 2, p: 2.5 }}>
                 <Stack
                     direction={{ xs: "column", md: "row" }}
@@ -572,6 +648,16 @@ export default function Billing() {
                                             Amount Due
                                         </TableSortLabel>
                                     </TableCell>
+                                    <TableCell align="right" sortDirection={orderBy === "paid" ? orderDir : false}>
+                                        <TableSortLabel active={orderBy === "paid"} direction={orderDir} onClick={() => handleSort("paid")}>
+                                            Paid
+                                        </TableSortLabel>
+                                    </TableCell>
+                                    <TableCell align="right" sortDirection={orderBy === "balance" ? orderDir : false}>
+                                        <TableSortLabel active={orderBy === "balance"} direction={orderDir} onClick={() => handleSort("balance")}>
+                                            Balance
+                                        </TableSortLabel>
+                                    </TableCell>
                                     <TableCell sortDirection={orderBy === "dueISO" ? orderDir : false}>
                                         <TableSortLabel active={orderBy === "dueISO"} direction={orderDir} onClick={() => handleSort("dueISO")}>
                                             Due Date
@@ -596,6 +682,8 @@ export default function Billing() {
                                             <TableCell>{r.unit} — {r.apt}</TableCell>
                                             <TableCell>{r.type}</TableCell>
                                             <TableCell align="right">{fmtKES(r.amount)}</TableCell>
+                                            <TableCell align="right">{fmtKES(r.paid)}</TableCell>
+                                            <TableCell align="right">{fmtKES(r.balance)}</TableCell>
                                             <TableCell>{r.due}</TableCell>
                                             <TableCell>
                                                 <Chip
@@ -653,6 +741,16 @@ export default function Billing() {
                             <MenuItem onClick={onView}>View</MenuItem>
                             <MenuItem onClick={onEdit}>Edit</MenuItem>
                             <MenuItem onClick={onReminder}>Reminder</MenuItem>
+                            <MenuItem onClick={() => {
+                                setPayForm(f => ({
+                                    ...f,
+                                    TenantID: menuRow?.TenantID || "",
+                                    RentalUnitID: menuRow?.RentalUnitID || "",
+                                    BillingMonth: menuRow?.month || NOW_MONTH
+                                }));
+                                setPayOpen(true);
+                                closeMenu();
+                            }}>Record Payment</MenuItem>
                         </Menu>
                     </>
                 )}
@@ -668,9 +766,11 @@ export default function Billing() {
                             <Typography><b>Apartment / Unit:</b> {menuRow.apt} / {menuRow.unit}</Typography>
                             <Typography><b>Billing Month:</b> {menuRow.month}</Typography>
                             <Typography><b>Amount Due:</b> {fmtKES(menuRow.amount)}</Typography>
-                            <Typography><b>Due Date:</b> {dayjs(menuRow.dueISO).format("DD MMM YYYY")}</Typography>
+                            <Typography><b>Paid:</b> {fmtKES(menuRow.paid)}</Typography>
+                            <Typography><b>Balance:</b> {fmtKES(menuRow.balance)}</Typography>
+                            <Typography><b>Due Date:</b> {menuRow.dueISO ? dayjs(menuRow.dueISO).format("DD MMM YYYY") : "—"}</Typography>
                             <Typography><b>Status:</b> {menuRow.status}</Typography>
-                            {/* Plug payment history here when you expose it */}
+                            {/* Consider pulling ledger here via /billing/tenant/:id/ledger */}
                         </Stack>
                     ) : null}
                 </DialogContent>
@@ -727,12 +827,60 @@ export default function Billing() {
                         Send payment reminder to <b>{menuRow?.tenant}</b> for <b>{menuRow?.month}</b>?
                     </Typography>
                     <Typography variant="caption" sx={{ opacity: .8 }}>
-                        This will use your notifications service (configure endpoint later).
+                        This will use your notifications service.
                     </Typography>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setRemindOpen(false)}>Cancel</Button>
                     <Button variant="contained" onClick={sendReminder}>Send</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Record Payment Dialog */}
+            <Dialog open={payOpen} onClose={() => setPayOpen(false)} fullWidth maxWidth="sm">
+                <DialogTitle>Record Payment</DialogTitle>
+                <DialogContent dividers>
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                        <TextField label="TenantID" value={payForm.TenantID} onChange={e => setPayForm({ ...payForm, TenantID: e.target.value })} />
+                        <TextField label="RentalUnitID" value={payForm.RentalUnitID} onChange={e => setPayForm({ ...payForm, RentalUnitID: e.target.value })} />
+                        <TextField label="Billing Month" value={payForm.BillingMonth || monthFilter} onChange={e => setPayForm({ ...payForm, BillingMonth: e.target.value })} />
+                        <TextField label="Amount Paid" type="number" value={payForm.AmountPaid} onChange={e => setPayForm({ ...payForm, AmountPaid: e.target.value })} />
+                        <TextField label="Paid Via" value={payForm.PaidViaMobile} onChange={e => setPayForm({ ...payForm, PaidViaMobile: e.target.value })} />
+                        <TextField label="Tx Ref" value={payForm.TxRef} onChange={e => setPayForm({ ...payForm, TxRef: e.target.value })} />
+                        <TextField label="Note" value={payForm.PaymentNote} onChange={e => setPayForm({ ...payForm, PaymentNote: e.target.value })} />
+                        <Typography variant="caption" sx={{ opacity: .8 }}>
+                            Tip: if you add TenantID & RentalUnitID to `/bills` response, these fields prefill automatically.
+                        </Typography>
+                    </Stack>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPayOpen(false)}>Cancel</Button>
+                    <Button
+                        variant="contained"
+                        onClick={async () => {
+                            try {
+                                const body = {
+                                    TenantID: Number(payForm.TenantID),
+                                    RentalUnitID: Number(payForm.RentalUnitID),
+                                    BillingMonth: payForm.BillingMonth || monthFilter || NOW_MONTH,
+                                    AmountPaid: Number(payForm.AmountPaid),
+                                    PaidViaMobile: payForm.PaidViaMobile || "MPesa",
+                                    TxRef: payForm.TxRef || undefined,
+                                    PaymentNote: payForm.PaymentNote || undefined
+                                };
+                                await api.post("/tenant-payments", body);
+                                setSnack({ open: true, severity: "success", msg: "Payment recorded." });
+                                setPayOpen(false);
+                                load();
+                                loadKpis();
+                            } catch (e) {
+                                console.error(e);
+                                setSnack({ open: true, severity: "error", msg: "Failed to record payment." });
+                            }
+                        }}
+                    >
+                        Save
+                    </Button>
                 </DialogActions>
             </Dialog>
 

@@ -1,6 +1,11 @@
+from sqlalchemy import Index, UniqueConstraint, CheckConstraint, Numeric, func
+from datetime import datetime, date
+from decimal import Decimal
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 
+
+# 👉 These come from SQLAlchemy, not flask_sqlalchemy
 db = SQLAlchemy()
 
 
@@ -139,13 +144,27 @@ class VacateNotice(db.Model):
 class TenantBill(db.Model):
     __tablename__ = 'TenantBills'
 
+    # Primary key
     BillID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+
+    # Foreign keys
     TenantID = db.Column(db.Integer, db.ForeignKey(
         'Tenants.TenantID'), nullable=False)
     RentalUnitID = db.Column(db.Integer, db.ForeignKey(
         'RentalUnits.UnitID'), nullable=False)
 
-    BillingMonth = db.Column(db.String(20), nullable=False)
+    # Denormalized owner (fast landlord-scoped queries)
+    LandlordID = db.Column(db.Integer, db.ForeignKey(
+        'Users.UserID'), nullable=True)
+
+    # Existing month label used in routes/UI (keep)
+    BillingMonth = db.Column(
+        db.String(20), nullable=False)  # e.g., "July 2025"
+
+    # Canonical first-of-month (optional but useful)
+    BillingPeriod = db.Column(db.Date, nullable=True)  # e.g., date(2025, 7, 1)
+
+    # Money (keep Float for backward-compat)
     RentAmount = db.Column(db.Float, nullable=False)
     WaterBill = db.Column(db.Float, default=0.0)
     ElectricityBill = db.Column(db.Float, default=0.0)
@@ -154,41 +173,98 @@ class TenantBill(db.Model):
     CarriedForwardBalance = db.Column(db.Float, default=0.0)
 
     TotalAmountDue = db.Column(db.Float, nullable=False)
+
+    # Dates
     DueDate = db.Column(db.Date, nullable=False)
     IssuedDate = db.Column(db.DateTime, default=datetime.utcnow)
 
-   # Options: Paid, Partially Paid, Overpaid, Unpaid
+    # Status: "Unpaid", "Paid", "Partially Paid", "Overpaid"
     BillStatus = db.Column(db.String(20), default="Unpaid")
 
-    tenant = db.relationship('Tenant', backref='bills')
-    unit = db.relationship('RentalUnit', backref='bills')
+    # Relationships
+    tenant = db.relationship('Tenant', backref='bills', lazy=True)
+    unit = db.relationship('RentalUnit', backref='bills', lazy=True)
+    landlord = db.relationship('User', backref='tenant_bills', lazy=True)
+
+    # NEW: allocations relationship (paired with PaymentAllocation.bill)
+    allocations = db.relationship(
+        'PaymentAllocation',
+        back_populates='bill',
+        cascade="all, delete-orphan",
+        lazy=True
+    )
+
+    # Helpful composite index for landlord dashboards & month filtering
+    __table_args__ = (
+        Index('ix_tenantbills_landlord_month', 'LandlordID', 'BillingMonth'),
+    )
 
     def __repr__(self):
         return f"<TenantBill {self.BillingMonth} | TenantID {self.TenantID} | Status {self.BillStatus}>"
+
+    # Convenience: derive BillingPeriod from BillingMonth safely
+    def set_billing_period_from_label(self):
+        try:
+            dt = datetime.strptime(self.BillingMonth, "%B %Y")
+            self.BillingPeriod = date(dt.year, dt.month, 1)
+        except Exception:
+            pass
 
 
 class RentPayment(db.Model):
     __tablename__ = 'RentPayments'
 
+    # Primary key
     PaymentID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+
+    # Foreign keys
     TenantID = db.Column(db.Integer, db.ForeignKey(
         'Tenants.TenantID'), nullable=False)
     RentalUnitID = db.Column(db.Integer, db.ForeignKey(
         'RentalUnits.UnitID'), nullable=False)
 
-    BillingMonth = db.Column(db.String(20), nullable=False)
+    # Denormalized owner (fast landlord-scoped queries)
+    LandlordID = db.Column(db.Integer, db.ForeignKey(
+        'Users.UserID'), nullable=True)
+
+    # Compatibility labels used by routes/UI
+    BillingMonth = db.Column(
+        db.String(20), nullable=False)  # e.g., "July 2025"
+    IntendedBillingPeriod = db.Column(
+        db.Date, nullable=True)  # e.g., date(2025, 7, 1)
+
+    # Amounts (kept Float for compatibility)
     BilledAmount = db.Column(db.Float, nullable=False)
     AmountPaid = db.Column(db.Float, nullable=False)
-    Balance = db.Column(db.Float, default=0.0)
+    Balance = db.Column(db.Float, default=0.0, nullable=False)
 
-    PaymentDate = db.Column(db.DateTime, default=datetime.utcnow)
-    PaidViaMobile = db.Column(db.String(20), nullable=False)
+    # Payment metadata
+    PaymentDate = db.Column(
+        db.DateTime, default=datetime.utcnow, nullable=False)
+    PaidViaMobile = db.Column(db.String(20), nullable=False)  # e.g., "MPesa"
+    # e.g., M-Pesa code
+    TxRef = db.Column(db.String(100), nullable=True)
+    PaymentNote = db.Column(db.String(255), nullable=True)
 
-    tenant = db.relationship('Tenant', backref='rent_payments')
-    unit = db.relationship('RentalUnit', backref='rent_payments')
+    # Relationships
+    tenant = db.relationship('Tenant', backref='rent_payments', lazy=True)
+    unit = db.relationship('RentalUnit', backref='rent_payments', lazy=True)
+    landlord = db.relationship('User', backref='rent_payments', lazy=True)
+
+    # Allocations (paired with PaymentAllocation.payment) — NO backref here
+    allocations = db.relationship(
+        'PaymentAllocation',
+        back_populates='payment',
+        cascade="all, delete-orphan",
+        lazy=True
+    )
+
+    __table_args__ = (
+        Index('ix_rentpayments_landlord_date', 'LandlordID', 'PaymentDate'),
+    )
 
     def __repr__(self):
-        return f"<RentPayment {self.BillingMonth} | TenantID {self.TenantID}>"
+        return f"<RentPayment {self.BillingMonth} | TenantID {self.TenantID} | AmountPaid {self.AmountPaid}>"
 
 
 class LandlordExpense(db.Model):
@@ -399,3 +475,57 @@ class Rating(db.Model):
     RatingValue = db.Column(db.Integer, nullable=False)  # 1–5
     Comment = db.Column(db.Text)  # optional
     CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PaymentAllocation(db.Model):
+    """
+    Resolves many-to-many between RentPayments and TenantBills.
+    One payment can cover multiple bills; one bill can be covered by multiple payments.
+    """
+    __tablename__ = 'PaymentAllocations'
+
+    AllocationID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+
+    # FKs
+    PaymentID = db.Column(
+        db.Integer,
+        db.ForeignKey('RentPayments.PaymentID', ondelete='CASCADE'),
+        nullable=False
+    )
+    BillID = db.Column(
+        db.Integer,
+        db.ForeignKey('TenantBills.BillID', ondelete='CASCADE'),
+        nullable=False
+    )
+
+    # Money-safe amount allocated from this payment to this bill
+    AllocatedAmount = db.Column(Numeric(12, 2), nullable=False)
+
+    # Optional denormalized owner for fast landlord-scoped queries
+    LandlordID = db.Column(db.Integer, db.ForeignKey(
+        'Users.UserID'), nullable=True)
+
+    # Audit
+    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships — use back_populates on BOTH sides (no backref)
+    payment = db.relationship(
+        'RentPayment', back_populates='allocations', lazy=True)
+    bill = db.relationship(
+        'TenantBill', back_populates='allocations', lazy=True)
+    landlord = db.relationship(
+        'User', backref='payment_allocations', lazy=True)
+
+    __table_args__ = (
+        # prevent duplicate rows for the same (Payment, Bill) pair
+        UniqueConstraint('PaymentID', 'BillID', name='uq_payment_bill'),
+        # basic sanity: non-negative allocation
+        CheckConstraint('AllocatedAmount >= 0', name='ck_alloc_nonneg'),
+        # helpful indexes
+        Index('ix_alloc_landlord_bill', 'LandlordID', 'BillID'),
+        Index('ix_alloc_payment', 'PaymentID'),
+        Index('ix_alloc_bill', 'BillID'),
+    )
+
+    def __repr__(self):
+        return f"<PaymentAllocation PaymentID={self.PaymentID} BillID={self.BillID} Allocated={self.AllocatedAmount}>"
