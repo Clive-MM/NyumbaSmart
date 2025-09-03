@@ -4,22 +4,23 @@ from flask_bcrypt import Bcrypt
 from sqlalchemy import func, case, cast, Date
 from flask_mail import Message, Mail
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import jwt
 import os
 import re
 import time
-import cloudinary.uploader
-from datetime import datetime, timedelta, date
 from decimal import Decimal
+from uuid import uuid4
 
+# if you use a custom SMS fallback elsewhere
 from utils.sms_helper import send_sms
 from utils.billing_helper import calculate_bill_amount
 from utils.cloudinary_helper import upload_to_cloudinary
-from models.models import (
+
+from models import (
     db, User, Apartment, UnitCategory, RentalUnitStatus, RentalUnit, Tenant,
     VacateLog, TransferLog, VacateNotice, SMSUsageLog, TenantBill,
-    RentPayment, LandlordExpense, Profile, Feedback, Rating,  PaymentAllocation
+    RentPayment, LandlordExpense, Profile, Feedback, Rating, PaymentAllocation
 )
 
 # ✅ Initialize Blueprint
@@ -36,33 +37,42 @@ CORS(
     supports_credentials=True
 )
 
-# ✅ Initialize Bcrypt
+# ✅ Bcrypt (standalone instance; OK to use without init_app)
 bcrypt = Bcrypt()
 
 # ✅ Mail instance (to be set from app.py)
-mail = None
-# Email validator
+mail: Mail | None = None
+
+
+def register_mail_instance(mail_instance: Mail):
+    """
+    Register the Flask-Mail instance from app.py
+    so that routes can send emails.
+    """
+    global mail
+    mail = mail_instance
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Helpers & validators
+# ──────────────────────────────────────────────────────────────────────────────
+
+
 EMAIL_RE = re.compile(
     r"^(?=.{1,254}$)(?=.{1,64}@)"
     r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
     r"(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}$"
 )
-
-
-def register_mail_instance(mail_instance):
-    """
-    Registers the Flask-Mail instance from app.py
-    so that routes can send emails.
-    """
-    global mail
-    mail = mail_instance
+KRA_RE = re.compile(r'^[A-Z]\d{9}[A-Z]$')
+E164_RE = re.compile(r'^\+2547\d{8}$')
 
 
 def _fmt_date(d):
     return d.strftime("%Y-%m-%d") if d else None
 
 
-KRA_RE = re.compile(r'^[A-Z]\d{9}[A-Z]$')
+def _fmt_dt(d):
+    """Format datetime → 'YYYY-MM-DD HH:MM:SS' (or None)."""
+    return d.strftime("%Y-%m-%d %H:%M:%S") if d else None
 
 
 def normalize_phone(phone: str) -> str:
@@ -76,35 +86,72 @@ def normalize_phone(phone: str) -> str:
     return p
 
 
-def validate_profile_payload(d: dict) -> list[str]:
-    """Return list of validation error strings (empty = OK)."""
-    errors = []
+def normalize_phone_e164(phone: str) -> str | None:
+    """
+    Accepts 07xxxxxxxx, 7xxxxxxxx, 2547xxxxxxxx, or +2547xxxxxxxx.
+    Returns +2547xxxxxxxx (E.164) or None if invalid.
+    """
+    if not phone:
+        return None
+    p = re.sub(r'\D', '', phone.strip())
 
-    kra = (d.get("KRA_PIN") or "").strip().upper()
-    if kra and not KRA_RE.match(kra):
-        errors.append("KRA_PIN must match format (e.g., A123456789B).")
+    # 07xxxxxxxx -> 2547xxxxxxxx
+    if p.startswith('0') and len(p) == 10 and p[1] == '7':
+        p = '254' + p[1:]
 
-    nid = (d.get("NationalID") or "").strip()
-    if nid and not re.fullmatch(r"\d{6,8}", nid):
-        errors.append("NationalID must be 6–8 digits.")
+    # 7xxxxxxxxx -> 2547xxxxxxxx
+    if p.startswith('7') and len(p) == 9:
+        p = '254' + p
 
-    paybill = (d.get("MpesaPaybill") or "").strip()
-    if paybill and not re.fullmatch(r"\d{5,6}", paybill):
-        errors.append("MpesaPaybill must be 5–6 digits.")
+    # already 2547xxxxxxxx
+    if p.startswith('2547') and len(p) == 12:
+        return f'+{p}'
 
-    till = (d.get("MpesaTill") or "").strip()
-    if till and not re.fullmatch(r"\d{4,8}", till):
-        errors.append("MpesaTill must be 4–8 digits.")
+    # already +2547xxxxxxxx (came in with +)
+    if phone.strip().startswith('+2547') and len(re.sub(r'\D', '', phone)) == 12:
+        return '+2547' + re.sub(r'\D', '', phone)[3:]
 
-    dob = (d.get("DateOfBirth") or "").strip()
-    if dob:
-        try:
-            dt = datetime.strptime(dob, "%Y-%m-%d").date()
-            if dt > datetime.utcnow().date():
-                errors.append("DateOfBirth cannot be in the future.")
-        except ValueError:
-            errors.append("DateOfBirth must be YYYY-MM-DD.")
-    return errors
+    return None
+
+
+def _parse_month_any(month_str: str):
+    """
+    Accepts either 'YYYY-MM' or 'MMMM YYYY' (e.g., '2025-08' or 'August 2025').
+    Returns (year:int, month:int) or (None, None) if invalid/empty.
+    """
+    if not month_str:
+        return None, None
+    month_str = month_str.strip()
+    # try YYYY-MM
+    try:
+        y, m = month_str.split("-")
+        return int(y), int(m)
+    except Exception:
+        pass
+    # try 'MMMM YYYY'
+    try:
+        dt = datetime.strptime(month_str, "%B %Y")
+        return dt.year, dt.month
+    except Exception:
+        return None, None
+
+
+def _landlord_scope_ids(user_id: int, apartment_id: int | None = None):
+    """
+    Returns (apartment_ids, unit_ids, unit_by_id) scoped to the landlord.
+    Optionally restrict to a specific apartment_id.
+    """
+    a_q = Apartment.query.filter_by(UserID=user_id)
+    if apartment_id:
+        a_q = a_q.filter(Apartment.ApartmentID == apartment_id)
+    apartments = a_q.all()
+    apartment_ids = [a.ApartmentID for a in apartments]
+
+    units = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids)).all()
+    unit_ids = [u.UnitID for u in units]
+    unit_by_id = {u.UnitID: u for u in units}
+    return apartment_ids, unit_ids, unit_by_id
 
 
 def profile_completeness(profile, user) -> int:
@@ -182,110 +229,167 @@ def serialize_profile(user, profile):
     }
 
 
-def _fmt_dt(d):
-    """Format datetime → 'YYYY-MM-DD HH:MM:SS' (or None)."""
-    return d.strftime("%Y-%m-%d %H:%M:%S") if d else None
+def _to_e164(user):
+    """Return +2547… using PhoneE164 if present, else convert legacy Phone."""
+    if user.PhoneE164 and user.PhoneE164.startswith('+'):
+        return user.PhoneE164
+    if user.Phone and user.Phone.startswith('2547') and len(user.Phone) == 12:
+        return f"+{user.Phone}"
+    return None
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Twilio wrappers (use single client set in app.extensions)
+# ──────────────────────────────────────────────────────────────────────────────
 
 
-def _parse_month_any(month_str: str):
-    """
-    Accepts either 'YYYY-MM' or 'MMMM YYYY' (e.g., '2025-08' or 'August 2025').
-    Returns (year:int, month:int) or (None, None) if invalid/empty.
-    """
-    if not month_str:
-        return None, None
-    month_str = month_str.strip()
-    # try YYYY-MM
-    try:
-        y, m = month_str.split("-")
-        return int(y), int(m)
-    except Exception:
-        pass
-    # try 'MMMM YYYY'
-    try:
-        dt = datetime.strptime(month_str, "%B %Y")
-        return dt.year, dt.month
-    except Exception:
-        return None, None
+def _twilio_verify():
+    client = current_app.extensions.get("twilio_client")
+    sid = current_app.config.get("TWILIO_VERIFY_SERVICE_SID")
+    if not client or not sid:
+        raise RuntimeError("Twilio Verify not configured")
+    return client, sid
 
 
-def _landlord_scope_ids(user_id: int, apartment_id: int | None = None):
-    """
-    Returns (apartment_ids, unit_ids, unit_by_id) scoped to the landlord.
-    Optionally restrict to a specific apartment_id.
-    """
-    a_q = Apartment.query.filter_by(UserID=user_id)
-    if apartment_id:
-        a_q = a_q.filter(Apartment.ApartmentID == apartment_id)
-    apartments = a_q.all()
-    apartment_ids = [a.ApartmentID for a in apartments]
-
-    units = RentalUnit.query.filter(
-        RentalUnit.ApartmentID.in_(apartment_ids)).all()
-    unit_ids = [u.UnitID for u in units]
-    unit_by_id = {u.UnitID: u for u in units}
-    return apartment_ids, unit_ids, unit_by_id
+def send_verify_sms(to_e164: str):
+    client, sid = _twilio_verify()
+    return client.verify.services(sid).verifications.create(to=to_e164, channel="sms")
 
 
-# ✅ Landlord registration route with full validation
+def check_verify_sms(to_e164: str, code: str):
+    client, sid = _twilio_verify()
+    return client.verify.services(sid).verification_checks.create(to=to_e164, code=code)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Auth & User flows
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+_used_reset_jtis = set()  # in-memory, single-use token JTIs
 
 
 @routes.route('/register', methods=['POST'])
+@routes.route('/auth/register', methods=['POST'])
 def register_landlord():
-    data = request.get_json()
-    full_name = data.get('full_name')
-    email = data.get('email')
-    password = data.get('password')
-    confirm_password = data.get('confirm_password')  # ✅ New field
-    phone = data.get('phone')
+    data = request.get_json() or {}
+    full_name = (data.get('full_name') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+    confirm_password = data.get('confirm_password') or ''
+    raw_phone = (data.get('phone') or '').strip()
 
-    # ✅ Basic required field check
-    if not all([full_name, email, password, confirm_password, phone]):
+    # ✅ Basic required fields
+    if not all([full_name, email, password, confirm_password, raw_phone]):
         return jsonify({'message': 'Full name, email, password, confirm password, and phone are required'}), 400
 
-    # ✅ Check if passwords match
     if password != confirm_password:
         return jsonify({'message': 'Passwords do not match!'}), 400
 
-    # ✅ Check if user already exists (email)
-    if User.query.filter_by(Email=email).first():
+    # ✅ Normalize phone to E.164 for Twilio (+2547xxxxxxxx)
+    phone_e164 = normalize_phone_e164(raw_phone)
+    if not phone_e164 or not E164_RE.match(phone_e164):
+        return jsonify({'message': 'Phone must be a valid Safaricom number like +2547XXXXXXXX'}), 400
+
+    # ✅ Uniqueness checks
+    if User.query.filter(func.lower(User.Email) == email).first():
         return jsonify({'message': 'Email is already registered'}), 409
 
-    # ✅ Check if user already exists (phone)
-    if User.query.filter_by(Phone=phone).first():
+    if User.query.filter((User.PhoneE164 == phone_e164) | (User.Phone == phone_e164.replace('+', ''))).first():
         return jsonify({'message': 'Phone number is already registered'}), 409
 
-    # ✅ Validate phone number format (Kenya format 2547XXXXXXXX)
-    if not re.fullmatch(r"2547\d{8}", phone):
-        return jsonify({'message': 'Phone number must be in format 2547XXXXXXXX'}), 400
+    # ✅ Password strength
+    if len(password) < 8 \
+       or not re.search(r'[A-Z]', password) \
+       or not re.search(r'[a-z]', password) \
+       or not re.search(r'\d', password) \
+       or not re.search(r'[\W_]', password):
+        return jsonify({'message': 'Password must be 8+ chars and include upper, lower, digit and special char.'}), 400
 
-    # ✅ Password strength validation
-    if len(password) < 8:
-        return jsonify({'message': 'Password must be at least 8 characters long.'}), 400
-    if not re.search(r'[A-Z]', password):
-        return jsonify({'message': 'Password must contain at least one uppercase letter.'}), 400
-    if not re.search(r'[a-z]', password):
-        return jsonify({'message': 'Password must contain at least one lowercase letter.'}), 400
-    if not re.search(r'[0-9]', password):
-        return jsonify({'message': 'Password must contain at least one digit.'}), 400
-    if not re.search(r'[\W_]', password):  # \W matches any non-alphanumeric character
-        return jsonify({'message': 'Password must contain at least one special character.'}), 400
-
-    # ✅ Hash and save user
+    # ✅ Hash & save user
     hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
+    legacy_phone = phone_e164.replace('+', '')
 
     new_user = User(
         FullName=full_name,
         Email=email,
         Password=hashed_pw,
-        Phone=phone,
-        IsAdmin=True
+        Phone=legacy_phone,      # 2547xxxxxxx (legacy format)
+        PhoneE164=phone_e164,    # +2547xxxxxxx (Twilio)
+        IsAdmin=True,
+        IsPhoneVerified=False,
+        PreferredChannel='sms',
+        AllowSMS=True,
+        IsActive=True
     )
-
     db.session.add(new_user)
     db.session.commit()
 
-    return jsonify({'message': '🚀 You’re all set!. Welcome aboard! Your NyumbaSmart account is ready!'}), 201
+    # ✅ Kick off Twilio Verify (SMS OTP)
+    try:
+        send_verify_sms(phone_e164)
+    except Exception as e:
+        return jsonify({
+            'message': 'Account created, but failed to send OTP SMS. Use /auth/resend-otp.',
+            'user_id': new_user.UserID,
+            'error': str(e)
+        }), 201
+
+    return jsonify({
+        'message': '🚀 Account created! We sent a verification code via SMS.',
+        'user_id': new_user.UserID
+    }), 201
+
+
+@routes.route('/auth/verify-otp', methods=['POST'])
+def verify_otp():
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    code = (data.get('code') or '').strip()
+
+    if not email or not code:
+        return jsonify({'message': 'Email and code are required.'}), 400
+
+    user = User.query.filter(func.lower(User.Email) == email).first()
+    if not user:
+        return jsonify({'message': 'No account found for this email.'}), 404
+    if not user.PhoneE164:
+        return jsonify({'message': 'User has no phone on file.'}), 400
+
+    try:
+        check = check_verify_sms(user.PhoneE164, code)
+        if getattr(check, "status", "").lower() == "approved":
+            user.IsPhoneVerified = True
+            user.LastVerifiedAt = datetime.utcnow()
+            db.session.commit()
+            return jsonify({'message': '✅ Phone verified successfully. You can now log in.'}), 200
+        else:
+            return jsonify({'message': '❌ Invalid or expired code.'}), 400
+    except Exception as e:
+        return jsonify({'message': 'Failed to verify code.', 'error': str(e)}), 500
+
+
+@routes.route('/auth/resend-otp', methods=['POST'])
+def resend_otp():
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    if not email:
+        return jsonify({'message': 'Email is required.'}), 400
+
+    user = User.query.filter(func.lower(User.Email) == email).first()
+    if not user:
+        return jsonify({'message': 'No account found for this email.'}), 404
+    if not user.AllowSMS:
+        return jsonify({'message': 'SMS disabled for this account.'}), 403
+
+    to = _to_e164(user)
+    if not to:
+        return jsonify({'message': 'Phone number is not valid for verification.'}), 400
+
+    try:
+        send_verify_sms(to)
+    except Exception as e:
+        return jsonify({'message': 'Failed to resend code.', 'error': str(e)}), 500
+
+    return jsonify({'message': 'OTP resent via SMS.'}), 200
 
 
 # Track failed login attempts
@@ -293,29 +397,25 @@ login_attempts = {}
 MAX_ATTEMPTS = 5
 LOCKOUT_TIME = 60  # seconds
 
-# Landlord login
-
 
 @routes.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    email = data.get('email')
-    password = data.get('password')
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
 
     if not email or not password:
         return jsonify({'message': 'Both email and password are required.'}), 400
 
-    # ⏱ Check if user is locked out
+    # lockout check
     if email in login_attempts:
         attempts, last_time = login_attempts[email]
         if attempts >= MAX_ATTEMPTS and time.time() - last_time < LOCKOUT_TIME:
             wait_time = int(LOCKOUT_TIME - (time.time() - last_time))
             return jsonify({'message': f'Too many failed attempts. Try again in {wait_time} seconds.'}), 429
 
-    user = User.query.filter_by(Email=email).first()
-
+    user = User.query.filter(func.lower(User.Email) == email).first()
     if not user:
-        # Update failed attempts
         update_attempts(email)
         return jsonify({'message': 'No account found for this email. Try signing up instead.'}), 404
 
@@ -323,8 +423,85 @@ def login():
         update_attempts(email)
         return jsonify({'message': 'The password entered seems a bit off. Please try again carefully..'}), 401
 
-    # Successful login → reset failed attempts
+    # Successful password check → reset failed attempts
     login_attempts.pop(email, None)
+
+    # Require verified phone before issuing JWT
+    if not getattr(user, "IsPhoneVerified", False):
+        try:
+            if user.PhoneE164:
+                send_verify_sms(user.PhoneE164)
+        except Exception:
+            pass
+        return jsonify({
+            'message': 'Please verify your phone first. We just sent you a new code.',
+            'needs_verification': True
+        }), 403
+
+    # Step-up 2FA if enabled via SMS
+    require_2fa = bool(user.TwoFAEnabled and (
+        user.TwoFAMethod in (None, 'sms')))
+    if require_2fa:
+        if not user.AllowSMS:
+            return jsonify({'message': 'SMS disabled for this account. Contact support to enable.'}), 403
+        to = _to_e164(user)
+        if not to:
+            return jsonify({'message': 'Your phone number is not in a valid format for verification.'}), 400
+        try:
+            send_verify_sms(to)
+        except Exception as e:
+            return jsonify({'message': 'Failed to send login code.', 'error': str(e)}), 500
+        return jsonify({
+            'message': 'Enter the SMS code we just sent to complete sign in.',
+            'needs_verification': True,
+            'reason': 'login'
+        }), 403
+
+    # No 2FA required → normal login
+    token = create_access_token(
+        identity=user.UserID, expires_delta=timedelta(days=1))
+    return jsonify({
+        'message': 'Login successful!',
+        'token': token,
+        'user': {
+            'UserID': user.UserID,
+            'FullName': user.FullName,
+            'Email': user.Email,
+            'Phone': user.Phone,
+            'IsAdmin': user.IsAdmin
+        }
+    }), 200
+
+
+@routes.route('/auth/login-verify', methods=['POST'])
+def login_verify():
+    data = request.get_json() or {}
+    email = (data.get('email') or '').strip().lower()
+    code = (data.get('code') or '').strip()
+
+    if not email or not code:
+        return jsonify({'message': 'Email and code are required.'}), 400
+
+    user = User.query.filter(func.lower(User.Email) == email).first()
+    if not user:
+        return jsonify({'message': 'No account found for this email.'}), 404
+
+    to = _to_e164(user)
+    if not to:
+        return jsonify({'message': 'Phone number is not valid for verification.'}), 400
+
+    try:
+        check = check_verify_sms(to, code)
+    except Exception as e:
+        return jsonify({'message': 'Verification failed.', 'error': str(e)}), 500
+
+    if getattr(check, 'status', '').lower() != 'approved':
+        return jsonify({'message': 'Invalid or expired code.'}), 400
+
+    if not user.IsPhoneVerified:
+        user.IsPhoneVerified = True
+        user.LastVerifiedAt = datetime.utcnow()
+        db.session.commit()
 
     token = create_access_token(
         identity=user.UserID, expires_delta=timedelta(days=1))
@@ -340,8 +517,6 @@ def login():
         }
     }), 200
 
-# Helper to track login failures
-
 
 def update_attempts(email):
     now = time.time()
@@ -351,8 +526,7 @@ def update_attempts(email):
         login_attempts[email][0] += 1
         login_attempts[email][1] = now
 
-
-# ✅ Route for changing the password
+# Change password
 
 
 @routes.route('/new_password_change', methods=['PATCH'])
@@ -364,7 +538,7 @@ def change_password():
     if not user:
         return jsonify({'message': '❌ Account not found.'}), 404
 
-    data = request.get_json()
+    data = request.get_json() or {}
     current_pw = data.get('current_password')
     new_pw = data.get('new_password')
     confirm_pw = data.get('confirm_password')
@@ -379,16 +553,9 @@ def change_password():
         return jsonify({'message': '⚠️ New password and confirmation do not match.'}), 400
 
     # ✅ Check for password strength
-    if len(new_pw) < 8:
-        return jsonify({'message': '🔐 Password must be at least 8 characters long.'}), 400
-    if not re.search(r'[A-Z]', new_pw):
-        return jsonify({'message': '🔐 Password must include at least one uppercase letter.'}), 400
-    if not re.search(r'[a-z]', new_pw):
-        return jsonify({'message': '🔐 Password must include at least one lowercase letter.'}), 400
-    if not re.search(r'\d', new_pw):
-        return jsonify({'message': '🔐 Password must include at least one number.'}), 400
-    if not re.search(r'[\W_]', new_pw):
-        return jsonify({'message': '🔐 Password must include at least one special character.'}), 400
+    if len(new_pw) < 8 or not re.search(r'[A-Z]', new_pw) or not re.search(r'[a-z]', new_pw) \
+       or not re.search(r'\d', new_pw) or not re.search(r'[\W_]', new_pw):
+        return jsonify({'message': '🔐 Password must be stronger (min 8 chars with upper, lower, number, special).'}), 400
 
     # ✅ Hash and update
     user.Password = bcrypt.generate_password_hash(new_pw).decode('utf-8')
@@ -396,93 +563,175 @@ def change_password():
 
     return jsonify({'message': '✅ Password changed successfully!'}), 200
 
-# Route for enabling forgot password
+# Forgot password (start)
 
 
-@routes.route('/forgot-password', methods=['POST'])
-def forgot_password():
-    data = request.get_json()
-    email = data.get('email')
+@routes.route("/auth/forgot/start", methods=["POST"])
+def auth_forgot_start():
+    """
+    Body: { "identifier": "<email or phone>" }
+    Always returns 200 with a generic message (no account enumeration).
+    If user exists and has a phone, send a Twilio Verify SMS.
+    """
+    data = request.get_json() or {}
+    identifier = (data.get("identifier") or "").strip()
 
-    # ✅ Validate email input
-    if not email:
-        return jsonify({'message': '❌ Email is required.'}), 400
+    user = None
+    if identifier:
+        # resolve by email (case-insensitive)
+        user = User.query.filter(func.lower(
+            User.Email) == identifier.lower()).first()
+        # or by phone (normalize legacy 07… / 7… / 2547… to DB Phone format 2547…)
+        if not user and re.fullmatch(r"(\+?2547\d{8}|2547\d{8}|07\d{8}|7\d{8})", identifier):
+            p = normalize_phone(identifier)  # returns 2547XXXXXXXX
+            user = User.query.filter_by(Phone=p).first()
 
-    # ✅ Check if user exists
-    user = User.query.filter_by(Email=email).first()
-    if not user:
-        return jsonify({'message': '❌ This email is not registered with us.'}), 404
+    if user and user.PhoneE164:
+        try:
+            send_verify_sms(user.PhoneE164)
+        except Exception as e:
+            current_app.logger.warning(
+                f"[forgot/start] verify send failed: {e}")
 
-    # ✅ Generate a token valid for 24 hours
-    token = jwt.encode(
-        {
-            'user_id': user.UserID,
-            'exp': datetime.utcnow() + timedelta(hours=24)
-        },
-        current_app.config['JWT_SECRET_KEY'],
-        algorithm='HS256'
-    )
+    # Generic response regardless of whether user exists (prevents enumeration)
+    return jsonify({"message": "If the account exists, we’ve sent a verification code."}), 200
 
-    # ✅ Get frontend URL from environment (fallback to localhost if missing)
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-    reset_link = f"{frontend_url}/reset-password/{token}"
+# Forgot password (verify code -> reset token)
 
-    # ✅ Create email message
-    msg = Message(
-        subject="🔐 Reset Your Password - NyumbaSmart",
-        recipients=[email],
-        body=f"""
-Hello {user.FullName},
 
-We received a request to reset your NyumbaSmart password.
+@routes.route("/auth/forgot/verify", methods=["POST"])
+def auth_forgot_verify():
+    """
+    Body: { "identifier": "<email or phone>", "code": "123456" }
+    Success: { "reset_token": "<short-lived JWT>" }
+    """
+    data = request.get_json() or {}
+    identifier = (data.get("identifier") or "").strip()
+    code = (data.get("code") or "").strip()
 
-Click the link below to reset your password:
-{reset_link}
+    if not identifier or not code:
+        return jsonify({"message": "Identifier and code are required."}), 400
 
-⚠️ This link is valid for 24 hours. If you didn’t request this, you can safely ignore this email.
+    # Resolve user same as /start
+    user = User.query.filter(func.lower(User.Email) ==
+                             identifier.lower()).first()
+    if not user and re.fullmatch(r"(\+?2547\d{8}|2547\d{8}|07\d{8}|7\d{8})", identifier):
+        p = normalize_phone(identifier)
+        user = User.query.filter_by(Phone=p).first()
 
-Best regards,  
-NyumbaSmart Support Team
-"""
-    )
+    if not user or not user.PhoneE164:
+        return jsonify({"message": "Invalid code or identifier."}), 400
 
-    # ✅ Send email safely
     try:
-        mail.send(msg)
-        return jsonify({'message': '✅ Password reset link sent to your email address.'}), 200
+        check = check_verify_sms(user.PhoneE164, code)
+        if getattr(check, "status", "").lower() != "approved":
+            return jsonify({"message": "Invalid or expired code."}), 400
     except Exception as e:
-        return jsonify({'message': '❌ Failed to send email. Please try again later.', 'error': str(e)}), 500
-# Reset Password Link Route from Forgotten Password
+        current_app.logger.warning(f"[forgot/verify] verify check failed: {e}")
+        return jsonify({"message": "Verification failed."}), 400
+
+    # OTP OK → issue 10-minute single-use reset token
+    jti = str(uuid4())
+    reset_token = jwt.encode(
+        {
+            "user_id": user.UserID,
+            "scope": "pwd_reset",
+            "jti": jti,
+            "exp": datetime.utcnow() + timedelta(minutes=10)
+        },
+        current_app.config["JWT_SECRET_KEY"],
+        algorithm="HS256"
+    )
+    return jsonify({"reset_token": reset_token}), 200
+
+# Forgot password (reset)
+
+
+@routes.route("/auth/forgot/reset", methods=["POST"])
+def auth_forgot_reset():
+    """
+    Body: { "reset_token": "<jwt>", "new_password": "...", "confirm_password": "..." }
+    """
+    data = request.get_json() or {}
+    token = data.get("reset_token")
+    new_pw = data.get("new_password")
+    confirm_pw = data.get("confirm_password")
+
+    if not token or not new_pw or not confirm_pw:
+        return jsonify({"message": "All fields are required."}), 400
+    if new_pw != confirm_pw:
+        return jsonify({"message": "Passwords do not match."}), 400
+
+    # Strength checks
+    if len(new_pw) < 8 or not re.search(r"[A-Z]", new_pw) or not re.search(r"[a-z]", new_pw) \
+       or not re.search(r"\d", new_pw) or not re.search(r"[\W_]", new_pw):
+        return jsonify({"message": "Password does not meet complexity requirements."}), 400
+
+    try:
+        payload = jwt.decode(
+            token, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"])
+        if payload.get("scope") != "pwd_reset":
+            return jsonify({"message": "Invalid reset token scope."}), 400
+        jti = payload.get("jti")
+        if jti in _used_reset_jtis:
+            return jsonify({"message": "This reset token was already used."}), 400
+        user_id = payload.get("user_id")
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Reset token has expired."}), 400
+    except jwt.InvalidTokenError:
+        return jsonify({"message": "Invalid reset token."}), 400
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"message": "User not found."}), 404
+
+    if bcrypt.check_password_hash(user.Password, new_pw):
+        return jsonify({"message": "You cannot reuse your previous password."}), 400
+
+    # Update password
+    user.Password = bcrypt.generate_password_hash(new_pw).decode("utf-8")
+    db.session.commit()
+    _used_reset_jtis.add(jti)  # single-use
+
+    # Optional notify by email
+    try:
+        if mail:
+            msg = Message("🔐 Your Password Was Successfully Changed",
+                          recipients=[user.Email])
+            msg.body = f"""Hi {user.FullName},
+
+Your PayNest password was successfully changed. If this wasn't you, please contact support immediately.
+
+Best regards,
+PayNest Security Team"""
+            mail.send(msg)
+    except Exception as e:
+        current_app.logger.info(f"Notify email failed: {e}")
+
+    return jsonify({"message": "✅ Password reset successful! You can now log in."}), 200
+
+# Legacy token URL reset
 
 
 @routes.route('/reset-password/<token>', methods=['POST'])
 def reset_password(token):
-    data = request.get_json()
+    data = request.get_json() or {}
     new_password = data.get('new_password')
     confirm_password = data.get('confirm_password')
 
     if not new_password or not confirm_password:
         return jsonify({'message': 'Both password fields are required'}), 400
-
     if new_password != confirm_password:
         return jsonify({'message': 'Passwords do not match'}), 400
 
-    if len(new_password) < 8:
-        return jsonify({'message': 'Password must be at least 8 characters long.'}), 400
-    if not re.search(r'[A-Z]', new_password):
-        return jsonify({'message': 'Password must contain at least one uppercase letter.'}), 400
-    if not re.search(r'[a-z]', new_password):
-        return jsonify({'message': 'Password must contain at least one lowercase letter.'}), 400
-    if not re.search(r'[0-9]', new_password):
-        return jsonify({'message': 'Password must contain at least one digit.'}), 400
-    if not re.search(r'[\W_]', new_password):
-        return jsonify({'message': 'Password must contain at least one special character.'}), 400
+    # Strength
+    if len(new_password) < 8 or not re.search(r'[A-Z]', new_password) or not re.search(r'[a-z]', new_password) \
+       or not re.search(r'[0-9]', new_password) or not re.search(r'[\W_]', new_password):
+        return jsonify({'message': 'Password must be stronger (8+ with upper/lower/number/special).'}), 400
 
-    # Decode token
     try:
         payload = jwt.decode(
-            token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256']
-        )
+            token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
         user_id = payload.get('user_id')
     except jwt.ExpiredSignatureError:
         return jsonify({'message': 'Reset link has expired.'}), 400
@@ -496,31 +745,30 @@ def reset_password(token):
     if bcrypt.check_password_hash(user.Password, new_password):
         return jsonify({'message': '⚠️ You cannot reuse your previous password. Choose a different one.'}), 400
 
-    # ✅ Hash and save new password
-    hashed_pw = bcrypt.generate_password_hash(new_password).decode('utf-8')
-    user.Password = hashed_pw
+    user.Password = bcrypt.generate_password_hash(new_password).decode('utf-8')
     db.session.commit()
 
-    # ✅ Optional email notification
     try:
-        msg = Message("🔐 Your Password Was Successfully Changed",
-                      recipients=[user.Email])
-        msg.body = f"""
+        if mail:
+            msg = Message("🔐 Your Password Was Successfully Changed",
+                          recipients=[user.Email])
+            msg.body = f"""
 Hi {user.FullName},
 
 Your PayNest password was successfully changed. If this wasn't you, please contact our support team immediately.
 
-Best regards,  
+Best regards,
 PayNest Security Team
 """
-        mail.send(msg)
+            mail.send(msg)
     except Exception as e:
-        print("Failed to send email notification:", str(e))
+        current_app.logger.info(f"Notify email failed: {e}")
 
     return jsonify({'message': '✅ Password reset successful! You can now log in.'}), 200
 
-
-# Route for creating an apartment
+# ──────────────────────────────────────────────────────────────────────────────
+# Apartments & Units
+# ──────────────────────────────────────────────────────────────────────────────
 
 
 @routes.route('/apartments/create', methods=['POST'])
@@ -529,27 +777,23 @@ def create_apartment():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
-    # Check if the user is an admin/landlord
     if not user or not user.IsAdmin:
         return jsonify({"message": "Unauthorized. Only landlords can create apartments."}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
     name = data.get('ApartmentName')
     location = data.get('Location')
     description = data.get('Description')
 
-    # Validate required fields
     if not name or not location:
         return jsonify({"message": "Apartment name and location are required."}), 400
 
-    # Create and save apartment
     new_apartment = Apartment(
         ApartmentName=name,
         Location=location,
         Description=description,
         UserID=user.UserID
     )
-
     db.session.add(new_apartment)
     db.session.commit()
 
@@ -563,8 +807,6 @@ def create_apartment():
             "Owner": user.FullName
         }
     }), 201
-
-# Route for viewing for viewing all apartments by logged in landlord
 
 
 @routes.route('/myapartments', methods=['GET'])
@@ -624,8 +866,6 @@ def get_my_apartments():
         "Apartments": apartments
     }), 200
 
-# route for updating the details of an apartment
-
 
 @routes.route('/apartments/update/<int:apartment_id>', methods=['PUT'])
 @jwt_required()
@@ -637,19 +877,16 @@ def update_apartment(apartment_id):
         return jsonify({"message": "Unauthorized. Only landlords can update apartments."}), 403
 
     apartment = Apartment.query.get(apartment_id)
-
     if not apartment:
         return jsonify({"message": "Apartment not found."}), 404
-
     if apartment.UserID != user.UserID:
         return jsonify({"message": "You can only update your own apartments."}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
     name = data.get('ApartmentName')
     location = data.get('Location')
     description = data.get('Description')
 
-    # Update only if values are provided
     if name:
         apartment.ApartmentName = name
     if location:
@@ -669,8 +906,6 @@ def update_apartment(apartment_id):
         }
     }), 200
 
-# Viewing aparticular apartment
-
 
 @routes.route('/apartments/<int:apartment_id>', methods=['GET'])
 @jwt_required()
@@ -682,14 +917,11 @@ def view_apartment(apartment_id):
         return jsonify({"message": "Unauthorized. Only landlords can view apartment details."}), 403
 
     apartment = Apartment.query.get(apartment_id)
-
     if not apartment:
         return jsonify({"message": "Apartment not found."}), 404
-
     if apartment.UserID != user.UserID:
         return jsonify({"message": "Access denied. You can only view your own apartments."}), 403
 
-    # Fetch associated rental units
     unit_list = []
     for unit in apartment.rental_units:
         unit_list.append({
@@ -697,7 +929,6 @@ def view_apartment(apartment_id):
             "Label": unit.Label,
             "Description": unit.Description,
             "MonthlyRent": unit.MonthlyRent,
-            # "AdditionalBills": unit.AdditionalBills,
             "Status": unit.status.StatusName if unit.status else None,
             "Category": unit.category.CategoryName if unit.category else None,
             "CreatedAt": unit.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
@@ -712,8 +943,6 @@ def view_apartment(apartment_id):
         "RentalUnits": unit_list
     }), 200
 
-# Create a Rental Unit Category
-
 
 @routes.route('/unit-categories/create', methods=['POST'])
 @jwt_required()
@@ -721,23 +950,19 @@ def create_unit_category():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
-    # Only allow admins (landlords)
     if not user or not user.IsAdmin:
         return jsonify({"message": "Unauthorized. Only admins can create unit categories."}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
     category_name = data.get('CategoryName')
-
     if not category_name:
         return jsonify({"message": "Category name is required."}), 400
 
-    # Check for duplicate
     existing = UnitCategory.query.filter_by(
         CategoryName=category_name.strip()).first()
     if existing:
         return jsonify({"message": f"'{category_name}' category already exists."}), 409
 
-    # Create and save new category
     new_category = UnitCategory(CategoryName=category_name.strip())
     db.session.add(new_category)
     db.session.commit()
@@ -751,14 +976,11 @@ def create_unit_category():
         }
     }), 201
 
-# Fetching the rental units categories
-
 
 @routes.route('/unit-categories', methods=['GET'])
 @jwt_required()
 def get_unit_categories():
     categories = UnitCategory.query.order_by(UnitCategory.CategoryName).all()
-
     results = [
         {
             "CategoryID": cat.CategoryID,
@@ -767,37 +989,31 @@ def get_unit_categories():
         }
         for cat in categories
     ]
-
     return jsonify({
         "message": f"✅ Found {len(results)} unit category(ies).",
         "UnitCategories": results
     }), 200
 
 
-# route for creating a rental unit status
 @routes.route('/rental-unit-statuses/create', methods=['POST'])
 @jwt_required()
 def create_rental_unit_status():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
-    # Ensure only admin/landlord can access
     if not user or not user.IsAdmin:
         return jsonify({"message": "Unauthorized. Only admins can create rental unit statuses."}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
     status_name = data.get('StatusName')
-
     if not status_name:
         return jsonify({"message": "Status name is required."}), 400
 
-    # Check for duplicate
     existing_status = RentalUnitStatus.query.filter_by(
         StatusName=status_name.strip()).first()
     if existing_status:
         return jsonify({"message": f"'{status_name}' status already exists."}), 409
 
-    # Create and save the new status
     new_status = RentalUnitStatus(StatusName=status_name.strip())
     db.session.add(new_status)
     db.session.commit()
@@ -811,31 +1027,6 @@ def create_rental_unit_status():
         }
     }), 201
 
-# Fetching rental unit status
-
-
-@routes.route('/rental-unit-statuses', methods=['GET'])
-@jwt_required()
-def get_rental_unit_statuses():
-    statuses = RentalUnitStatus.query.order_by(
-        RentalUnitStatus.StatusName).all()
-
-    results = [
-        {
-            "StatusID": status.StatusID,
-            "StatusName": status.StatusName,
-            "CreatedAt": status.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
-        }
-        for status in statuses
-    ]
-
-    return jsonify({
-        "message": f"✅ Found {len(results)} rental unit status(es).",
-        "RentalUnitStatuses": results
-    }), 200
-
-# Create a Rental Unit
-
 
 @routes.route('/rental-units/create', methods=['POST'])
 @jwt_required()
@@ -843,39 +1034,32 @@ def create_rental_unit():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
-    # Ensure user is an admin/landlord
     if not user or not user.IsAdmin:
         return jsonify({"message": "Unauthorized. Only landlords can create rental units."}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
     apartment_id = data.get('ApartmentID')
     label = data.get('Label')
     description = data.get('Description')
     monthly_rent = data.get('MonthlyRent')
-    # additional_bills = data.get('AdditionalBills', 0.0)
     status_id = data.get('StatusID')  # Typically Vacant by default
     category_id = data.get('CategoryID')
 
-    # ✅ Validate required fields
     if not all([apartment_id, label, monthly_rent, category_id, status_id]):
         return jsonify({"message": "Missing required fields (ApartmentID, Label, MonthlyRent, CategoryID, StatusID)."}), 400
 
-    # ✅ Ensure the apartment belongs to this landlord
     apartment = Apartment.query.get(apartment_id)
     if not apartment or apartment.UserID != user.UserID:
         return jsonify({"message": "You can only add units to your own apartments."}), 403
 
-    # ✅ Create and save the new rental unit
     rental_unit = RentalUnit(
         ApartmentID=apartment_id,
         Label=label,
         Description=description,
         MonthlyRent=monthly_rent,
-        # AdditionalBills=additional_bills,
         StatusID=status_id,
         CategoryID=category_id
     )
-
     db.session.add(rental_unit)
     db.session.commit()
 
@@ -885,7 +1069,6 @@ def create_rental_unit():
             "UnitID": rental_unit.UnitID,
             "Label": rental_unit.Label,
             "MonthlyRent": rental_unit.MonthlyRent,
-            # "AdditionalBills": rental_unit.AdditionalBills,
             "CategoryID": rental_unit.CategoryID,
             "StatusID": rental_unit.StatusID,
             "ApartmentID": rental_unit.ApartmentID,
@@ -894,7 +1077,6 @@ def create_rental_unit():
     }), 201
 
 
-# Update a Rental Unit
 @routes.route('/rental-units/update/<int:unit_id>', methods=['PUT'])
 @jwt_required()
 def update_rental_unit(unit_id):
@@ -905,22 +1087,17 @@ def update_rental_unit(unit_id):
         return jsonify({"message": "Unauthorized. Only landlords can update rental units."}), 403
 
     unit = RentalUnit.query.get(unit_id)
-
     if not unit:
         return jsonify({"message": "Rental unit not found."}), 404
 
-    # Ensure the unit belongs to an apartment owned by this user
     apartment = Apartment.query.get(unit.ApartmentID)
     if not apartment or apartment.UserID != user.UserID:
         return jsonify({"message": "You can only update units in your own apartments."}), 403
 
-    data = request.get_json()
-
-    # Update provided fields only
+    data = request.get_json() or {}
     unit.Label = data.get('Label', unit.Label)
     unit.Description = data.get('Description', unit.Description)
     unit.MonthlyRent = data.get('MonthlyRent', unit.MonthlyRent)
-    # unit.AdditionalBills = data.get('AdditionalBills', unit.AdditionalBills)
     unit.StatusID = data.get('StatusID', unit.StatusID)
     unit.CategoryID = data.get('CategoryID', unit.CategoryID)
 
@@ -933,7 +1110,6 @@ def update_rental_unit(unit_id):
             "Label": unit.Label,
             "Description": unit.Description,
             "MonthlyRent": unit.MonthlyRent,
-            # "AdditionalBills": unit.AdditionalBills,
             "StatusID": unit.StatusID,
             "CategoryID": unit.CategoryID,
             "ApartmentID": unit.ApartmentID,
@@ -941,23 +1117,17 @@ def update_rental_unit(unit_id):
         }
     }), 200
 
-# Fetch rental units for a specific apartment
-
 
 @routes.route('/apartments/<int:apartment_id>/units', methods=['GET'])
 @jwt_required()
 def get_units_by_apartment(apartment_id):
     user_id = get_jwt_identity()
-    # Confirm landlord owns the apartment
     apartment = Apartment.query.filter_by(
         ApartmentID=apartment_id, UserID=user_id).first()
-
     if not apartment:
         return jsonify({"message": "Apartment not found or not owned by you."}), 404
 
-    # Get all rental units under this apartment
     units = RentalUnit.query.filter_by(ApartmentID=apartment_id).all()
-
     result = []
     for unit in units:
         result.append({
@@ -968,17 +1138,18 @@ def get_units_by_apartment(apartment_id):
             "StatusID": unit.StatusID,
             "CategoryID": unit.CategoryID
         })
-
     return jsonify(result), 200
 
-# Route for assigning tenants to rental units
+# ──────────────────────────────────────────────────────────────────────────────
+# Tenants (add, vacate, transfer)
+# ──────────────────────────────────────────────────────────────────────────────
 
 
 @routes.route('/tenants/add', methods=['POST'])
 @jwt_required()
 def add_tenant():
     user_id = get_jwt_identity()
-    data = request.get_json()
+    data = request.get_json() or {}
 
     full_name = data.get('FullName')
     phone = data.get('Phone')
@@ -987,40 +1158,32 @@ def add_tenant():
     rental_unit_id = data.get('RentalUnitID')
     move_in_date = data.get('MoveInDate')
 
-    # Validate required fields
     if not all([full_name, phone, id_number, rental_unit_id, move_in_date]):
         return jsonify({"message": "All required fields must be filled."}), 400
 
-    # Validate phone format
     if not re.fullmatch(r'2547\d{8}', phone):
         return jsonify({"message": "Invalid phone number. It must start with '2547' and be 12 digits long."}), 400
 
-    # Parse move-in date
     try:
         move_in = datetime.strptime(move_in_date, '%Y-%m-%d').date()
     except ValueError:
         return jsonify({"message": "Invalid date format. Use YYYY-MM-DD."}), 400
 
-    # Fetch unit
     unit = RentalUnit.query.get(rental_unit_id)
     if not unit:
         return jsonify({"message": "Rental unit not found."}), 404
 
-    # Verify landlord owns the apartment
     apartment = Apartment.query.get(unit.ApartmentID)
     if not apartment or apartment.UserID != user_id:
         return jsonify({"message": "Unauthorized: You do not own the apartment for this unit."}), 403
 
-    # Check if unit is vacant
     if unit.StatusID != 1:  # 1 = Vacant
         return jsonify({"message": "This unit is not available. Only vacant units can be assigned."}), 400
 
-    # ✅ Check for returning inactive tenant
     existing_tenant = Tenant.query.filter_by(
         Phone=phone, IDNumber=id_number).first()
     if existing_tenant:
         if existing_tenant.Status == 'Inactive':
-            # Reactivate and assign new unit
             existing_tenant.RentalUnitID = rental_unit_id
             existing_tenant.MoveInDate = move_in
             existing_tenant.MoveOutDate = None
@@ -1029,7 +1192,6 @@ def add_tenant():
             unit.StatusID = 2
             unit.CurrentTenantID = existing_tenant.TenantID
 
-            # ✅ Log this as a returning tenant move
             log = TransferLog(
                 TenantID=existing_tenant.TenantID,
                 OldUnitID=None,
@@ -1052,7 +1214,6 @@ def add_tenant():
         else:
             return jsonify({"message": "A tenant with this phone number is already active."}), 400
 
-    # ✅ New tenant logic
     tenant = Tenant(
         FullName=full_name,
         Phone=phone,
@@ -1067,11 +1228,6 @@ def add_tenant():
 
     unit.StatusID = 2
     unit.CurrentTenantID = tenant.TenantID
-
-    # Optional: trigger SMS
-    # sms_message = f"Dear {tenant.FullName}, you have been successfully allocated to unit {unit.Label}."
-    # send_sms(tenant.Phone, sms_message)
-
     db.session.commit()
 
     return jsonify({
@@ -1087,8 +1243,6 @@ def add_tenant():
         }
     }), 201
 
-# route for vacating tenant
-
 
 @routes.route('/tenants/vacate/<int:tenant_id>', methods=['PUT'])
 @jwt_required()
@@ -1102,14 +1256,12 @@ def vacate_unit(tenant_id):
     tenant = Tenant.query.get(tenant_id)
     if not tenant:
         return jsonify({"message": "Tenant not found."}), 404
-
     if tenant.Status != "Active":
         return jsonify({"message": "This tenant is already inactive."}), 400
 
     unit = RentalUnit.query.get(tenant.RentalUnitID)
     if not unit:
         return jsonify({"message": "Rental unit not found."}), 404
-
     if unit.StatusID == 1:
         return jsonify({"message": "This unit is already vacant."}), 400
 
@@ -1117,15 +1269,12 @@ def vacate_unit(tenant_id):
     if not apartment or apartment.UserID != user_id:
         return jsonify({"message": "Unauthorized: You do not own the apartment for this unit."}), 403
 
-    # Update tenant status and move-out time
     tenant.Status = "Inactive"
     tenant.MoveOutDate = datetime.utcnow()
 
-    # Update rental unit status
     unit.StatusID = 1  # Vacant
     unit.CurrentTenantID = None
 
-    # Log vacate action
     vacate_log = VacateLog(
         TenantID=tenant.TenantID,
         UnitID=unit.UnitID,
@@ -1136,12 +1285,6 @@ def vacate_unit(tenant_id):
         Notes=notes
     )
     db.session.add(vacate_log)
-
-    # --- Optional: send SMS to tenant (commented out for now) ---
-    # if tenant.Phone:
-    #     message = f"Dear {tenant.FullName}, your move-out from unit {unit.Label} has been successfully recorded. Thank you."
-    #     send_sms(phone_number=tenant.Phone, message=message)
-
     db.session.commit()
 
     return jsonify({
@@ -1157,13 +1300,14 @@ def vacate_unit(tenant_id):
         }
     }), 200
 
+# Cross-apartment transfer
 
-# Transfering a tenant from apartment to another apartment
+
 @routes.route('/tenants/transfer/<int:tenant_id>', methods=['PUT'])
 @jwt_required()
 def transfer_tenant(tenant_id):
     user_id = get_jwt_identity()
-    data = request.get_json()
+    data = request.get_json() or {}
 
     new_unit_id = data.get('NewRentalUnitID')
     move_in_date = data.get('MoveInDate')
@@ -1202,7 +1346,7 @@ def transfer_tenant(tenant_id):
     old_unit.StatusID = 1
     old_unit.CurrentTenantID = None
 
-    # Assign tenant to new unit
+    # Assign new unit
     tenant.RentalUnitID = new_unit_id
     tenant.MoveInDate = new_move_in
     tenant.MoveOutDate = None
@@ -1211,7 +1355,6 @@ def transfer_tenant(tenant_id):
     new_unit.StatusID = 2
     new_unit.CurrentTenantID = tenant.TenantID
 
-    # ✅ Log the transfer
     transfer_log = TransferLog(
         TenantID=tenant.TenantID,
         OldUnitID=old_unit.UnitID,
@@ -1220,33 +1363,12 @@ def transfer_tenant(tenant_id):
         Reason=reason
     )
     db.session.add(transfer_log)
-
     db.session.commit()
 
-    # --- Optional Notifications ---
-    # sms_message = (
-    #     f"Dear {tenant.FullName}, you have been successfully transferred from unit {old_unit.Label} in "
-    #     f"{old_apartment.ApartmentName} to unit {new_unit.Label} in {new_apartment.ApartmentName}. "
-    #     f"Your new move-in date is {tenant.MoveInDate.strftime('%Y-%m-%d')}."
-    # )
-    # send_sms(tenant.Phone, sms_message)  # Implement send_sms() in utils.py
-
-    # email_subject = "NyumbaSmart - Tenant Transfer Notification"
-    # email_body = (
-    #     f"Hello {tenant.FullName},\n\n"
-    #     f"This is to confirm that you have been successfully transferred from:\n"
-    #     f" - Unit: {old_unit.Label}, Apartment: {old_apartment.ApartmentName}\n"
-    #     f"to:\n"
-    #     f" - Unit: {new_unit.Label}, Apartment: {new_apartment.ApartmentName}\n\n"
-    #     f"Effective Move-In Date: {tenant.MoveInDate.strftime('%Y-%m-%d')}\n\n"
-    #     f"Thank you for staying with us.\n\n"
-    #     f"NyumbaSmart Team"
-    # )
-    # send_email(to=tenant.Email, subject=email_subject, body=email_body)  # Implement send_email()
-
     return jsonify({
-        "message": f"✅ Tenant {tenant.FullName} successfully transferred from unit {old_unit.Label} in apartment '{old_apartment.ApartmentName}' "
-                   f"to unit {new_unit.Label} in apartment '{new_apartment.ApartmentName}'.",
+        "message": (f"✅ Tenant {tenant.FullName} successfully transferred from unit {old_unit.Label} in "
+                    f"apartment '{old_apartment.ApartmentName}' to unit {new_unit.Label} in "
+                    f"apartment '{new_apartment.ApartmentName}'."),
         "from_unit": old_unit.Label,
         "from_apartment": old_apartment.ApartmentName,
         "to_unit": new_unit.Label,
@@ -1254,17 +1376,18 @@ def transfer_tenant(tenant_id):
         "MoveInDate": tenant.MoveInDate.strftime('%Y-%m-%d')
     }), 200
 
+# Same-apartment transfer (renamed to avoid route collision)
 
-# # Route for allocating a tenant to a different rental unit in the same apartment
-@routes.route('/tenants/transfer/<int:id>', methods=['PUT'])
+
+@routes.route('/tenants/transfer/same-apartment/<int:tenant_id>', methods=['PUT'])
 @jwt_required()
-def transfer_tenant_by_id(id):
+def transfer_tenant_same_apartment(tenant_id):
     user_id = get_jwt_identity()
-    data = request.get_json()
+    data = request.get_json() or {}
 
     new_unit_id = data.get('NewRentalUnitID')
     move_in_date = data.get('MoveInDate')
-    reason = data.get('Reason')  # Optional
+    reason = data.get('Reason')
 
     if not new_unit_id or not move_in_date:
         return jsonify({"message": "NewRentalUnitID and MoveInDate are required."}), 400
@@ -1274,24 +1397,20 @@ def transfer_tenant_by_id(id):
     except ValueError:
         return jsonify({"message": "Invalid date format. Use YYYY-MM-DD."}), 400
 
-    # Get tenant
-    tenant = Tenant.query.get(id)
+    tenant = Tenant.query.get(tenant_id)
     if not tenant:
         return jsonify({"message": "Tenant not found."}), 404
 
-    # Get old and new units
     old_unit = RentalUnit.query.get(tenant.RentalUnitID)
     new_unit = RentalUnit.query.get(new_unit_id)
     if not old_unit or not new_unit:
         return jsonify({"message": "Rental unit not found."}), 404
 
-    # Validate ownership
     old_apartment = Apartment.query.get(old_unit.ApartmentID)
     new_apartment = Apartment.query.get(new_unit.ApartmentID)
     if not old_apartment or not new_apartment or old_apartment.UserID != user_id or new_apartment.UserID != user_id:
         return jsonify({"message": "Unauthorized: You can only transfer between your own apartments."}), 403
 
-    # Check that the new unit is vacant
     if new_unit.StatusID != 1:
         return jsonify({"message": "New unit is not vacant."}), 400
 
@@ -1314,34 +1433,8 @@ def transfer_tenant_by_id(id):
         Reason=reason
     )
     db.session.add(log)
-    db.session.flush()  # ✅ Ensures log.TransferDate and ID are populated before access
-
+    db.session.flush()
     db.session.commit()
-
-    # 6. Optional: Send SMS notification to the tenant (commented out)
-    """
-    try:
-        message = (
-            f"Hello {tenant.FullName}, your rental unit has been updated.\n"
-            f"You've been transferred from unit {old_unit.Label} to unit {new_unit.Label} "
-            f"effective {move_in_date}. Welcome to your new space!"
-        )
-        tenant_phone = tenant.Phone
-
-        # Example using requests to send SMS via API (replace with actual provider)
-        import requests
-        sms_payload = {
-            'to': tenant_phone,
-            'message': message
-        }
-        response = requests.post('https://api.smsprovider.com/send', json=sms_payload)
-
-        # Optional: log or handle response status
-        if response.status_code != 200:
-            print(f"Failed to send SMS: {response.text}")
-    except Exception as e:
-        print(f"SMS sending failed: {str(e)}")
-    """
 
     return jsonify({
         "message": f"✅ Tenant {tenant.FullName} has been transferred to unit {new_unit.Label}.",
@@ -1354,8 +1447,6 @@ def transfer_tenant_by_id(id):
         }
     }), 200
 
-# ✅ Route to view all active tenants for the logged-in landlord
-
 
 @routes.route('/tenants', methods=['GET'])
 @jwt_required()
@@ -1367,7 +1458,6 @@ def get_all_tenants():
     apartment_filter = request.args.get('apartment_id', type=int)
     status_filter = (request.args.get('status') or '').strip()
 
-    # landlord apartments -> units
     apartment_ids = [
         a.ApartmentID for a in Apartment.query.filter_by(UserID=user_id).all()]
     units_q = RentalUnit.query.filter(
@@ -1413,13 +1503,14 @@ def get_all_tenants():
         "page": page, "limit": limit, "total": total, "items": out
     }), 200
 
+# Vacate notice
 
-# Route for creating and sending a vacation notice to a tenant
+
 @routes.route('/vacate-notice/<int:tenant_id>', methods=['POST'])
 @jwt_required()
 def create_vacate_notice(tenant_id):
     user_id = get_jwt_identity()
-    data = request.get_json()
+    data = request.get_json() or {}
 
     expected_vacate_date = data.get('ExpectedVacateDate')
     reason = data.get('Reason')
@@ -1460,33 +1551,8 @@ def create_vacate_notice(tenant_id):
         Reason=reason,
         InspectionDate=inspection
     )
-
     db.session.add(notice)
     db.session.commit()
-
-    # ✅ OPTIONAL: Send SMS Notification (Commented out)
-    """
-    try:
-        message = (
-            f"Hello {tenant.FullName},\n"
-            f"Your vacating notice has been received.\n"
-            f"Inspection is scheduled for: {inspection.strftime('%Y-%m-%d') if inspection else 'Not Scheduled'}\n"
-            f"Expected move-out date: {vacate_date.strftime('%Y-%m-%d')}.\n"
-            f"Thank you for staying with us."
-        )
-        tenant_phone = tenant.Phone
-
-        # Replace this block with actual SMS API integration
-        import requests
-        sms_payload = {
-            'to': tenant_phone,
-            'message': message
-        }
-        # Example: requests.post('https://api.smsprovider.com/send', json=sms_payload)
-
-    except Exception as e:
-        print(f"❌ Failed to send SMS: {str(e)}")
-    """
 
     return jsonify({
         "message": "✅ Vacate notice created successfully.",
@@ -1496,6 +1562,10 @@ def create_vacate_notice(tenant_id):
         "ExpectedVacateDate": vacate_date.strftime('%Y-%m-%d'),
         "InspectionDate": inspection.strftime('%Y-%m-%d') if inspection else "Not Scheduled"
     }), 201
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Logs & KPIs
+# ──────────────────────────────────────────────────────────────────────────────
 
 
 @routes.route('/logs/timeline', methods=['GET'])
@@ -1514,7 +1584,6 @@ def logs_timeline():
     apt_ids, unit_ids, unit_by_id = _landlord_scope_ids(
         user_id, apartment_filter)
 
-    # Transfers that touch landlord units (from OR to)
     tq = TransferLog.query.filter(
         (TransferLog.OldUnitID.in_(unit_ids)) | (
             TransferLog.NewUnitID.in_(unit_ids))
@@ -1523,7 +1592,6 @@ def logs_timeline():
         tq = tq.filter(func.extract('year', TransferLog.TransferDate) == y,
                        func.extract('month', TransferLog.TransferDate) == m)
 
-    # Vacates within landlord apartments
     vq = VacateLog.query.filter(VacateLog.ApartmentID.in_(apt_ids))
     if y and m:
         vq = vq.filter(func.extract('year', VacateLog.VacateDate) == y,
@@ -1531,7 +1599,6 @@ def logs_timeline():
 
     items = []
 
-    # Transfers
     if log_type in ("all", "transfer"):
         for t in tq.all():
             tenant = Tenant.query.get(t.TenantID)
@@ -1556,7 +1623,6 @@ def logs_timeline():
                 "Timestamp": _fmt_dt(t.TransferDate)
             })
 
-    # Vacates
     if log_type in ("all", "vacate"):
         for v in vq.all():
             tenant = Tenant.query.get(v.TenantID)
@@ -1579,7 +1645,6 @@ def logs_timeline():
                 "Timestamp": _fmt_dt(v.VacateDate)
             })
 
-    # Sort + paginate
     items.sort(key=lambda e: e["Timestamp"] or "", reverse=True)
     start = (page - 1) * limit
     end = start + limit
@@ -1591,11 +1656,6 @@ def logs_timeline():
         "total": len(items),
         "items": sliced
     }), 200
-
-# GET /logs/stats
-# KPI summary for the selected month: transfers, vacates, unitsImpacted, topReason.
-# Filters: month (YYYY-MM or 'MMMM YYYY'), apartment_id (optional)
-# ──────────────────────────────────────────────────────────────────────────────
 
 
 @routes.route('/logs/stats', methods=['GET'])
@@ -1642,11 +1702,6 @@ def logs_stats():
         "unitsImpacted": units_impacted,
         "topReason": top_reason
     }), 200
-# ──────────────────────────────────────────────────────────────────────────────
-# GET /logs/recent
-# Latest N transfer logs and vacate logs (for the two side tables).
-# Filters: limit (default 5), apartment_id (optional)
-# ──────────────────────────────────────────────────────────────────────────────
 
 
 @routes.route('/logs/recent', methods=['GET'])
@@ -1697,12 +1752,6 @@ def logs_recent():
         "recentVacates": recent_vacates
     }), 200
 
-# ──────────────────────────────────────────────────────────────────────────────
-# GET /logs/alerts/repeat-transfers
-# Detect tenants with more than <threshold> transfers in the last <months>.
-# Filters: months=6 (default), threshold=2 (default), apartment_id (optional)
-# ──────────────────────────────────────────────────────────────────────────────
-
 
 @routes.route('/logs/alerts/repeat-transfers', methods=['GET'])
 @jwt_required()
@@ -1745,11 +1794,6 @@ def logs_alerts_repeat_transfers():
     }), 200
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# GET /logs/upcoming-vacates
-# List pending vacate notices in the future (optionally within X days).
-# Filters: days (optional horizon), apartment_id (optional)
-# ──────────────────────────────────────────────────────────────────────────────
 @routes.route('/logs/upcoming-vacates', methods=['GET'])
 @jwt_required()
 def logs_upcoming_vacates():
@@ -1790,11 +1834,6 @@ def logs_upcoming_vacates():
     return jsonify({"upcoming": out}), 200
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# GET /logs/export
-# Download CSV of merged transfer + vacate events. Supports same filters
-# as /logs/timeline (month, type, q/search, apartment_id).
-# ──────────────────────────────────────────────────────────────────────────────
 @routes.route('/logs/export', methods=['GET'])
 @jwt_required()
 def logs_export_csv():
@@ -1827,7 +1866,6 @@ def logs_export_csv():
 
     rows = []
 
-    # Transfers
     if log_type in ("all", "transfer"):
         for t in tq.all():
             tenant = Tenant.query.get(t.TenantID)
@@ -1850,7 +1888,6 @@ def logs_export_csv():
                 ""
             ])
 
-    # Vacates
     if log_type in ("all", "vacate"):
         for v in vq.all():
             tenant = Tenant.query.get(v.TenantID)
@@ -1886,7 +1923,6 @@ def logs_export_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
-# View All Transfers for a Landlord
 
 
 @routes.route('/transfer-logs', methods=['GET'])
@@ -1894,17 +1930,14 @@ def logs_export_csv():
 def view_transfer_logs():
     user_id = get_jwt_identity()
 
-    # Step 1: Get all apartments owned by this landlord
     apartments = Apartment.query.filter_by(UserID=user_id).all()
     apartment_ids = [apt.ApartmentID for apt in apartments]
 
-    # Step 2: Get all units in those apartments
     units = RentalUnit.query.filter(
         RentalUnit.ApartmentID.in_(apartment_ids)).all()
     unit_ids = [unit.UnitID for unit in units]
     unit_dict = {unit.UnitID: unit for unit in units}
 
-    # Step 3: Fetch relevant transfer logs where the tenant moved to or from a unit in the landlord’s apartments
     transfer_logs = TransferLog.query.filter(
         (TransferLog.OldUnitID.in_(unit_ids)) | (
             TransferLog.NewUnitID.in_(unit_ids))
@@ -1922,8 +1955,8 @@ def view_transfer_logs():
             new_unit.ApartmentID) if new_unit else None
 
         result.append({
-            "TenantID": tenant.TenantID,
-            "TenantName": tenant.FullName,
+            "TenantID": tenant.TenantID if tenant else None,
+            "TenantName": tenant.FullName if tenant else "Unknown",
             "FromUnit": old_unit.Label if old_unit else "N/A",
             "FromApartment": old_apartment.ApartmentName if old_apartment else "N/A",
             "ToUnit": new_unit.Label if new_unit else "N/A",
@@ -1938,27 +1971,21 @@ def view_transfer_logs():
         "transfer_logs": result
     }), 200
 
-# View Tenant Vacating History for Landlord
-
 
 @routes.route('/vacate-logs', methods=['GET'])
 @jwt_required()
 def view_vacate_logs():
     user_id = get_jwt_identity()
 
-    # Step 1: Get landlord's apartments
     apartments = Apartment.query.filter_by(UserID=user_id).all()
     apartment_ids = [a.ApartmentID for a in apartments]
 
-    # Step 2: Get units in those apartments
     units = RentalUnit.query.filter(
         RentalUnit.ApartmentID.in_(apartment_ids)).all()
     unit_dict = {unit.UnitID: unit for unit in units}
 
-    # Step 3: Query vacate logs for those units/apartments
-    vacate_logs = VacateLog.query.filter(
-        VacateLog.ApartmentID.in_(apartment_ids)
-    ).order_by(VacateLog.VacateDate.desc()).all()
+    vacate_logs = VacateLog.query.filter(VacateLog.ApartmentID.in_(
+        apartment_ids)).order_by(VacateLog.VacateDate.desc()).all()
 
     result = []
     for log in vacate_logs:
@@ -1982,8 +2009,11 @@ def view_vacate_logs():
         "vacate_logs": result
     }), 200
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Billing: generate/update, list, KPIs, payments
+# ──────────────────────────────────────────────────────────────────────────────
 
-# ✅ Route for generating the monthly bill for all tenants
+
 @routes.route('/bills/generate-or-update', methods=['POST'])
 @jwt_required()
 def generate_or_update_bills():
@@ -1998,17 +2028,14 @@ def generate_or_update_bills():
 
     data = request.get_json() or {}
 
-    # Optional for individual tenant
     tenant_id = data.get("TenantID")
-    billing_month = data.get("BillingMonth")         # e.g., "July 2025"
+    billing_month = data.get("BillingMonth")  # e.g., "July 2025"
     utilities_data = data.get("utilities", {}) or {}
 
-    # ✅ If BillingMonth not provided, use current month label
     if not billing_month:
         today = datetime.today()
         billing_month = today.strftime("%B %Y")
 
-    # 🆕 Try to derive canonical first-of-month date for BillingPeriod (safe no-op if parse fails)
     def _parse_period(label: str):
         try:
             dt = datetime.strptime(label, "%B %Y")
@@ -2018,11 +2045,10 @@ def generate_or_update_bills():
     billing_period = _parse_period(billing_month)
 
     try:
-        # ⛳ Keep your existing due date logic (5th of *current* month) to avoid changing behavior
+        # keep your existing due date logic (5th of current month)
         due_date = datetime(datetime.today().year,
                             datetime.today().month, 5).date()
 
-        # ✅ Filter active tenants (optionally one tenant)
         query = Tenant.query.filter_by(Status="Active")
         if tenant_id:
             query = query.filter_by(TenantID=tenant_id)
@@ -2038,19 +2064,15 @@ def generate_or_update_bills():
             if not unit:
                 continue
 
-            # 🆕 Resolve landlord from unit → apartment → user
             apartment = Apartment.query.get(unit.ApartmentID) if unit else None
             resolved_landlord_id = apartment.UserID if apartment else None
 
-            # ✅ Check if a bill for this tenant & month exists (keep your exact lookup)
             bill = TenantBill.query.filter_by(
                 TenantID=tenant.TenantID,
                 BillingMonth=billing_month
             ).first()
 
             if not bill:
-                # ✅ Create new bill (keep your totals via helper)
-                # Defaults (coerce to float to match existing Float columns)
                 water = float(utilities_data.get("WaterBill", 0.0) or 0.0)
                 elec = float(utilities_data.get("ElectricityBill", 0.0) or 0.0)
                 garb = float(utilities_data.get("Garbage", 0.0) or 0.0)
@@ -2060,7 +2082,6 @@ def generate_or_update_bills():
                     TenantID=tenant.TenantID,
                     RentalUnitID=tenant.RentalUnitID,
                     BillingMonth=billing_month,
-                    # 🆕 add if present (kept nullable in DB)
                     LandlordID=resolved_landlord_id,
                     BillingPeriod=billing_period,
 
@@ -2075,7 +2096,6 @@ def generate_or_update_bills():
                     BillStatus="Unpaid"
                 )
 
-                # ✅ Your helper to compute Total + Carry Forward
                 total_due, carried_balance = calculate_bill_amount(
                     tenant.TenantID,
                     unit.MonthlyRent,
@@ -2087,11 +2107,9 @@ def generate_or_update_bills():
 
                 bill.CarriedForwardBalance = float(carried_balance or 0.0)
                 bill.TotalAmountDue = float(total_due or 0.0)
-
                 db.session.add(bill)
 
             else:
-                # ✅ Update existing bill utilities only if provided
                 if "WaterBill" in utilities_data:
                     bill.WaterBill = float(utilities_data.get(
                         "WaterBill") or bill.WaterBill or 0.0)
@@ -2105,13 +2123,11 @@ def generate_or_update_bills():
                     bill.Internet = float(utilities_data.get(
                         "Internet") or bill.Internet or 0.0)
 
-                # 🆕 Ensure LandlordID/BillingPeriod are set if missing (non-breaking)
                 if getattr(bill, "LandlordID", None) is None and resolved_landlord_id:
                     bill.LandlordID = resolved_landlord_id
                 if getattr(bill, "BillingPeriod", None) is None and billing_period:
                     bill.BillingPeriod = billing_period
 
-                # ✅ Recompute totals using your helper (same behavior)
                 total_due, carried_balance = calculate_bill_amount(
                     tenant.TenantID,
                     unit.MonthlyRent,
@@ -2146,34 +2162,18 @@ def generate_or_update_bills():
         }), 500
 
 
-# Route for fetching the bills for all the tenants of a landlord
-
-
 @routes.route("/bills", methods=["GET"])
 @jwt_required()
 def get_filtered_bills():
-    """
-    Original behavior preserved:
-      - Authz: landlord/admin only
-      - Filters: apartment_id (optional), month (optional), status (optional)
-      - Result shape unchanged; adds PaidToDate & Balance as extra fields
-
-    Dependencies:
-      - compute_paid_to_date_for_bill(bill_id)  -> Decimal
-      - compute_balance_and_status(total_due, paid_to_date) -> (balance Decimal, status str)
-    """
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
     if not user or not user.IsAdmin:
         return jsonify({"status": "error", "message": "Unauthorized access."}), 403
 
-    # ✅ Query params
-    apartment_id = request.args.get("apartment_id", type=int)   # e.g., 3
-    month_filter = request.args.get(
-        "month")                     # e.g., "July 2025"
-    status_filter = request.args.get(
-        "status")                   # e.g., "Unpaid"
+    apartment_id = request.args.get("apartment_id", type=int)
+    month_filter = request.args.get("month")
+    status_filter = request.args.get("status")
 
     valid_statuses = ["Unpaid", "Paid", "Partially Paid", "Overpaid"]
     if status_filter and status_filter not in valid_statuses:
@@ -2182,14 +2182,12 @@ def get_filtered_bills():
             "message": f"Invalid status. Choose from {valid_statuses}"
         }), 400
 
-    # ✅ Landlord's apartments
     apartments = Apartment.query.filter_by(UserID=user_id).all()
     apartment_ids = [a.ApartmentID for a in apartments]
 
     if apartment_id and apartment_id not in apartment_ids:
         return jsonify({"status": "error", "message": "You do not own this apartment."}), 403
 
-    # ✅ Units under landlord (optionally a single apartment)
     units_query = RentalUnit.query.filter(
         RentalUnit.ApartmentID.in_(apartment_ids))
     if apartment_id:
@@ -2197,10 +2195,7 @@ def get_filtered_bills():
     units = units_query.all()
     unit_ids = [u.UnitID for u in units]
 
-    # ✅ Base bills query (keep your original unit filter)
     query = TenantBill.query.filter(TenantBill.RentalUnitID.in_(unit_ids))
-
-    # ✅ Apply filters
     if month_filter:
         query = query.filter(TenantBill.BillingMonth.ilike(month_filter))
     if status_filter:
@@ -2222,14 +2217,12 @@ def get_filtered_bills():
         unit = RentalUnit.query.get(bill.RentalUnitID)
         apartment = Apartment.query.get(unit.ApartmentID) if unit else None
 
-        # 🆕 Non-breaking computed fields (do not overwrite stored status)
         paid_to_date = compute_paid_to_date_for_bill(bill.BillID)
         balance, _recomp_status = compute_balance_and_status(
             Decimal(bill.TotalAmountDue or 0), paid_to_date
         )
 
         result.append({
-            # 🔁 original fields (unchanged)
             "BillID": bill.BillID,
             "TenantName": tenant.FullName if tenant else "Unknown",
             "ApartmentName": apartment.ApartmentName if apartment else "Unknown",
@@ -2239,9 +2232,6 @@ def get_filtered_bills():
             "BillStatus": bill.BillStatus,
             "DueDate": bill.DueDate.strftime("%Y-%m-%d") if bill.DueDate else None,
             "IssuedDate": bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S") if bill.IssuedDate else None,
-
-            # 🆕 extras for UI (safe to ignore on old clients)
-            # or str(paid_to_date) if you prefer
             "PaidToDate": float(paid_to_date),
             "Balance": float(balance)
         })
@@ -2258,28 +2248,20 @@ def get_filtered_bills():
     }), 200
 
 
-# Route for fecthing  bills for tenants of a specific apartment
-
-
 @routes.route("/bills/apartment/<int:apartment_id>", methods=["GET"])
 @jwt_required()
 def get_bills_by_apartment(apartment_id):
-    from decimal import Decimal
-
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-
     if not user or not user.IsAdmin:
         return jsonify({"status": "error", "message": "Unauthorized access."}), 403
 
-    # ✅ Ensure the apartment exists and belongs to this landlord
     apartment = Apartment.query.get(apartment_id)
     if not apartment:
         return jsonify({"status": "error", "message": "Apartment not found."}), 404
     if apartment.UserID != user_id:
         return jsonify({"status": "error", "message": "You do not own this apartment."}), 403
 
-    # ✅ Units for this apartment
     units = RentalUnit.query.filter_by(ApartmentID=apartment_id).all()
     unit_ids = [u.UnitID for u in units]
 
@@ -2292,7 +2274,6 @@ def get_bills_by_apartment(apartment_id):
             "total_bills": 0
         }), 200
 
-    # ✅ Bills for tenants in those units (keep your original ordering)
     bills = (TenantBill.query
              .filter(TenantBill.RentalUnitID.in_(unit_ids))
              .order_by(TenantBill.BillID.asc())
@@ -2303,14 +2284,12 @@ def get_bills_by_apartment(apartment_id):
         tenant = Tenant.query.get(bill.TenantID)
         unit = RentalUnit.query.get(bill.RentalUnitID)
 
-        # 🆕 Non-breaking computed fields
         paid_to_date = compute_paid_to_date_for_bill(bill.BillID)
         balance, _ = compute_balance_and_status(
             Decimal(bill.TotalAmountDue or 0), paid_to_date
         )
 
         result.append({
-            # 🔁 original fields (unchanged)
             "BillID": bill.BillID,
             "TenantName": tenant.FullName if tenant else "Unknown",
             "UnitLabel": unit.Label if unit else "Unknown",
@@ -2325,8 +2304,6 @@ def get_bills_by_apartment(apartment_id):
             "BillStatus": bill.BillStatus,
             "DueDate": bill.DueDate.strftime("%Y-%m-%d") if bill.DueDate else None,
             "IssuedDate": bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S") if bill.IssuedDate else None,
-
-            # 🆕 extras (safe to ignore on old clients)
             "PaidToDate": float(paid_to_date),
             "Balance": float(balance)
         })
@@ -2338,41 +2315,24 @@ def get_bills_by_apartment(apartment_id):
         "bills": result
     }), 200
 
-# route for fetching a tenant bill for a specific rental unit
-
 
 @routes.route("/bills/unit/<int:unit_id>", methods=["GET"])
 @jwt_required()
 def get_bills_for_unit(unit_id):
-    """
-    Original behavior preserved:
-      - Auth: landlord/admin only
-      - Ownership check: landlord must own the apartment containing the unit
-      - Ordering: latest first by IssuedDate
-      - Response keys unchanged: status, unit, apartment, total_bills, bills[...]
-    Added (non-breaking):
-      - Each bill now also includes PaidToDate and Balance (derived, not persisted)
-    """
-    from decimal import Decimal
-
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
-    # ✅ Only landlords/admins can view bills
     if not user or not user.IsAdmin:
         return jsonify({"status": "error", "message": "Unauthorized access."}), 403
 
-    # ✅ Get the rental unit
     unit = RentalUnit.query.get(unit_id)
     if not unit:
         return jsonify({"status": "error", "message": "Rental unit not found."}), 404
 
-    # ✅ Ensure landlord owns the apartment where this unit belongs
     apartment = Apartment.query.get(unit.ApartmentID)
     if not apartment or apartment.UserID != user_id:
         return jsonify({"status": "error", "message": "You can only view bills for your own units."}), 403
 
-    # ✅ Fetch bills for this unit (latest first)
     bills = (TenantBill.query
              .filter_by(RentalUnitID=unit_id)
              .order_by(TenantBill.IssuedDate.desc())
@@ -2389,14 +2349,12 @@ def get_bills_for_unit(unit_id):
     for bill in bills:
         tenant = Tenant.query.get(bill.TenantID)
 
-        # 🆕 Non-breaking computed fields
         paid_to_date = compute_paid_to_date_for_bill(bill.BillID)
         balance, _ = compute_balance_and_status(
             Decimal(bill.TotalAmountDue or 0), paid_to_date
         )
 
         result.append({
-            # 🔁 original fields (unchanged)
             "BillID": bill.BillID,
             "TenantName": tenant.FullName if tenant else "Unknown",
             "UnitLabel": unit.Label,
@@ -2411,8 +2369,6 @@ def get_bills_for_unit(unit_id):
             "BillStatus": bill.BillStatus,
             "DueDate": bill.DueDate.strftime("%Y-%m-%d") if bill.DueDate else None,
             "IssuedDate": bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S") if bill.IssuedDate else None,
-
-            # 🆕 extras for UI (safe to ignore by old clients)
             "PaidToDate": float(paid_to_date),
             "Balance": float(balance)
         })
@@ -2426,32 +2382,24 @@ def get_bills_for_unit(unit_id):
     }), 200
 
 
-# View Bills for a Specific Month
 @routes.route("/bills/month/<string:month>", methods=["GET"])
 @jwt_required()
 def get_bills_by_month(month):
-    from decimal import Decimal
-
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-
     if not user or not user.IsAdmin:
         return jsonify({"status": "error", "message": "Unauthorized access."}), 403
 
-    # Get apartments owned by landlord
     apartments = Apartment.query.filter_by(UserID=user_id).all()
     apartment_ids = [a.ApartmentID for a in apartments]
 
-    # Get all rental units under these apartments
     units = RentalUnit.query.filter(
-        RentalUnit.ApartmentID.in_(apartment_ids)
-    ).all()
+        RentalUnit.ApartmentID.in_(apartment_ids)).all()
     unit_ids = [u.UnitID for u in units]
 
-    # Fetch bills for given month and landlord's units (keep original behavior)
     bills = (TenantBill.query
              .filter(TenantBill.RentalUnitID.in_(unit_ids),
-                     TenantBill.BillingMonth.ilike(month))   # e.g. "July 2025"
+                     TenantBill.BillingMonth.ilike(month))
              .order_by(TenantBill.BillID.asc())
              .all())
 
@@ -2463,21 +2411,18 @@ def get_bills_by_month(month):
         tenant = Tenant.query.get(bill.TenantID)
         unit = RentalUnit.query.get(bill.RentalUnitID)
 
-        # 🆕 Non-breaking computed fields
         paid_to_date = compute_paid_to_date_for_bill(bill.BillID)
         balance, _ = compute_balance_and_status(
             Decimal(bill.TotalAmountDue or 0), paid_to_date
         )
 
         result.append({
-            # 🔁 original fields (unchanged)
             "BillID": bill.BillID,
             "TenantName": tenant.FullName if tenant else "Unknown",
             "UnitLabel": unit.Label if unit else "Unknown",
             "BillingMonth": bill.BillingMonth,
             "TotalAmountDue": bill.TotalAmountDue,
             "BillStatus": bill.BillStatus,
-            # 🆕 extras (safe to ignore on old clients)
             "PaidToDate": float(paid_to_date),
             "Balance": float(balance)
         })
@@ -2489,29 +2434,12 @@ def get_bills_by_month(month):
         "bills": result
     }), 200
 
-# View Bills Filtered by BillStatus (Unpaid, Paid, Partially Paid, Overpaid)
-
 
 @routes.route("/bills/status/<string:status>", methods=["GET"])
 @jwt_required()
 def get_bills_by_status(status):
-    """
-    Original behavior preserved:
-      - Auth: landlord/admin only
-      - Valid statuses: Unpaid, Paid, Partially Paid, Overpaid
-      - Scope: bills under the landlord's apartments
-      - Ordering: by BillID ascending
-      - Response keys unchanged (adds PaidToDate, Balance as extras)
-
-    Dependencies:
-      - compute_paid_to_date_for_bill(bill_id)  -> Decimal
-      - compute_balance_and_status(total_due, paid_to_date) -> (balance Decimal, status str)
-    """
-    from decimal import Decimal
-
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-
     if not user or not user.IsAdmin:
         return jsonify({"status": "error", "message": "Unauthorized access."}), 403
 
@@ -2522,16 +2450,13 @@ def get_bills_by_status(status):
             "message": f"Invalid status. Choose from {valid_statuses}"
         }), 400
 
-    # Landlord scope: apartments -> units
     apartments = Apartment.query.filter_by(UserID=user_id).all()
     apartment_ids = [a.ApartmentID for a in apartments]
 
     units = RentalUnit.query.filter(
-        RentalUnit.ApartmentID.in_(apartment_ids)
-    ).all()
+        RentalUnit.ApartmentID.in_(apartment_ids)).all()
     unit_ids = [u.UnitID for u in units]
 
-    # Bills filtered by status (keep original logic/order)
     bills = (TenantBill.query
              .filter(TenantBill.RentalUnitID.in_(unit_ids),
                      TenantBill.BillStatus == status)
@@ -2549,22 +2474,18 @@ def get_bills_by_status(status):
         tenant = Tenant.query.get(bill.TenantID)
         unit = RentalUnit.query.get(bill.RentalUnitID)
 
-        # 🆕 Derived, non-persisted fields
         paid_to_date = compute_paid_to_date_for_bill(bill.BillID)
         balance, _ = compute_balance_and_status(
             Decimal(bill.TotalAmountDue or 0), paid_to_date
         )
 
         result.append({
-            # 🔁 original fields (unchanged)
             "BillID": bill.BillID,
             "TenantName": tenant.FullName if tenant else "Unknown",
             "UnitLabel": unit.Label if unit else "Unknown",
             "BillingMonth": bill.BillingMonth,
             "TotalAmountDue": bill.TotalAmountDue,
             "BillStatus": bill.BillStatus,
-
-            # 🆕 extras (safe to ignore on older clients)
             "PaidToDate": float(paid_to_date),
             "Balance": float(balance)
         })
