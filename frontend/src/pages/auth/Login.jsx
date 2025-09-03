@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Paper,
@@ -13,19 +13,28 @@ import {
   Alert,
   LinearProgress,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
-  import { styled } from "@mui/material/styles";
+import { styled } from "@mui/material/styles";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { Visibility, VisibilityOff, Email, Phone, Lock, Login as LoginIcon } from "@mui/icons-material";
+import {
+  Visibility,
+  VisibilityOff,
+  Email,
+  Phone,
+  Lock,
+  Login as LoginIcon,
+  Sms,
+  Replay,
+} from "@mui/icons-material";
 import axios from "axios";
 
 /* ----------------------------------------------
-   PayNest Auth Double Slider (refined)
-   - Header is a Home link (animated)
-   - Overlay never covers the active form
-   - Compact shell (height reduced)
-   - Slide back to Login from Register, incl. after success
+   PayNest Auth (Twilio Verify + 2FA SMS)
 ----------------------------------------------- */
 
 const API_URL = process.env.REACT_APP_API_URL;
@@ -60,7 +69,7 @@ const Shell = styled(Paper)({
   position: "relative",
   width: 1140,
   maxWidth: "98vw",
-  height: 520, // reduced from 560
+  height: 520,
   borderRadius: 24,
   overflow: "hidden",
   background: "linear-gradient(135deg, rgba(20,20,28,0.94), rgba(12,12,16,0.98))",
@@ -68,7 +77,6 @@ const Shell = styled(Paper)({
     "0 0 14px rgba(255,0,128,0.25), 0 0 24px rgba(69,107,188,0.2), 14px 14px 32px rgba(0,0,0,0.65), -8px -8px 20px rgba(255,255,255,0.02)",
 });
 
-/* ---------- Shared clickable header (Home link) ---------- */
 const HeaderBar = styled(Link)({
   position: "absolute",
   top: 14,
@@ -114,7 +122,7 @@ const OverlayWrap = styled(Box)(({ active }) => ({
   height: "100%",
   overflow: "hidden",
   transition: "transform 600ms ease-in-out",
-  zIndex: 4, // under forms
+  zIndex: 4,
   transform: active ? "translateX(-100%)" : "translateX(0)",
 }));
 
@@ -174,14 +182,161 @@ const NButton = styled(motion(Button))({
     background: `linear-gradient(90deg, ${BRAND.blue}, ${BRAND.pink}, ${BRAND.magenta})`,
   },
 });
-
+// eslint-disable-next-line
 const encrypt = (text) => btoa(unescape(encodeURIComponent(text)));
 const decrypt = (text) => decodeURIComponent(escape(atob(text)));
 
 /* =============================
+   OTP Dialog (Verify / Resend)
+   mode: "login" | "registration"
+============================= */
+function OtpDialog({
+  open,
+  mode = "login",
+  email,
+  rememberMe,
+  onClose,
+  onVerified, // (result?: {token, user})
+  onMessage,
+}) {
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [trustDevice, setTrustDevice] = useState(true);
+
+  useEffect(() => {
+    if (!open) {
+      setCode("");
+      setResendCooldown(0);
+      setTrustDevice(true);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || resendCooldown <= 0) return;
+    const t = setInterval(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearInterval(t);
+  }, [open, resendCooldown]);
+
+  const canSubmit = useMemo(() => code.trim().length >= 4, [code]);
+
+  const handleVerify = async () => {
+    if (!canSubmit) return;
+    try {
+      setLoading(true);
+
+      if (mode === "login") {
+        // Finalize 2FA: backend returns token & user
+        const { data } = await axios.post(`${API_URL}/auth/login-verify`, {
+          email,
+          code: code.trim(),
+          trust_device: !!trustDevice,
+          remember_me: !!rememberMe, // optional for server-side cookies
+        });
+        onMessage?.("✅ Login verified. Welcome!", "success");
+        onVerified?.({ token: data?.token, user: data?.user });
+        onClose?.();
+      } else {
+        // Registration phone verification (no token expected)
+        await axios.post(`${API_URL}/auth/verify-otp`, {
+          email,
+          code: code.trim(),
+        });
+        onMessage?.("✅ Phone verified successfully. Please sign in.", "success");
+        onVerified?.();
+        onClose?.();
+      }
+    } catch (err) {
+      const status = err.response?.status;
+      const msg =
+        err.response?.data?.message ||
+        (status === 429
+          ? "Too many attempts. Please wait a bit and try again."
+          : "Failed to verify code.");
+      onMessage?.(msg, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendCooldown > 0) return;
+    try {
+      setLoading(true);
+      await axios.post(`${API_URL}/auth/resend-otp`, { email });
+      setResendCooldown(30);
+      onMessage?.("OTP resent via SMS.", "success");
+    } catch (err) {
+      onMessage?.(err.response?.data?.message || "Failed to resend OTP.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+      <DialogTitle sx={{ fontWeight: 800, display: "flex", alignItems: "center", gap: 1 }}>
+        <Sms fontSize="small" />{" "}
+        {mode === "login" ? "Two-Factor Authentication" : "Verify your phone"}
+      </DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" sx={{ color: BRAND.subtext, mb: 1 }}>
+          {mode === "login"
+            ? <>We sent a 6-digit code to the phone linked with <b>{email}</b> to complete sign-in.</>
+            : <>Enter the 6-digit code we sent to the phone linked with <b>{email}</b>.</>}
+        </Typography>
+        <NInput
+          fullWidth
+          autoFocus
+          label="OTP Code"
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\s/g, ""))}
+          inputProps={{ inputMode: "numeric", maxLength: 10 }}
+        />
+        {mode === "login" && (
+          <FormControlLabel
+            sx={{ mt: 1 }}
+            control={
+              <Checkbox
+                checked={trustDevice}
+                onChange={(e) => setTrustDevice(e.target.checked)}
+              />
+            }
+            label={
+              <Typography variant="body2" sx={{ color: BRAND.subtext }}>
+                Trust this device for 30 days
+              </Typography>
+            }
+          />
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
+        <Button onClick={onClose} disabled={loading}>Cancel</Button>
+        <Button
+          onClick={handleResend}
+          startIcon={<Replay />}
+          disabled={loading || resendCooldown > 0}
+          sx={{ color: BRAND.blue }}
+        >
+          {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend Code"}
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleVerify}
+          disabled={!canSubmit || loading}
+          sx={{ borderRadius: 2 }}
+        >
+          {loading ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : "Verify"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+/* =============================
    Register Form
 ============================= */
-function RegisterForm({ onSuccess, onBackToLogin }) {
+function RegisterForm({ onSuccess, onBackToLogin, onNeedOtp }) {
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -189,12 +344,14 @@ function RegisterForm({ onSuccess, onBackToLogin }) {
     password: "",
     confirm_password: "",
     terms: false,
-    showConfirm: false, // drives confirm visibility
+    showConfirm: false,
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [phoneError, setPhoneError] = useState(false);
   const [strength, setStrength] = useState(0);
+
+  // Prefer UI hint 2547xxxxxxxx (server normalizes to +2547…)
   const phoneRegex = /^2547\d{8}$/;
 
   const getStrength = (pwd) => {
@@ -221,16 +378,30 @@ function RegisterForm({ onSuccess, onBackToLogin }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.terms) return alert("You must agree to the Terms & Privacy Policy.");
-    if (phoneError) return alert("Enter a valid phone number in format 2547XXXXXXXX");
+    if (!formData.terms) return onSuccess?.("You must accept Terms & Privacy Policy.", "error");
+    if (phoneError) return onSuccess?.("Use phone format 2547XXXXXXXX.", "error");
 
     try {
       setLoading(true);
-      await axios.post(`${API_URL}/register`, formData);
-      onSuccess?.("🎉 Registration successful! Please log in.");
-      onBackToLogin?.(); // slide back to login
+      // Prefer new endpoint; fall back if backend still on /register
+      try {
+        await axios.post(`${API_URL}/auth/register`, formData);
+      } catch (e) {
+        if ([404, 405].includes(e?.response?.status)) {
+          await axios.post(`${API_URL}/register`, formData);
+        } else {
+          throw e;
+        }
+      }
+
+      onSuccess?.(
+        "Account created. We sent you a code via SMS. Please verify.",
+        "success"
+      );
+      // Open OTP (registration mode) → verify phone then go to login
+      onNeedOtp?.({ email: formData.email, mode: "registration" });
     } catch (err) {
-      alert(err.response?.data?.message || "Registration failed");
+      onSuccess?.(err.response?.data?.message || "Registration failed", "error");
     } finally {
       setLoading(false);
     }
@@ -239,26 +410,62 @@ function RegisterForm({ onSuccess, onBackToLogin }) {
   return (
     <FormCard as={motion.div} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
       <Box component="form" onSubmit={handleSubmit}>
-        <NInput fullWidth label="Full Name" value={formData.full_name}
-          onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} />
-        <NInput fullWidth label="Email" type="email" value={formData.email}
+        <NInput
+          fullWidth
+          label="Full Name"
+          value={formData.full_name}
+          onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+        />
+        <NInput
+          fullWidth
+          label="Email"
+          type="email"
+          value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }} />
-        <NInput fullWidth label="Phone Number" value={formData.phone} onChange={handlePhone}
-          error={phoneError} helperText={phoneError ? "Use 2547XXXXXXXX" : ""}
-          InputProps={{ startAdornment: <InputAdornment position="start"><Phone /></InputAdornment> }} />
-        <NInput fullWidth type={showPassword ? "text" : "password"} label="Password" value={formData.password}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Email />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <NInput
+          fullWidth
+          label="Phone Number"
+          value={formData.phone}
+          onChange={handlePhone}
+          error={phoneError}
+          helperText={phoneError ? "Use 2547XXXXXXXX" : ""}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Phone />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <NInput
+          fullWidth
+          type={showPassword ? "text" : "password"}
+          label="Password"
+          value={formData.password}
           onChange={handlePassword}
           InputProps={{
-            startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
+            startAdornment: (
+              <InputAdornment position="start">
+                <Lock />
+              </InputAdornment>
+            ),
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton onClick={() => setShowPassword(p => !p)}>
+                <IconButton onClick={() => setShowPassword((p) => !p)}>
                   {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>
-            )
-          }} />
+            ),
+          }}
+        />
 
         {formData.password && (
           <Box sx={{ mt: 1 }}>
@@ -266,10 +473,13 @@ function RegisterForm({ onSuccess, onBackToLogin }) {
               variant="determinate"
               value={strength}
               sx={{
-                height: 6, borderRadius: 5, backgroundColor: BRAND.insetDark,
+                height: 6,
+                borderRadius: 5,
+                backgroundColor: BRAND.insetDark,
                 "& .MuiLinearProgress-bar": {
-                  backgroundColor: strength < 50 ? "#ff4d4f" : strength < 75 ? "#faad14" : "#52c41a"
-                }
+                  backgroundColor:
+                    strength < 50 ? "#ff4d4f" : strength < 75 ? "#faad14" : "#52c41a",
+                },
               }}
             />
             <Typography variant="caption" sx={{ color: BRAND.subtext }}>
@@ -278,26 +488,40 @@ function RegisterForm({ onSuccess, onBackToLogin }) {
           </Box>
         )}
 
-        <NInput fullWidth type={formData.showConfirm ? "text" : "password"} label="Confirm Password"
+        <NInput
+          fullWidth
+          type={formData.showConfirm ? "text" : "password"}
+          label="Confirm Password"
           value={formData.confirm_password}
           onChange={(e) => setFormData({ ...formData, confirm_password: e.target.value })}
           InputProps={{
-            startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
+            startAdornment: (
+              <InputAdornment position="start">
+                <Lock />
+              </InputAdornment>
+            ),
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton onClick={() => setFormData(s => ({ ...s, showConfirm: !s.showConfirm }))}>
+                <IconButton onClick={() => setFormData((s) => ({ ...s, showConfirm: !s.showConfirm }))}>
                   {formData.showConfirm ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>
-            )
-          }} />
+            ),
+          }}
+        />
 
         <FormControlLabel
-          control={<Checkbox checked={formData.terms}
-            onChange={(e) => setFormData({ ...formData, terms: e.target.checked })} />}
-          label={<Typography variant="body2" sx={{ color: BRAND.subtext }}>
-            I agree to the Terms & Privacy Policy
-          </Typography>}
+          control={
+            <Checkbox
+              checked={formData.terms}
+              onChange={(e) => setFormData({ ...formData, terms: e.target.checked })}
+            />
+          }
+          label={
+            <Typography variant="body2" sx={{ color: BRAND.subtext }}>
+              I agree to the Terms & Privacy Policy
+            </Typography>
+          }
         />
 
         <NButton whileTap={{ scale: 0.97 }} type="submit" fullWidth disabled={loading}>
@@ -313,9 +537,9 @@ function RegisterForm({ onSuccess, onBackToLogin }) {
 }
 
 /* =============================
-   Login Form
+   Login Form (with 2FA trigger)
 ============================= */
-function LoginForm({ onSuccess }) {
+function LoginForm({ onSuccess, onNeedOtp }) {
   const [formData, setFormData] = useState({ email: "", password: "", remember_me: false });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -342,24 +566,27 @@ function LoginForm({ onSuccess }) {
       setLoading(true);
       const resp = await axios.post(`${API_URL}/login`, formData);
       const { token, user } = resp.data;
+      // If password-only (no 2FA needed), parent will store and redirect via onNeedOtp? No, we handle here:
+      onNeedOtp?.({ mode: "direct-success", token, user, remember_me: formData.remember_me });
+    } catch (err) {
+      const status = err.response?.status;
+      const needs = err.response?.data?.needs_verification;
+      const reason = err.response?.data?.reason;
+      const message = err.response?.data?.message || "Login failed. Try again.";
 
-      if (formData.remember_me) {
-        localStorage.setItem("token", token);
-        localStorage.setItem("user", JSON.stringify(user));
-        localStorage.setItem("remember_me", "true");
-        localStorage.setItem("remember_email", formData.email);
-        localStorage.setItem("remember_password", encrypt(formData.password));
-      } else {
-        sessionStorage.setItem("token", token);
-        sessionStorage.setItem("user", JSON.stringify(user));
-        localStorage.removeItem("remember_me");
-        localStorage.removeItem("remember_email");
-        localStorage.removeItem("remember_password");
+      if (status === 403 && needs) {
+        // 2FA or first-time phone verification required
+        onSuccess?.(message, "warning");
+        onNeedOtp?.({
+          mode: "login",
+          email: formData.email,
+          remember_me: formData.remember_me,
+          reason,
+        });
+        return;
       }
 
-      onSuccess?.(`🎉 Welcome back, ${user.FullName}! Redirecting...`, "success", "/dashboard");
-    } catch (err) {
-      onSuccess?.(err.response?.data?.message || "Login failed. Try again.", "error");
+      onSuccess?.(message, "error");
     } finally {
       setLoading(false);
     }
@@ -368,27 +595,57 @@ function LoginForm({ onSuccess }) {
   return (
     <FormCard as={motion.div} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
       <Box component="form" onSubmit={handleSubmit}>
-        <NInput fullWidth label="Email" name="email" type="email" value={formData.email}
+        <NInput
+          fullWidth
+          label="Email"
+          name="email"
+          type="email"
+          value={formData.email}
           onChange={handleChange}
-          InputProps={{ startAdornment: <InputAdornment position="start"><Email /></InputAdornment> }} />
-        <NInput fullWidth label="Password" name="password" type={showPassword ? "text" : "password"}
-          value={formData.password} onChange={handleChange}
           InputProps={{
-            startAdornment: <InputAdornment position="start"><Lock /></InputAdornment>,
+            startAdornment: (
+              <InputAdornment position="start">
+                <Email />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <NInput
+          fullWidth
+          label="Password"
+          name="password"
+          type={showPassword ? "text" : "password"}
+          value={formData.password}
+          onChange={handleChange}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Lock />
+              </InputAdornment>
+            ),
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton onClick={() => setShowPassword(p => !p)}>
+                <IconButton onClick={() => setShowPassword((p) => !p)}>
                   {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>
-            )
-          }} />
+            ),
+          }}
+        />
         <FormControlLabel
-          control={<Checkbox name="remember_me" checked={formData.remember_me} onChange={handleChange} />}
+          control={
+            <Checkbox name="remember_me" checked={formData.remember_me} onChange={handleChange} />
+          }
           label={<Typography variant="body2" sx={{ color: BRAND.subtext }}>Remember Me</Typography>}
         />
         <NButton whileTap={{ scale: 0.97 }} type="submit" fullWidth disabled={loading}>
-          {loading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : (<><LoginIcon /> Login</>)}
+          {loading ? (
+            <CircularProgress size={20} sx={{ color: "#fff" }} />
+          ) : (
+            <>
+              <LoginIcon /> Login
+            </>
+          )}
         </NButton>
         <Typography variant="body2" align="center" sx={{ mt: 1.5 }}>
           <Link to="/forgot-password" style={{ color: BRAND.blue, textDecoration: "none" }}>
@@ -404,19 +661,54 @@ function LoginForm({ onSuccess }) {
    Main Component
 ============================= */
 export default function AuthDoubleSliderRefined() {
-  const [rightActive, setRightActive] = useState(false); // false = Login (left), true = Register (right)
+  const [rightActive, setRightActive] = useState(false); // false = Login, true = Register
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+
+  // OTP modal control
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otpMode, setOtpMode] = useState("login"); // "login" | "registration"
+  const [otpEmail, setOtpEmail] = useState("");
+  const [loginRememberMe, setLoginRememberMe] = useState(false);
+
   const navigate = useNavigate();
 
-  const handleNotify = (message, severity = "success", redirect) => {
+  const notify = (message, severity = "success", redirect) => {
     setSnackbar({ open: true, message, severity });
     if (redirect) setTimeout(() => navigate(redirect), 1200);
   };
 
+  const storeSession = (remember, token, user) => {
+    if (!token || !user) return;
+    if (remember) {
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("remember_me", "true");
+      localStorage.setItem("remember_email", user.Email || "");
+      // do not store password on OTP flow
+    } else {
+      sessionStorage.setItem("token", token);
+      sessionStorage.setItem("user", JSON.stringify(user));
+      localStorage.removeItem("remember_me");
+      localStorage.removeItem("remember_email");
+      localStorage.removeItem("remember_password");
+    }
+  };
+
+  const openOtp = ({ email, mode = "login", remember_me = false }) => {
+    setOtpMode(mode);
+    setOtpEmail(email || "");
+    setLoginRememberMe(!!remember_me);
+    setOtpOpen(true);
+  };
+
+  // Handle child messages
+  const handleNotify = (message, severity = "success", redirect) =>
+    notify(message, severity, redirect);
+
   return (
     <Screen>
       <Shell as={motion.div} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
-        {/* Clickable header => Home with animation */}
+        {/* Header */}
         <HeaderBar to="/">
           <motion.div
             whileHover={{ scale: 1.05 }}
@@ -437,11 +729,7 @@ export default function AuthDoubleSliderRefined() {
               }}
             />
             <Box sx={{ textAlign: "center" }}>
-              <motion.div
-                initial={{ y: 0, opacity: 1 }}
-                whileHover={{ y: -1, opacity: 1 }}
-                transition={{ duration: 0.25 }}
-              >
+              <motion.div initial={{ y: 0, opacity: 1 }} whileHover={{ y: -1, opacity: 1 }} transition={{ duration: 0.25 }}>
                 <Typography
                   variant="h6"
                   fontWeight={800}
@@ -462,7 +750,7 @@ export default function AuthDoubleSliderRefined() {
 
         {/* Forms */}
         <Container>
-          {/* Login anchored LEFT */}
+          {/* Login (left) */}
           <Panel
             sx={{
               left: 0,
@@ -470,10 +758,22 @@ export default function AuthDoubleSliderRefined() {
               transition: "transform 600ms ease-in-out",
             }}
           >
-            <LoginForm onSuccess={handleNotify} />
+            <LoginForm
+              onSuccess={handleNotify}
+              onNeedOtp={({ mode, email, remember_me, token, user }) => {
+                // If login completed with no OTP needed
+                if (mode === "direct-success" && token && user) {
+                  storeSession(!!remember_me, token, user);
+                  handleNotify(`🎉 Welcome back, ${user.FullName}! Redirecting...`, "success", "/dashboard");
+                  return;
+                }
+                // Otherwise open OTP (step-up 2FA)
+                openOtp({ email, mode: "login", remember_me });
+              }}
+            />
           </Panel>
 
-          {/* Register anchored RIGHT */}
+          {/* Register (right) */}
           <Panel
             sx={{
               right: 0,
@@ -482,10 +782,9 @@ export default function AuthDoubleSliderRefined() {
             }}
           >
             <RegisterForm
-              onSuccess={(m) => {
-                handleNotify(m, "success");
-              }}
+              onSuccess={(m, sev) => handleNotify(m, sev || "success")}
               onBackToLogin={() => setRightActive(false)}
+              onNeedOtp={({ email }) => openOtp({ email, mode: "registration" })}
             />
           </Panel>
         </Container>
@@ -518,6 +817,26 @@ export default function AuthDoubleSliderRefined() {
           </Overlay>
         </OverlayWrap>
       </Shell>
+
+      {/* OTP Dialog */}
+      <OtpDialog
+        open={otpOpen}
+        mode={otpMode}
+        email={otpEmail}
+        rememberMe={loginRememberMe}
+        onClose={() => setOtpOpen(false)}
+        onVerified={(result) => {
+          if (otpMode === "login" && result?.token && result?.user) {
+            // Finalize login directly from /auth/login-verify response
+            storeSession(loginRememberMe, result.token, result.user);
+            handleNotify(`🎉 Welcome back, ${result.user.FullName}! Redirecting...`, "success", "/dashboard");
+          } else {
+            // Registration verify → slide back to login
+            setRightActive(false);
+          }
+        }}
+        onMessage={handleNotify}
+      />
 
       <Snackbar
         open={snackbar.open}
