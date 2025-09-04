@@ -14,7 +14,7 @@ import {
   LinearProgress,
   CircularProgress,
 } from "@mui/material";
-  import { styled } from "@mui/material/styles";
+import { styled } from "@mui/material/styles";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Visibility, VisibilityOff, Email, Phone, Lock, Login as LoginIcon } from "@mui/icons-material";
@@ -106,7 +106,14 @@ const FormCard = styled(Box)({
   boxShadow: `inset 6px 6px 14px ${BRAND.insetDark}, inset -6px -6px 14px ${BRAND.insetLight}, 0 0 12px rgba(255,0,128,0.18)`,
 });
 
-const OverlayWrap = styled(Box)(({ active }) => ({
+/**
+ * IMPORTANT: Prevent `active` prop from reaching the DOM to avoid
+ * "Received `false` for a non-boolean attribute `active`" warning.
+ */
+const OverlayWrap = styled(
+  Box,
+  { shouldForwardProp: (prop) => prop !== "active" }
+)(({ active }) => ({
   position: "absolute",
   top: 0,
   left: "50%",
@@ -161,7 +168,13 @@ const NInput = styled(TextField)({
   "& .MuiInputLabel-root": { color: BRAND.subtext },
 });
 
-const NButton = styled(motion(Button))({
+/**
+ * Replace deprecated motion(Button) with motion.create(Button)
+ * to remove "motion() is deprecated" warning.
+ */
+const MotionButton = motion.create(Button);
+
+const NButton = styled(MotionButton)({
   marginTop: 14,
   borderRadius: 12,
   background: `linear-gradient(90deg, ${BRAND.magenta}, ${BRAND.orange}, ${BRAND.pink}, ${BRAND.blue})`,
