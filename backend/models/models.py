@@ -14,17 +14,60 @@ class User(db.Model):
 
     UserID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     FullName = db.Column(db.String(100), nullable=False)
+
+    # Auth basics
     Email = db.Column(db.String(120), unique=True, nullable=False)
     Password = db.Column(db.String(200), nullable=False)
+
+    # Legacy phone (keep for display/imports)
     Phone = db.Column(db.String(20))
+
+    # ✅ Canonical phone for Twilio (store E.164: +2547XXXXXXX)
+    # Phase 1: allow NULL so we can backfill safely. Later make NOT NULL.
+    PhoneE164 = db.Column(db.String(20), index=True,
+                          unique=False, nullable=True)
+
+    # ✅ Verification & 2FA
+    IsPhoneVerified = db.Column(db.Boolean, default=False, nullable=False)
+    LastVerifiedAt = db.Column(db.DateTime, nullable=True)
+
+    TwoFAEnabled = db.Column(db.Boolean, default=False,
+                             nullable=False)              # master switch
+    # 'sms' | 'totp' (optional)
+    TwoFAMethod = db.Column(db.String(10), nullable=True)
+    # 'sms' | 'whatsapp' | 'email'
+    PreferredChannel = db.Column(db.String(20), default='sms', nullable=False)
+
+    # ✅ Consent & notification controls
+    AllowSMS = db.Column(db.Boolean, default=True, nullable=False)
+    AllowWhatsApp = db.Column(db.Boolean, default=False, nullable=False)
+    AllowEmail = db.Column(db.Boolean, default=True, nullable=False)
+
+    # Account state
     IsAdmin = db.Column(db.Boolean, default=False)
-    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
+    IsActive = db.Column(db.Boolean, default=True, nullable=False)
+
+    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    UpdatedAt = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     apartments = db.relationship('Apartment', backref='owner', lazy=True)
 
+    __table_args__ = (
+        # Lightweight data sanity; app will still normalize/validate strictly.
+        db.CheckConstraint(
+            "PreferredChannel in ('sms','whatsapp','email')",
+            name="ck_users_pref_channel"
+        ),
+        db.CheckConstraint(
+            "(TwoFAMethod in ('sms','totp')) OR (TwoFAMethod IS NULL)",
+            name="ck_users_2fa_method"
+        ),
+    )
+
     def __repr__(self):
-        return f"<User ID={self.UserID} Email={self.Email}>"
+        return f"<User ID={self.UserID} Email={self.Email} Verified={self.IsPhoneVerified}>"
 
 
 class Apartment(db.Model):
@@ -459,7 +502,6 @@ class Profile(db.Model):
         "User", backref=db.backref("profile", uselist=False))
 
 
-# models.py
 class Feedback(db.Model):
     __tablename__ = 'Feedback'
     FeedbackID = db.Column(db.Integer, primary_key=True, autoincrement=True)
