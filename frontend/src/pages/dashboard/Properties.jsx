@@ -4,7 +4,7 @@ import {
     Box, Paper, Typography, Grid, Chip, Button, IconButton, Tooltip,
     Snackbar, Alert, Divider, Table, TableHead, TableRow, TableCell, TableBody,
     CircularProgress, Stack, TextField, LinearProgress, MenuItem, Checkbox,
-    FormGroup, FormControlLabel, Switch, TablePagination, Link
+    FormGroup, FormControlLabel, TablePagination
 } from "@mui/material";
 
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -26,6 +26,9 @@ import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import CategoryIcon from "@mui/icons-material/Category";
 import BusinessIcon from "@mui/icons-material/Business";
 import ScheduleIcon from "@mui/icons-material/Schedule";
+import SmsOutlinedIcon from "@mui/icons-material/SmsOutlined";
+import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
+import EventBusyIcon from "@mui/icons-material/EventBusy";
 
 import axios from "axios";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
@@ -36,7 +39,10 @@ const API = process.env.REACT_APP_API_URL || "http://localhost:5000";
 const monthKey = dayjs().format("MMMM YYYY");
 
 const fmtNum = (n) => new Intl.NumberFormat().format(Number(n || 0));
-const fmtKES = (n) => `KES ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(Number(n || 0))}`;
+const fmtKES = (n) =>
+    `KES ${new Intl.NumberFormat("en-KE", { maximumFractionDigits: 0 }).format(
+        Number(n || 0)
+    )}`;
 
 const OCCUPIED_COLOR = "#6EE7B7";
 const VACANT_COLOR = "#FB7185";
@@ -58,15 +64,18 @@ const softCard = {
     borderRadius: 3,
     color: "#fff",
     background: "#0e0a17",
-    boxShadow: "9px 9px 18px rgba(0,0,0,.55), -9px -9px 18px rgba(255,255,255,.03), inset 0 0 0 rgba(255,255,255,0)",
+    boxShadow:
+        "9px 9px 18px rgba(0,0,0,.55), -9px -9px 18px rgba(255,255,255,.03), inset 0 0 0 rgba(255,255,255,0)",
     border: "1px solid rgba(255,255,255,0.06)",
     transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
     "&:hover": {
         transform: "translateY(-3px)",
-        boxShadow: "12px 12px 24px rgba(0,0,0,.6), -12px -12px 24px rgba(255,255,255,.035)",
+        boxShadow:
+            "12px 12px 24px rgba(0,0,0,.6), -12px -12px 24px rgba(255,255,255,.035)",
         borderColor: "transparent",
         outline: "1px solid transparent",
-        background: "linear-gradient(#0e0a17,#0e0a17) padding-box, " + BRAND.gradient + " border-box",
+        background:
+            "linear-gradient(#0e0a17,#0e0a17) padding-box, " + BRAND.gradient + " border-box",
         boxDecorationBreak: "clone",
         filter: "drop-shadow(0 18px 28px rgba(255,0,128,.16))",
     }
@@ -74,25 +83,45 @@ const softCard = {
 /* Shared field style */
 const fieldNeumorphSx = {
     "& .MuiFormControl-root": { overflow: "visible" },
-    "& .MuiInputLabel-root": { color: "rgba(255,255,255,0.92)", fontFamily: FONTS.subhead, whiteSpace: "nowrap", overflow: "visible", textOverflow: "clip", maxWidth: "none" },
+    "& .MuiInputLabel-root": {
+        color: "rgba(255,255,255,0.92)",
+        fontFamily: FONTS.subhead,
+        whiteSpace: "nowrap",
+        overflow: "visible",
+        textOverflow: "clip",
+        maxWidth: "none"
+    },
     "& .MuiInputLabel-root.MuiInputLabel-shrink": { maxWidth: "none" },
-    "& .MuiInputBase-root": { background: "rgba(255,255,255,0.03)", borderRadius: 2, boxShadow: "inset 6px 6px 12px rgba(0,0,0,.45), inset -6px -6px 12px rgba(255,255,255,.03)", paddingTop: 1, paddingBottom: 1 },
+    "& .MuiInputBase-root": {
+        background: "rgba(255,255,255,0.03)",
+        borderRadius: 2,
+        boxShadow:
+            "inset 6px 6px 12px rgba(0,0,0,.45), inset -6px -6px 12px rgba(255,255,255,.03)",
+        paddingTop: 1,
+        paddingBottom: 1
+    },
     "& .MuiInputBase-input": { color: "#fff", fontFamily: FONTS.subhead },
-    "& .MuiInputBase-input::placeholder": { color: "rgba(255,255,255,0.7)", opacity: 1 },
-    "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.22)" },
-    "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.45)" },
+    "& .MuiInputBase-input::placeholder": {
+        color: "rgba(255,255,255,0.7)",
+        opacity: 1
+    },
+    "& .MuiOutlinedInput-notchedOutline": {
+        borderColor: "rgba(255,255,255,0.22)"
+    },
+    "&:hover .MuiOutlinedInput-notchedOutline": {
+        borderColor: "rgba(255,255,255,0.45)"
+    },
     "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: BRAND.start }
 };
 
 /* ------------------------- Reusable Modal Shell ------------------------- */
-/* Centers over page content (not the whole app), narrow, lower, shorter */
 function ModalShell({
     open,
     onClose,
     title,
     width = "min(500px, 92vw)",
-    top = "12%",              // push downward
-    maxHeight = "70vh",       // shorter overall
+    top = "12%",
+    maxHeight = "70vh",
     headerRight = null,
     children,
     actions = null,
@@ -101,7 +130,7 @@ function ModalShell({
     return (
         <Box
             sx={{
-                position: "absolute",    // <- absolute so it stays within page content area
+                position: "absolute",
                 inset: 0,
                 zIndex: 20,
                 display: "flex",
@@ -110,30 +139,68 @@ function ModalShell({
                 pt: top,
             }}
         >
-            {/* Backdrop within content area only */}
+            {/* Backdrop */}
             <Box
                 onClick={onClose}
-                sx={{ position: "absolute", inset: 0, bgcolor: "rgba(0,0,0,.55)", backdropFilter: "blur(2px)" }}
+                sx={{
+                    position: "absolute",
+                    inset: 0,
+                    bgcolor: "rgba(0,0,0,.55)",
+                    backdropFilter: "blur(2px)"
+                }}
             />
-            <Paper elevation={0} sx={{ ...softCard, width, maxHeight, overflow: "hidden", p: 0, borderRadius: 3, position: "relative" }}>
+            <Paper
+                elevation={0}
+                sx={{
+                    ...softCard,
+                    width,
+                    maxHeight,
+                    overflow: "hidden",
+                    p: 0,
+                    borderRadius: 3,
+                    position: "relative"
+                }}
+            >
                 {/* Header */}
-                <Stack direction="row" alignItems="center" spacing={1} sx={{ p: 1.5, pb: 1, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 900, fontFamily: FONTS.subhead }}>
+                <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={1}
+                    sx={{ p: 1.5, pb: 1, borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                    <Typography
+                        variant="subtitle1"
+                        sx={{ fontWeight: 900, fontFamily: FONTS.subhead }}
+                    >
                         {title}
                     </Typography>
                     <Box sx={{ flex: 1 }} />
                     {headerRight}
-                    <Button onClick={onClose} sx={{ color: "#fff", textTransform: "none" }}>Close</Button>
+                    <Button onClick={onClose} sx={{ color: "#fff", textTransform: "none" }}>
+                        Close
+                    </Button>
                 </Stack>
 
-                {/* Scrollable body */}
-                <Box sx={{ p: 1.5, pt: 1, overflowY: "auto", maxHeight: `calc(${maxHeight} - 56px - ${actions ? "54px" : "0px"})` }}>
+                {/* Body */}
+                <Box
+                    sx={{
+                        p: 1.5,
+                        pt: 1,
+                        overflowY: "auto",
+                        maxHeight: `calc(${maxHeight} - 56px - ${actions ? "54px" : "0px"})`
+                    }}
+                >
                     {children}
                 </Box>
 
-                {/* Footer actions (optional) */}
+                {/* Footer */}
                 {actions ? (
-                    <Stack direction="row" spacing={1} sx={{ p: 1.25, borderTop: "1px solid rgba(255,255,255,0.08)" }} justifyContent="flex-end">
+                    <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{ p: 1.25, borderTop: "1px solid rgba(255,255,255,0.08)" }}
+                        justifyContent="flex-end"
+                    >
                         {actions}
                     </Stack>
                 ) : null}
@@ -146,23 +213,59 @@ function ModalShell({
 function KpiCard({ icon, label, value, sublabel }) {
     return (
         <Paper elevation={0} sx={{ ...softCard, height: 120 }}>
-            <Stack direction="row" alignItems="center" spacing={1}>{icon}
-                <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead, letterSpacing: 0.2 }}>{label}</Typography>
+            <Stack direction="row" alignItems="center" spacing={1}>
+                {icon}
+                <Typography
+                    variant="body2"
+                    sx={{ opacity: 0.88, fontFamily: FONTS.subhead, letterSpacing: 0.2 }}
+                >
+                    {label}
+                </Typography>
             </Stack>
-            <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 800, fontFamily: FONTS.number }}>{value}</Typography>
-            {sublabel ? <Typography variant="caption" sx={{ opacity: 0.72, fontFamily: FONTS.subhead }}>{sublabel}</Typography> : null}
+            <Typography
+                variant="h5"
+                sx={{ mt: 0.5, fontWeight: 800, fontFamily: FONTS.number }}
+            >
+                {value}
+            </Typography>
+            {sublabel ? (
+                <Typography variant="caption" sx={{ opacity: 0.72, fontFamily: FONTS.subhead }}>
+                    {sublabel}
+                </Typography>
+            ) : null}
         </Paper>
     );
 }
 function RectCard({ icon, label, value, help, loading = false }) {
     return (
-        <Paper elevation={0} sx={{ ...softCard, p: 2.25, borderRadius: 2, height: 88, display: "flex", flexDirection: "column", justifyContent: "center", gap: 0.25 }}>
-            <Stack direction="row" spacing={1} alignItems="center">{icon}
-                <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead }}>{label}</Typography>
+        <Paper
+            elevation={0}
+            sx={{
+                ...softCard,
+                p: 2.25,
+                borderRadius: 2,
+                height: 88,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                gap: 0.25
+            }}
+        >
+            <Stack direction="row" spacing={1} alignItems="center">
+                {icon}
+                <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead }}>
+                    {label}
+                </Typography>
             </Stack>
             <Stack direction="row" alignItems="baseline" spacing={1}>
-                <Typography variant="h5" sx={{ fontWeight: 900, fontFamily: FONTS.number }}>{value}</Typography>
-                {help ? <Typography variant="caption" sx={{ opacity: 0.7, fontFamily: FONTS.subhead }}>{help}</Typography> : null}
+                <Typography variant="h5" sx={{ fontWeight: 900, fontFamily: FONTS.number }}>
+                    {value}
+                </Typography>
+                {help ? (
+                    <Typography variant="caption" sx={{ opacity: 0.7, fontFamily: FONTS.subhead }}>
+                        {help}
+                    </Typography>
+                ) : null}
             </Stack>
             {loading ? <LinearProgress sx={{ mt: 0.5 }} /> : null}
         </Paper>
@@ -170,13 +273,33 @@ function RectCard({ icon, label, value, help, loading = false }) {
 }
 function StatChip({ icon, label, value, help }) {
     return (
-        <Paper elevation={0} sx={{ ...softCard, p: 1.5, borderRadius: 2, height: 72, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-            <Stack direction="row" spacing={1} alignItems="center">{icon}
-                <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead }}>{label}</Typography>
+        <Paper
+            elevation={0}
+            sx={{
+                ...softCard,
+                p: 1.5,
+                borderRadius: 2,
+                height: 72,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center"
+            }}
+        >
+            <Stack direction="row" spacing={1} alignItems="center">
+                {icon}
+                <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead }}>
+                    {label}
+                </Typography>
             </Stack>
             <Stack direction="row" spacing={1} alignItems="baseline">
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, fontFamily: FONTS.number }}>{value}</Typography>
-                {help ? <Typography variant="caption" sx={{ opacity: 0.7, fontFamily: FONTS.subhead }}>{help}</Typography> : null}
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, fontFamily: FONTS.number }}>
+                    {value}
+                </Typography>
+                {help ? (
+                    <Typography variant="caption" sx={{ opacity: 0.7, fontFamily: FONTS.subhead }}>
+                        {help}
+                    </Typography>
+                ) : null}
             </Stack>
         </Paper>
     );
@@ -190,15 +313,38 @@ function Donut({ occupied = 0, vacant = 0, reserved = 0, size = 72 }) {
     const total = occupied + vacant + reserved;
     const occRate = total ? Math.round((occupied / total) * 100) : 0;
     return (
-        <Box sx={{ position: "relative", width: size, height: size, transition: "transform .25s ease" }} className="donut">
+        <Box
+            sx={{ position: "relative", width: size, height: size, transition: "transform .25s ease" }}
+            className="donut"
+        >
             <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                    <Pie data={data} dataKey="value" innerRadius={size / 2 - 12} outerRadius={size / 2} paddingAngle={1} stroke="none">
-                        {data.map((entry, i) => <Cell key={i} fill={entry.c} />)}
+                    <Pie
+                        data={data}
+                        dataKey="value"
+                        innerRadius={size / 2 - 12}
+                        outerRadius={size / 2}
+                        paddingAngle={1}
+                        stroke="none"
+                    >
+                        {data.map((entry, i) => (
+                            <Cell key={i} fill={entry.c} />
+                        ))}
                     </Pie>
                 </PieChart>
             </ResponsiveContainer>
-            <Box sx={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", fontSize: 12, color: "#fff", fontWeight: 700, fontFamily: FONTS.number }}>
+            <Box
+                sx={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: 12,
+                    color: "#fff",
+                    fontWeight: 700,
+                    fontFamily: FONTS.number
+                }}
+            >
                 {occRate}%
             </Box>
         </Box>
@@ -207,32 +353,126 @@ function Donut({ occupied = 0, vacant = 0, reserved = 0, size = 72 }) {
 function PropertyCard({ p, onOpen, onEdit, onAddUnits }) {
     const s = p.Stats || {};
     return (
-        <Paper elevation={0} onClick={() => onOpen?.(p)} sx={{ ...softCard, cursor: "pointer", height: "100%", "&:hover .donut": { transform: "scale(1.06)" } }}>
+        <Paper
+            elevation={0}
+            onClick={() => onOpen?.(p)}
+            sx={{
+                ...softCard,
+                cursor: "pointer",
+                height: "100%",
+                "&:hover .donut": { transform: "scale(1.06)" }
+            }}
+        >
             <Stack direction="row" alignItems="center" spacing={1}>
                 <HomeWorkIcon fontSize="small" />
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}>{p.ApartmentName}</Typography>
-                <Chip size="small" label={p.Location || "—"} sx={{ ml: "auto", color: "#fff", border: "1px solid rgba(255,255,255,0.12)", bgcolor: "rgba(255,255,255,0.04)", fontFamily: FONTS.subhead }} />
+                <Typography
+                    variant="subtitle1"
+                    sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}
+                >
+                    {p.ApartmentName}
+                </Typography>
+                <Chip
+                    size="small"
+                    label={p.Location || "—"}
+                    sx={{
+                        ml: "auto",
+                        color: "#fff",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        bgcolor: "rgba(255,255,255,0.04)",
+                        fontFamily: FONTS.subhead
+                    }}
+                />
             </Stack>
             <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1.5 }}>
-                <Donut occupied={s.OccupiedUnits || 0} vacant={s.VacantUnits || 0} reserved={s.ReservedUnits || 0} />
+                <Donut
+                    occupied={s.OccupiedUnits || 0}
+                    vacant={s.VacantUnits || 0}
+                    reserved={s.ReservedUnits || 0}
+                />
                 <Box sx={{ flex: 1 }}>
                     <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                        <Chip size="small" label={`Units: ${fmtNum(s.TotalUnits)}`} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
-                        <Chip size="small" label={`Occupied: ${fmtNum(s.OccupiedUnits)}`} icon={<CheckCircleOutlineIcon sx={{ color: OCCUPIED_COLOR }} />} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
-                        <Chip size="small" label={`Vacant: ${fmtNum(s.VacantUnits)}`} icon={<CancelOutlinedIcon sx={{ color: VACANT_COLOR }} />} sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.14)", fontFamily: FONTS.subhead }} />
+                        <Chip
+                            size="small"
+                            label={`Units: ${fmtNum(s.TotalUnits)}`}
+                            sx={{
+                                color: "#fff",
+                                border: "1px solid rgba(255,255,255,0.14)",
+                                fontFamily: FONTS.subhead
+                            }}
+                        />
+                        <Chip
+                            size="small"
+                            label={`Occupied: ${fmtNum(s.OccupiedUnits)}`}
+                            icon={<CheckCircleOutlineIcon sx={{ color: OCCUPIED_COLOR }} />}
+                            sx={{
+                                color: "#fff",
+                                border: "1px solid rgba(255,255,255,0.14)",
+                                fontFamily: FONTS.subhead
+                            }}
+                        />
+                        <Chip
+                            size="small"
+                            label={`Vacant: ${fmtNum(s.VacantUnits)}`}
+                            icon={<CancelOutlinedIcon sx={{ color: VACANT_COLOR }} />}
+                            sx={{
+                                color: "#fff",
+                                border: "1px solid rgba(255,255,255,0.14)",
+                                fontFamily: FONTS.subhead
+                            }}
+                        />
                     </Stack>
-                    {p.Description ? <Typography variant="caption" sx={{ mt: 1, display: "block", opacity: 0.8, fontFamily: FONTS.subhead }}>{p.Description}</Typography> : null}
+                    {p.Description ? (
+                        <Typography
+                            variant="caption"
+                            sx={{ mt: 1, display: "block", opacity: 0.8, fontFamily: FONTS.subhead }}
+                        >
+                            {p.Description}
+                        </Typography>
+                    ) : null}
                 </Box>
             </Stack>
             <Divider sx={{ my: 1.5, borderColor: "rgba(255,255,255,0.08)" }} />
             <Stack direction="row" spacing={1}>
-                <Button onClick={(e) => { e.stopPropagation(); onOpen?.(p); }} size="small" variant="contained" sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }} startIcon={<OpenInNewIcon />}>
+                <Button
+                    onClick={(e) => { e.stopPropagation(); onOpen?.(p); }}
+                    size="small"
+                    variant="contained"
+                    sx={{
+                        textTransform: "none",
+                        borderRadius: 2,
+                        background: BRAND.gradient,
+                        boxShadow: "none"
+                    }}
+                    startIcon={<OpenInNewIcon />}
+                >
                     View
                 </Button>
-                <Button size="small" variant="outlined" onClick={(e) => { e.stopPropagation(); onEdit?.(p); }} startIcon={<EditIcon />} sx={{ textTransform: "none", borderColor: "rgba(255,255,255,0.35)", color: "#fff", "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" } }}>
+                <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={(e) => { e.stopPropagation(); onEdit?.(p); }}
+                    startIcon={<EditIcon />}
+                    sx={{
+                        textTransform: "none",
+                        borderColor: "rgba(255,255,255,0.35)",
+                        color: "#fff",
+                        "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" }
+                    }}
+                >
                     Edit
                 </Button>
-                <Button size="small" variant="outlined" onClick={(e) => { e.stopPropagation(); onAddUnits?.(p); }} startIcon={<AddHomeWorkIcon />} sx={{ textTransform: "none", borderColor: "rgba(255,255,255,0.35)", color: "#fff", "&:hover": { borderColor: BRAND.end, background: "rgba(126,0,166,.08)" } }}>
+                <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={(e) => { e.stopPropagation(); onAddUnits?.(p); }}
+                    startIcon={<AddHomeWorkIcon />}
+                    sx={{
+                        textTransform: "none",
+                        borderColor: "rgba(255,255,255,0.35)",
+                        color: "#fff",
+                        "&:hover": { borderColor: BRAND.end, background: "rgba(126,0,166,.08)" }
+                    }}
+                >
                     Add Units
                 </Button>
             </Stack>
@@ -241,7 +481,9 @@ function PropertyCard({ p, onOpen, onEdit, onAddUnits }) {
 }
 
 /* ------------------------ Dialogs (using ModalShell) ------------------------ */
-function ConfirmDialog({ open, title, content, onCancel, onConfirm, confirmText = "Confirm", loading = false }) {
+function ConfirmDialog({
+    open, title, content, onCancel, onConfirm, confirmText = "Confirm", loading = false
+}) {
     return (
         <ModalShell
             open={open}
@@ -249,10 +491,19 @@ function ConfirmDialog({ open, title, content, onCancel, onConfirm, confirmText 
             title={title}
             width="min(480px, 92vw)"
         >
-            <Typography variant="body2" sx={{ opacity: 0.9, fontFamily: FONTS.subhead }}>{content}</Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9, fontFamily: FONTS.subhead }}>
+                {content}
+            </Typography>
             <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 2 }}>
-                <Button onClick={onCancel} disabled={loading} sx={{ textTransform: "none" }}>Cancel</Button>
-                <Button onClick={onConfirm} disabled={loading} variant="contained" sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}>
+                <Button onClick={onCancel} disabled={loading} sx={{ textTransform: "none" }}>
+                    Cancel
+                </Button>
+                <Button
+                    onClick={onConfirm}
+                    disabled={loading}
+                    variant="contained"
+                    sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                >
                     {loading ? "Working…" : confirmText}
                 </Button>
             </Stack>
@@ -299,24 +550,36 @@ function AddApartmentDialog({ open, onClose, onCreated, api }) {
             <ModalShell open={open} onClose={saving ? () => { } : onClose} title="Add Property" width="min(560px, 92vw)">
                 <Grid container spacing={1.25}>
                     <Grid item xs={12}>
-                        <TextField size="small" fullWidth label="Apartment Name" name="ApartmentName" placeholder="e.g., Blue House Apartment"
-                            value={form.ApartmentName} onChange={onChange} error={!!errors.ApartmentName} helperText={errors.ApartmentName}
-                            InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                        <TextField
+                            size="small" fullWidth label="Apartment Name" name="ApartmentName"
+                            placeholder="e.g., Blue House Apartment"
+                            value={form.ApartmentName} onChange={onChange}
+                            error={!!errors.ApartmentName} helperText={errors.ApartmentName}
+                            InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                        />
                     </Grid>
                     <Grid item xs={12}>
-                        <TextField size="small" fullWidth label="Location" name="Location" placeholder="e.g., Kileleshwa, Nairobi"
-                            value={form.Location} onChange={onChange} error={!!errors.Location} helperText={errors.Location}
-                            InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                        <TextField
+                            size="small" fullWidth label="Location" name="Location"
+                            placeholder="e.g., Kileleshwa, Nairobi"
+                            value={form.Location} onChange={onChange}
+                            error={!!errors.Location} helperText={errors.Location}
+                            InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                        />
                     </Grid>
                     <Grid item xs={12}>
-                        <TextField size="small" fullWidth multiline minRows={3} label="Description (optional)" name="Description"
+                        <TextField
+                            size="small" fullWidth multiline minRows={3} label="Description (optional)" name="Description"
                             placeholder="Short description of the property"
-                            value={form.Description} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                            value={form.Description} onChange={onChange}
+                            InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}
+                        />
                     </Grid>
                 </Grid>
                 <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1.5 }}>
                     <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>Cancel</Button>
-                    <Button onClick={requestSave} disabled={saving} variant="contained" sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}>
+                    <Button onClick={requestSave} disabled={saving} variant="contained"
+                        sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}>
                         {saving ? "Saving…" : "Create Apartment"}
                     </Button>
                 </Stack>
@@ -374,20 +637,24 @@ function EditApartmentDialog({ open, onClose, apartment, api, onUpdated }) {
                 <Grid container spacing={1.25}>
                     <Grid item xs={12}>
                         <TextField size="small" fullWidth label="Apartment Name" name="ApartmentName"
-                            value={form.ApartmentName} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                            value={form.ApartmentName} onChange={onChange}
+                            InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
                     </Grid>
                     <Grid item xs={12}>
                         <TextField size="small" fullWidth label="Location" name="Location"
-                            value={form.Location} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                            value={form.Location} onChange={onChange}
+                            InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
                     </Grid>
                     <Grid item xs={12}>
                         <TextField size="small" fullWidth multiline minRows={3} label="Description (optional)" name="Description"
-                            value={form.Description} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                            value={form.Description} onChange={onChange}
+                            InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
                     </Grid>
                 </Grid>
                 <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1.5 }}>
                     <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>Cancel</Button>
-                    <Button onClick={requestSave} disabled={saving} variant="contained" startIcon={<EditIcon />} sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}>
+                    <Button onClick={requestSave} disabled={saving} variant="contained" startIcon={<EditIcon />}
+                        sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}>
                         {saving ? "Saving…" : "Save Changes"}
                     </Button>
                 </Stack>
@@ -643,7 +910,9 @@ function AssignTenantDialog({ open, onClose, unit, api, onAssigned }) {
     const validate = () => {
         const e = {};
         if (!form.FullName.trim()) e.FullName = "Name required";
-        if (!/^2547\d{8}$/.test(form.Phone || "")) e.Phone = "Phone must match 2547xxxxxxxx";
+        if (!/^(?:\+?254|0)?7\d{8}$/.test(form.Phone || "")) {
+            e.Phone = "Use 07XXXXXXXX, 2547XXXXXXXX or +2547XXXXXXXX";
+        }
         if (!form.IDNumber?.trim()) e.IDNumber = "ID number required";
         if (!form.MoveInDate) e.MoveInDate = "Move-in date required";
         setErrors(e);
@@ -663,7 +932,7 @@ function AssignTenantDialog({ open, onClose, unit, api, onAssigned }) {
                 MoveInDate: form.MoveInDate,
             };
             const { data } = await api.post("/tenants/add", payload);
-            onAssigned?.(data, null);
+            onAssigned?.(data, null, payload);
             onClose?.();
         } catch (e) {
             onAssigned?.(null, e?.response?.data?.message || "Failed to assign tenant.");
@@ -679,7 +948,7 @@ function AssignTenantDialog({ open, onClose, unit, api, onAssigned }) {
                     <TextField size="small" fullWidth label="Full Name" name="FullName" value={form.FullName} onChange={onChange} error={!!errors.FullName} helperText={errors.FullName} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                    <TextField size="small" fullWidth label="Phone (2547xxxxxxxx)" name="Phone" value={form.Phone} onChange={onChange} error={!!errors.Phone} helperText={errors.Phone} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                    <TextField size="small" fullWidth label="Phone (07…, 2547…, or +2547…)" name="Phone" value={form.Phone} onChange={onChange} error={!!errors.Phone} helperText={errors.Phone} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
                 </Grid>
                 <Grid item xs={12} sm={6}>
                     <TextField size="small" fullWidth label="Email (optional)" name="Email" value={form.Email} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
@@ -696,6 +965,142 @@ function AssignTenantDialog({ open, onClose, unit, api, onAssigned }) {
                 <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>Cancel</Button>
                 <Button onClick={handleAssign} disabled={saving} variant="contained" startIcon={<PeopleIcon />} sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}>
                     {saving ? "Assigning…" : "Assign Tenant"}
+                </Button>
+            </Stack>
+        </ModalShell>
+    );
+}
+
+function VacateNoticeDialog({ open, onClose, unit, tenantId, api, onCreated }) {
+    const [form, setForm] = useState({
+        ExpectedVacateDate: dayjs().add(30, "day").format("YYYY-MM-DD"),
+        DaysBefore: 3,
+        InspectionDate: "",
+        Reason: "",
+    });
+    const [errors, setErrors] = useState({});
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (!open) {
+            setForm({
+                ExpectedVacateDate: dayjs().add(30, "day").format("YYYY-MM-DD"),
+                DaysBefore: 3,
+                InspectionDate: "",
+                Reason: "",
+            });
+            setErrors({});
+        }
+    }, [open]);
+
+    const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+    const validate = () => {
+        const e = {};
+        if (!form.ExpectedVacateDate) e.ExpectedVacateDate = "Vacate date required";
+        const db = Number(form.DaysBefore);
+        if (Number.isNaN(db) || db < 0 || db > 60) e.DaysBefore = "0–60 days accepted";
+        setErrors(e);
+        return Object.keys(e).length === 0;
+    };
+
+    const handleCreate = async () => {
+        if (!tenantId || !validate()) return;
+        try {
+            setSaving(true);
+            const payload = {
+                ExpectedVacateDate: form.ExpectedVacateDate,
+                Reason: form.Reason || undefined,
+                InspectionDate: form.InspectionDate || undefined,
+                DaysBefore: Number(form.DaysBefore)
+            };
+            const { data } = await api.post(`/vacate-notice/${tenantId}`, payload);
+            onCreated?.(data, null, payload);
+            onClose?.();
+        } catch (e) {
+            onCreated?.(null, e?.response?.data?.message || "Failed to create vacate notice.");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <ModalShell
+            open={open}
+            onClose={saving ? () => { } : onClose}
+            title={`Vacate Notice — ${unit?.ApartmentName} / ${unit?.Label}`}
+            width="min(560px, 92vw)"
+        >
+            <Grid container spacing={1.25}>
+                <Grid item xs={12} sm={6}>
+                    <TextField
+                        size="small"
+                        fullWidth
+                        type="date"
+                        label="Expected Vacate Date"
+                        name="ExpectedVacateDate"
+                        value={form.ExpectedVacateDate}
+                        onChange={onChange}
+                        error={!!errors.ExpectedVacateDate}
+                        helperText={errors.ExpectedVacateDate}
+                        InputLabelProps={{ shrink: true }}
+                        sx={fieldNeumorphSx}
+                    />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                    <TextField
+                        size="small"
+                        fullWidth
+                        type="number"
+                        label="Reminder — Days Before"
+                        name="DaysBefore"
+                        value={form.DaysBefore}
+                        onChange={onChange}
+                        error={!!errors.DaysBefore}
+                        helperText={errors.DaysBefore || "We’ll text the tenant automatically"}
+                        InputLabelProps={{ shrink: true }}
+                        sx={fieldNeumorphSx}
+                    />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                    <TextField
+                        size="small"
+                        fullWidth
+                        type="date"
+                        label="Inspection Date (optional)"
+                        name="InspectionDate"
+                        value={form.InspectionDate}
+                        onChange={onChange}
+                        InputLabelProps={{ shrink: true }}
+                        sx={fieldNeumorphSx}
+                    />
+                </Grid>
+                <Grid item xs={12}>
+                    <TextField
+                        size="small"
+                        fullWidth
+                        multiline
+                        minRows={3}
+                        label="Reason (optional)"
+                        name="Reason"
+                        value={form.Reason}
+                        onChange={onChange}
+                        InputLabelProps={{ shrink: true }}
+                        sx={fieldNeumorphSx}
+                    />
+                </Grid>
+            </Grid>
+
+            <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1.5 }}>
+                <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>Cancel</Button>
+                <Button
+                    onClick={handleCreate}
+                    disabled={saving}
+                    variant="contained"
+                    startIcon={<EventBusyIcon />}
+                    sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                >
+                    {saving ? "Saving…" : "Create Notice"}
                 </Button>
             </Stack>
         </ModalShell>
@@ -844,6 +1249,10 @@ export default function Properties() {
     const [assignOpen, setAssignOpen] = useState(false);
     const [assignUnit, setAssignUnit] = useState(null);
 
+    const [vacateOpen, setVacateOpen] = useState(false);
+    const [vacateUnit, setVacateUnit] = useState(null);
+    const [vacateTenantId, setVacateTenantId] = useState(null);
+
     const [selectedIds, setSelectedIds] = useState([]);
     const [bulkStatusId, setBulkStatusId] = useState("");
     const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
@@ -858,9 +1267,12 @@ export default function Properties() {
     const [rowsPerPage, setRowsPerPage] = useState(10);
     useEffect(() => { setPage(0); }, [units]);
 
+    const [twilioOk, setTwilioOk] = useState(null);
+
     const token = useMemo(() => localStorage.getItem("token"), []);
     const api = axios.create({ baseURL: API, headers: token ? { Authorization: `Bearer ${token}` } : {} });
 
+    // --- helpers to read statuses
     const getStatusIdByName = React.useCallback((name) => {
         const n = String(name || "").toLowerCase();
         const hit = statusList.find(s => String(s.StatusName || "").toLowerCase() === n);
@@ -873,7 +1285,14 @@ export default function Properties() {
         try { await api.put(`/rental-units/update/${unitId}`, { StatusID: Number(occId) }); } catch { }
     }, [api, getStatusIdByName]);
 
-    const snapshotRow = (r) => ({ id: `${r.ApartmentID}-${r.UnitID}`, tenant: r.TenantName || "", status: r.StatusID || r.StatusName || "", arrears: Number(r.Arrears || 0), moveIn: r.MoveIn || "" });
+    // --- rows diff/snapshot for flashing
+    const snapshotRow = (r) => ({
+        id: `${r.ApartmentID}-${r.UnitID}`,
+        tenant: r.TenantName || "",
+        status: r.StatusID || r.StatusName || "",
+        arrears: Number(r.Arrears || 0),
+        moveIn: r.MoveIn || ""
+    });
     const diffUnits = (newRows) => {
         const prev = prevMapRef.current;
         const next = new Map();
@@ -884,12 +1303,39 @@ export default function Properties() {
             next.set(snap.id, snap);
             const old = prev.get(snap.id);
             if (!old) { added++; flashes.add(snap.id); }
-            else if (old.tenant !== snap.tenant || old.status !== snap.status || old.arrears !== snap.arrears || old.moveIn !== snap.moveIn) { updated++; flashes.add(snap.id); }
+            else if (old.tenant !== snap.tenant || old.status !== snap.status || old.arrears !== snap.arrears || old.moveIn !== snap.moveIn) {
+                updated++; flashes.add(snap.id);
+            }
         }
         for (const id of prev.keys()) { if (!next.has(id)) removed++; }
         return { added, updated, removed, flashes, next };
     };
 
+    // ----------------------- SMS helpers (Twilio via backend) -----------------------
+    const [smsConfirm, setSmsConfirm] = useState({ open: false, unit: null, body: "" });
+    const [smsSending, setSmsSending] = useState(false);
+    const [bulkSmsConfirm, setBulkSmsConfirm] = useState(false);
+
+    const toE164 = (p) => {
+        if (!p) return "";
+        const s = String(p).trim();
+        return s.startsWith("+") ? s : `+${s}`;
+    };
+    const firstName = (n) => (n || "").split(" ")[0] || "";
+    const notifySMS = async ({ to, body }) => {
+        // Prefer message queue endpoint when available; fallback to direct send
+        try {
+            return await api.post("/messages/queue", { to: toE164(to), body });
+        } catch {
+            return await api.post("/twilio/sms", { to: toE164(to), body });
+        }
+    };
+    const buildArrearsBody = (u) => {
+        const amt = fmtNum(u.Arrears || 0);
+        return `Hi ${firstName(u.TenantName)}, your rent balance for ${u.ApartmentName} ${u.Label} is KES ${amt} as of ${monthKey}. Please settle to avoid penalties. Reply HELP for assistance.`;
+    };
+
+    // --- Load units (all or per apartment)
     const loadUnits = async (apartmentId = null, opts = {}) => {
         const apartmentsSrc = opts.apartments ?? apartments;
         const tenantsSrc = opts.tenants ?? tenants;
@@ -919,7 +1365,15 @@ export default function Properties() {
             const joined = rows.map((r) => {
                 const key = `${r.ApartmentName || ""}||${r.Label || ""}`.toLowerCase();
                 const ten = tIndex.get(key);
-                return { ...r, StatusName: statusMap[r.StatusID] || "Unknown", TenantName: ten?.FullName || "", TenantPhone: ten?.Phone || "", MoveIn: ten?.MoveInDate || "", Arrears: ten?.Arrears || 0 };
+                return {
+                    ...r,
+                    StatusName: statusMap[r.StatusID] || "Unknown",
+                    TenantName: ten?.FullName || "",
+                    TenantPhone: ten?.Phone || "",
+                    MoveIn: ten?.MoveInDate || "",
+                    Arrears: ten?.Arrears || 0,
+                    TenantID: ten?.TenantID || null
+                };
             });
 
             setUnits(joined);
@@ -944,12 +1398,13 @@ export default function Properties() {
         }
     };
 
+    // --- Fetch all dashboard data
     const fetchAll = async () => {
         try {
             setLoading(true);
             const [
                 aptsRes, tenantsRes, billsMonthRes, unpaidRes, partialRes,
-                expByAptRes, expByMonthRes, statusesRes, catsRes,
+                expByAptRes, expByMonthRes, statusesRes, catsRes, twilioHealthRes
             ] = await Promise.all([
                 api.get("/myapartments"),
                 api.get("/tenants"),
@@ -960,19 +1415,27 @@ export default function Properties() {
                 api.get("/landlord-expenses/by-month").catch(() => ({ data: { expenses: {} } })),
                 api.get("/rental-unit-statuses").catch(() => ({ data: { RentalUnitStatuses: [] } })),
                 api.get("/unit-categories").catch(() => ({ data: { UnitCategories: [] } })),
+                api.get("/health/twilio").catch(() => ({ data: { has_twilio_client: false } })),
             ]);
 
-            const apts = (aptsRes.data?.Apartments || []).map((a) => ({ ...a, Stats: a.Stats || { TotalUnits: 0, OccupiedUnits: 0, VacantUnits: 0, ReservedUnits: 0, VacancyRate: 0 } }));
+            const apts = (aptsRes.data?.Apartments || []).map((a) => ({
+                ...a,
+                Stats: a.Stats || { TotalUnits: 0, OccupiedUnits: 0, VacantUnits: 0, ReservedUnits: 0, VacancyRate: 0 }
+            }));
             setApartments(apts);
-            setTenants(tenantsRes.data?.tenants || []);
+            setTenants(tenantsRes.data?.items || tenantsRes.data?.tenants || []);
             setStatusList(statusesRes.data?.RentalUnitStatuses || []);
             setCategoryList(catsRes.data?.UnitCategories || []);
+            setTwilioOk(Boolean(twilioHealthRes?.data?.has_twilio_client));
 
             const monthBills = billsMonthRes.data?.bills || [];
-            const collected = monthBills.filter((b) => b.BillStatus === "Paid").reduce((acc, b) => acc + Number(b.TotalAmountDue || 0), 0);
+            const collected = monthBills
+                .filter((b) => b.BillStatus === "Paid")
+                .reduce((acc, b) => acc + Number(b.TotalAmountDue || 0), 0);
             setCollectedThisMonth(collected);
 
-            const overdue = (unpaidRes.data?.bills || []).reduce((a, b) => a + Number(b.TotalAmountDue || 0), 0) +
+            const overdue =
+                (unpaidRes.data?.bills || []).reduce((a, b) => a + Number(b.TotalAmountDue || 0), 0) +
                 (partialRes.data?.bills || []).reduce((a, b) => a + Number(b.TotalAmountDue || 0), 0);
             setOverdueThisMonth(overdue);
 
@@ -998,7 +1461,10 @@ export default function Properties() {
             const unpaidAmt = unpaidList.reduce((a, e) => a + Number(e.Amount || 0), 0);
 
             const catMap = new Map();
-            for (const e of monthList) { const k = e.ExpenseType || "Other"; catMap.set(k, (catMap.get(k) || 0) + Number(e.Amount || 0)); }
+            for (const e of monthList) {
+                const k = e.ExpenseType || "Other";
+                catMap.set(k, (catMap.get(k) || 0) + Number(e.Amount || 0));
+            }
             let topCategory = null, topCategoryAmt = 0;
             for (const [k, v] of catMap.entries()) { if (v > topCategoryAmt) { topCategoryAmt = v; topCategory = k; } }
             const topCategoryPct = totalThisMonth ? Math.round((topCategoryAmt / totalThisMonth) * 100) : 0;
@@ -1035,7 +1501,14 @@ export default function Properties() {
                 lastMonthKey: prevMonthKey, lastMonthTotal: prevTotal
             });
 
-            await loadUnits(filterAptId || null, { apartments: apts, tenants: tenantsRes.data?.tenants || [], statusList: statusesRes.data?.RentalUnitStatuses || [] });
+            await loadUnits(
+                filterAptId || null,
+                {
+                    apartments: apts,
+                    tenants: tenantsRes.data?.items || tenantsRes.data?.tenants || [],
+                    statusList: statusesRes.data?.RentalUnitStatuses || []
+                }
+            );
 
             if (!hasLoadedRef.current) {
                 hasLoadedRef.current = true;
@@ -1060,7 +1533,13 @@ export default function Properties() {
             return acc;
         }, { units: 0, occ: 0, vac: 0 });
         const occRate = totals.units ? Math.round((totals.occ / totals.units) * 100) : 0;
-        return { totalApartments: apartments.length, totalUnits: totals.units, occupied: totals.occ, vacant: totals.vac, occupancyRate: occRate };
+        return {
+            totalApartments: apartments.length,
+            totalUnits: totals.units,
+            occupied: totals.occ,
+            vacant: totals.vac,
+            occupancyRate: occRate
+        };
     }, [apartments]);
 
     const handleOpenApartment = async (apt) => {
@@ -1079,7 +1558,7 @@ export default function Properties() {
                 Stats: { TotalUnits: 0, OccupiedUnits: 0, VacantUnits: 0, ReservedUnits: 0, VacancyRate: 0 },
             }, ...prev]);
         }
-        setSnackbar({ open: true, message: res?.message || "Apartment created.", severity: "success" });
+        setSnackbar({ open: true, message: (res?.message || "Apartment created.") + " (Owner SMS queued)", severity: "success" });
         fetchAll();
     };
 
@@ -1143,6 +1622,15 @@ export default function Properties() {
 
     const openEditUnit = (u) => { setEditUnit(u); setEditUnitOpen(true); };
     const openAssignTenant = (u) => { setAssignUnit(u); setAssignOpen(true); };
+    const openVacate = (u) => {
+        if (!u?.TenantID) {
+            setSnackbar({ open: true, message: "No active tenant to schedule vacate.", severity: "info" });
+            return;
+        }
+        setVacateUnit(u);
+        setVacateTenantId(u.TenantID);
+        setVacateOpen(true);
+    };
 
     const onUnitUpdated = (updated, msg) => {
         if (!updated) { setSnackbar({ open: true, message: msg || "Failed to update unit.", severity: "error" }); return; }
@@ -1151,19 +1639,27 @@ export default function Properties() {
         fetchAll();
     };
 
-    const onTenantAssigned = async (data, err) => {
+    const onTenantAssigned = async (data, err /* , payload */) => {
         if (err) { setSnackbar({ open: true, message: err, severity: "error" }); return; }
         if (assignUnit?.UnitID) await ensureOccupied(assignUnit.UnitID);
-        setSnackbar({ open: true, message: data?.message || "Tenant assigned.", severity: "success" });
+        setSnackbar({
+            open: true,
+            message: (data?.message || "Tenant assigned.") + " (Welcome SMS queued)",
+            severity: "success"
+        });
         if (filterAptId) await loadUnits(filterAptId); else await loadUnits(null);
         fetchAll();
     };
 
-    const toggleSelect = (unitId) => setSelectedIds((ids) => (ids.includes(unitId) ? ids.filter((id) => id !== unitId) : [...ids, unitId]));
+    // selection helpers
+    const toggleSelect = (unitId) =>
+        setSelectedIds((ids) => (ids.includes(unitId) ? ids.filter((id) => id !== unitId) : [...ids, unitId]));
     const allUnitIds = units.map((u) => u.UnitID);
     const allSelected = selectedIds.length > 0 && selectedIds.length === allUnitIds.length;
     const anySelected = selectedIds.length > 0;
-    const toggleSelectAll = () => setSelectedIds((ids) => (ids.length === allUnitIds.length ? [] : [...allUnitIds]));
+    const toggleSelectAll = () =>
+        setSelectedIds((ids) => (ids.length === allUnitIds.length ? [] : [...allUnitIds]));
+
     const requestBulkApply = () => { if (!bulkStatusId || !anySelected) return; setBulkConfirmOpen(true); };
     const handleBulkApply = async () => {
         setBulkConfirmOpen(false);
@@ -1181,13 +1677,80 @@ export default function Properties() {
         }
     };
 
+    // Bulk SMS
+    const sendBulkArrearsSms = async () => {
+        setBulkSmsConfirm(false);
+        const targets = units.filter(
+            (u) => selectedIds.includes(u.UnitID) && u.Arrears > 0 && !!u.TenantPhone
+        );
+        if (targets.length === 0) {
+            setSnackbar({ open: true, message: "No selected tenants with phone & arrears.", severity: "info" });
+            return;
+        }
+        try {
+            setIsRefreshing(true); // slim progress bar
+            const results = await Promise.allSettled(
+                targets.map((u) => notifySMS({ to: u.TenantPhone, body: buildArrearsBody(u) }))
+            );
+            const ok = results.filter((r) => r.status === "fulfilled").length;
+            const fail = results.length - ok;
+            setSnackbar({
+                open: true,
+                message: `Sent ${ok}/${results.length} SMS` + (fail ? ` — ${fail} failed` : ""),
+                severity: fail ? "warning" : "success",
+            });
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    // One-off SMS dialog helpers
+    const [smsConfirmState, setSmsConfirmState] = useState({ open: false, unit: null, body: "" });
+    const openArrearsSms = (u) => setSmsConfirmState({ open: true, unit: u, body: buildArrearsBody(u) });
+    const sendOneSms = async () => {
+        const u = smsConfirmState.unit;
+        if (!u) return;
+        try {
+            setSmsSending(true);
+            await notifySMS({ to: u.TenantPhone, body: smsConfirmState.body });
+            setSnackbar({ open: true, message: "SMS sent.", severity: "success" });
+        } catch (e) {
+            setSnackbar({ open: true, message: e?.response?.data?.message || "Failed to send SMS.", severity: "error" });
+        } finally {
+            setSmsSending(false);
+            setSmsConfirmState({ open: false, unit: null, body: "" });
+        }
+    };
+
     return (
-        <Box sx={{ p: 3, bgcolor: "#0b0714", minHeight: "100vh", position: "relative" /* 👈 enables in-content overlays */ }}>
+        <Box sx={{ p: 3, bgcolor: "#0b0714", minHeight: "100vh", position: "relative" }}>
             {/* Header */}
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-                <Typography variant="h4" sx={{ fontWeight: 800, background: BRAND.gradient, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontFamily: FONTS.display, letterSpacing: 0.5 }}>
+                <Typography
+                    variant="h4"
+                    sx={{
+                        fontWeight: 800,
+                        background: BRAND.gradient,
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        fontFamily: FONTS.display,
+                        letterSpacing: 0.5
+                    }}
+                >
                     Properties
                 </Typography>
+                <Chip
+                    size="small"
+                    icon={<SmsOutlinedIcon sx={{ color: twilioOk ? "#6EE7B7" : "#FB7185" }} />}
+                    label={twilioOk === null ? "SMS: Checking…" : twilioOk ? "SMS: Ready" : "SMS: Unavailable"}
+                    sx={{
+                        ml: 1,
+                        color: "#fff",
+                        bgcolor: twilioOk ? "rgba(110,231,183,.15)" : "rgba(251,113,133,.15)",
+                        border: "1px solid rgba(255,255,255,.18)",
+                        fontFamily: FONTS.subhead
+                    }}
+                />
                 <Box sx={{ flexGrow: 1 }} />
                 <Tooltip title={lastSync ? `Refresh • Last sync ${dayjs(lastSync).format("HH:mm:ss")}` : "Refresh"}>
                     <span>
@@ -1196,30 +1759,59 @@ export default function Properties() {
                         </IconButton>
                     </span>
                 </Tooltip>
-                <Button startIcon={<AddIcon />} variant="contained" sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none", "&:hover": { boxShadow: BRAND.glow } }} onClick={() => setAddOpen(true)}>
+                <Button
+                    startIcon={<AddIcon />}
+                    variant="contained"
+                    sx={{
+                        textTransform: "none",
+                        borderRadius: 2,
+                        background: BRAND.gradient,
+                        boxShadow: "none",
+                        "&:hover": { boxShadow: BRAND.glow }
+                    }}
+                    onClick={() => setAddOpen(true)}
+                >
                     Add Property
                 </Button>
             </Stack>
 
             {/* KPIs */}
             <Grid container spacing={2} sx={{ mb: 1 }}>
-                <Grid item xs={12} sm={6} md={3} lg={2.4}><KpiCard icon={<ApartmentIcon fontSize="small" />} label="Total Apartments" value={fmtNum(kpi.totalApartments)} /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2.4}><KpiCard icon={<PeopleIcon fontSize="small" />} label="Occupancy Rate" value={`${kpi.occupancyRate}%`} sublabel={`${fmtNum(kpi.occupied)} occupied`} /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2.4}><KpiCard icon={<HomeWorkIcon fontSize="small" />} label="Total Units" value={fmtNum(kpi.totalUnits)} /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2.4}><KpiCard icon={<CheckCircleOutlineIcon fontSize="small" />} label="Occupied" value={fmtNum(kpi.occupied)} /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2.4}><KpiCard icon={<CancelOutlinedIcon fontSize="small" />} label="Vacant" value={fmtNum(kpi.vacant)} /></Grid>
+                <Grid item xs={12} sm={6} md={3} lg={2.4}>
+                    <KpiCard icon={<ApartmentIcon fontSize="small" />} label="Total Apartments" value={fmtNum(kpi.totalApartments)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3} lg={2.4}>
+                    <KpiCard icon={<PeopleIcon fontSize="small" />} label="Occupancy Rate" value={`${kpi.occupancyRate}%`} sublabel={`${fmtNum(kpi.occupied)} occupied`} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3} lg={2.4}>
+                    <KpiCard icon={<HomeWorkIcon fontSize="small" />} label="Total Units" value={fmtNum(kpi.totalUnits)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3} lg={2.4}>
+                    <KpiCard icon={<CheckCircleOutlineIcon fontSize="small" />} label="Occupied" value={fmtNum(kpi.occupied)} />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3} lg={2.4}>
+                    <KpiCard icon={<CancelOutlinedIcon fontSize="small" />} label="Vacant" value={fmtNum(kpi.vacant)} />
+                </Grid>
             </Grid>
 
             {/* Money row */}
             <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={4}><RectCard icon={<LocalAtmOutlinedIcon sx={{ color: "#6EE7B7" }} />} label={`Collected — ${monthKey}`} value={fmtKES(collectedThisMonth)} help="Sum of Paid bills" /></Grid>
-                <Grid item xs={12} md={4}><RectCard icon={<WarningAmberOutlinedIcon sx={{ color: "#FB7185" }} />} label="Overdue (unpaid & partial)" value={fmtKES(overdueThisMonth)} help="Outstanding before payments" /></Grid>
-                <Grid item xs={12} md={4}><RectCard icon={<ReceiptLongOutlinedIcon sx={{ color: "#A78BFA" }} />} label={`Expenses — ${monthKey}`} value={fmtKES(expensesMonthTotal)} help="Across all apartments" /></Grid>
+                <Grid item xs={12} md={4}>
+                    <RectCard icon={<LocalAtmOutlinedIcon sx={{ color: "#6EE7B7" }} />} label={`Collected — ${monthKey}`} value={fmtKES(collectedThisMonth)} help="Sum of Paid bills" />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    <RectCard icon={<WarningAmberOutlinedIcon sx={{ color: "#FB7185" }} />} label="Overdue (unpaid & partial)" value={fmtKES(overdueThisMonth)} help="Outstanding before payments" />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    <RectCard icon={<ReceiptLongOutlinedIcon sx={{ color: "#A78BFA" }} />} label={`Expenses — ${monthKey}`} value={fmtKES(expensesMonthTotal)} help="Across all apartments" />
+                </Grid>
             </Grid>
 
             {/* Expenses by Apartment + Highlights */}
             <Paper elevation={0} sx={{ ...softCard, mb: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>Expenses — {monthKey}</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>
+                    Expenses — {monthKey}
+                </Typography>
                 {expenseHL.count === 0 ? (
                     <>
                         <Typography variant="body2" sx={{ opacity: 0.72, fontFamily: FONTS.subhead }}>No expenses recorded this month.</Typography>
@@ -1267,7 +1859,9 @@ export default function Properties() {
             </Paper>
 
             {/* Properties grid */}
-            <Typography variant="h6" sx={{ color: "#fff", mb: 1, fontWeight: 800, fontFamily: FONTS.subhead }}>Your Properties</Typography>
+            <Typography variant="h6" sx={{ color: "#fff", mb: 1, fontWeight: 800, fontFamily: FONTS.subhead }}>
+                Your Properties
+            </Typography>
             {loading ? (
                 <Box sx={{ display: "grid", placeItems: "center", py: 6 }}><CircularProgress /></Box>
             ) : apartments.length === 0 ? (
@@ -1294,36 +1888,86 @@ export default function Properties() {
             <Paper ref={tableRef} elevation={0} sx={{ ...softCard }}>
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
                     <Stack direction="row" alignItems="center" spacing={1}>
-                        <Typography variant="h6" sx={{ fontWeight: 800, color: "#fff", fontFamily: FONTS.subhead }}>Rental Units & Tenants</Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 800, color: "#fff", fontFamily: FONTS.subhead }}>
+                            Rental Units & Tenants
+                        </Typography>
                         {filterAptId ? (
-                            <Chip label={`Filtered: ${apartments.find((a) => a.ApartmentID === filterAptId)?.ApartmentName || ""}`} onDelete={clearFilter}
-                                sx={{ bgcolor: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.18)" }} />
+                            <Chip
+                                label={`Filtered: ${apartments.find((a) => a.ApartmentID === filterAptId)?.ApartmentName || ""}`}
+                                onDelete={clearFilter}
+                                sx={{ bgcolor: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.18)" }}
+                            />
                         ) : null}
                     </Stack>
                     <Stack direction="row" spacing={1}>
-                        <Button size="small" variant="outlined" startIcon={<FileDownloadOutlinedIcon />}
-                            sx={{ textTransform: "none", borderRadius: 2, color: "#fff", borderColor: "rgba(255,255,255,0.35)", "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" } }}
-                            onClick={() => setExportOpen(true)}>
+                        <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<FileDownloadOutlinedIcon />}
+                            sx={{
+                                textTransform: "none",
+                                borderRadius: 2,
+                                color: "#fff",
+                                borderColor: "rgba(255,255,255,0.35)",
+                                "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" }
+                            }}
+                            onClick={() => setExportOpen(true)}
+                        >
                             Export
                         </Button>
                     </Stack>
                 </Stack>
 
                 {selectedIds.length > 0 && (
-                    <Paper elevation={0} sx={{
-                        ...softCard, p: 1.5, mb: 1.5, display: "flex", alignItems: "center", gap: 1,
-                        background: "linear-gradient(#0e0a17,#0e0a17) padding-box, " + BRAND.gradient + " border-box", border: "1px solid transparent"
-                    }}>
-                        <Typography sx={{ fontFamily: FONTS.subhead, fontWeight: 700 }}>{selectedIds.length} selected</Typography>
-                        <TextField select size="small" label="Set Status" value={bulkStatusId}
-                            onChange={(e) => setBulkStatusId(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ ...fieldNeumorphSx, minWidth: 220 }}>
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            ...softCard,
+                            p: 1.5,
+                            mb: 1.5,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
+                            background: "linear-gradient(#0e0a17,#0e0a17) padding-box, " + BRAND.gradient + " border-box",
+                            border: "1px solid transparent"
+                        }}
+                    >
+                        <Typography sx={{ fontFamily: FONTS.subhead, fontWeight: 700 }}>
+                            {selectedIds.length} selected
+                        </Typography>
+                        <TextField
+                            select size="small" label="Set Status" value={bulkStatusId}
+                            onChange={(e) => setBulkStatusId(e.target.value)}
+                            InputLabelProps={{ shrink: true }} sx={{ ...fieldNeumorphSx, minWidth: 220 }}
+                        >
                             {statusList.map((s) => <MenuItem key={s.StatusID} value={s.StatusID}>{s.StatusName}</MenuItem>)}
                         </TextField>
-                        <Button size="small" variant="contained" onClick={requestBulkApply} sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}>
+                        <Button
+                            size="small"
+                            variant="contained"
+                            onClick={requestBulkApply}
+                            sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}
+                        >
                             Apply to Selected
                         </Button>
+                        <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<SendOutlinedIcon />}
+                            onClick={() => setBulkSmsConfirm(true)}
+                            sx={{
+                                textTransform: "none",
+                                borderColor: "rgba(255,255,255,0.35)",
+                                color: "#fff",
+                                "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" }
+                            }}
+                        >
+                            SMS arrears to selected
+                        </Button>
                         <Box sx={{ flex: 1 }} />
-                        <Button size="small" onClick={() => setSelectedIds([])} sx={{ textTransform: "none", color: "#fff" }}>Clear</Button>
+                        <Button size="small" onClick={() => setSelectedIds([])} sx={{ textTransform: "none", color: "#fff" }}>
+                            Clear
+                        </Button>
                     </Paper>
                 )}
 
@@ -1334,14 +1978,27 @@ export default function Properties() {
                 ) : null}
 
                 {isRefreshing ? (
-                    <LinearProgress sx={{ mb: 1, height: 3, borderRadius: 1, bgcolor: "rgba(255,255,255,0.06)", "& .MuiLinearProgress-bar": { transition: "transform 200ms linear" } }} />
+                    <LinearProgress
+                        sx={{
+                            mb: 1,
+                            height: 3,
+                            borderRadius: 1,
+                            bgcolor: "rgba(255,255,255,0.06)",
+                            "& .MuiLinearProgress-bar": { transition: "transform 200ms linear" }
+                        }}
+                    />
                 ) : null}
 
                 <Table size="small" sx={{ "& th, & td": { borderColor: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: FONTS.subhead } }}>
                     <TableHead>
                         <TableRow>
                             <TableCell padding="checkbox">
-                                <Checkbox indeterminate={selectedIds.length > 0 && !allSelected} checked={allSelected} onChange={toggleSelectAll} sx={{ color: "#fff" }} />
+                                <Checkbox
+                                    indeterminate={selectedIds.length > 0 && !allSelected}
+                                    checked={allSelected}
+                                    onChange={toggleSelectAll}
+                                    sx={{ color: "#fff" }}
+                                />
                             </TableCell>
                             <TableCell>Property</TableCell>
                             <TableCell>Rental Unit</TableCell>
@@ -1362,6 +2019,8 @@ export default function Properties() {
                                 const rowId = `${u.ApartmentID}-${u.UnitID}`;
                                 const isFlash = flashIds.has(rowId);
                                 const isChecked = selectedIds.includes(u.UnitID);
+                                const hasTenant = !!u.TenantName && !!u.TenantID;
+                                const isVacant = (u.StatusName || "").toLowerCase() === "vacant";
                                 return (
                                     <TableRow key={rowId} sx={{ backgroundColor: isFlash ? "rgba(255, 255, 0, 0.08)" : "transparent", transition: "background-color 600ms ease" }}>
                                         <TableCell padding="checkbox">
@@ -1379,11 +2038,29 @@ export default function Properties() {
                                                     <EditIcon fontSize="small" />
                                                 </IconButton>
                                             </Tooltip>
-                                            {(u.StatusName || "").toLowerCase() === "vacant" && (
+                                            {isVacant && (
                                                 <Tooltip title="Assign Tenant">
                                                     <IconButton onClick={() => openAssignTenant(u)} size="small" sx={{ color: "#6EE7B7" }}>
                                                         <PeopleIcon fontSize="small" />
                                                     </IconButton>
+                                                </Tooltip>
+                                            )}
+                                            {hasTenant && (
+                                                <Tooltip title="Schedule Vacate Notice">
+                                                    <span>
+                                                        <IconButton onClick={() => openVacate(u)} size="small" sx={{ color: "#FDE68A", ml: 0.5 }}>
+                                                            <EventBusyIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </span>
+                                                </Tooltip>
+                                            )}
+                                            {u.Arrears > 0 && !!u.TenantPhone && (
+                                                <Tooltip title="SMS arrears reminder">
+                                                    <span>
+                                                        <IconButton onClick={() => openArrearsSms(u)} size="small" sx={{ color: "#A7F3D0", ml: 0.5 }}>
+                                                            <SmsOutlinedIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </span>
                                                 </Tooltip>
                                             )}
                                         </TableCell>
@@ -1405,7 +2082,7 @@ export default function Properties() {
                 />
             </Paper>
 
-            {/* Dialogs (now using in-content overlays) */}
+            {/* Dialogs */}
             <AddApartmentDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={handleAddCreated} api={api} />
             <EditApartmentDialog open={editOpen} onClose={() => setEditOpen(false)} apartment={selectedApt} api={api} onUpdated={handleUpdatedApartment} />
             <AddUnitsDialog open={unitsOpen} onClose={() => setUnitsOpen(false)} apartment={selectedApt} api={api} onDone={handleUnitsDone} />
@@ -1414,8 +2091,13 @@ export default function Properties() {
             {/* Unit actions */}
             <EditUnitDialog open={editUnitOpen} onClose={() => setEditUnitOpen(false)} unit={editUnit} api={api} categories={categoryList} statuses={statusList} onUpdated={onUnitUpdated} />
             <AssignTenantDialog open={assignOpen} onClose={() => setAssignOpen(false)} unit={assignUnit} api={api} onAssigned={onTenantAssigned} />
+            <VacateNoticeDialog open={vacateOpen} onClose={() => setVacateOpen(false)} unit={vacateUnit} api={api} tenantId={vacateTenantId} onCreated={(res, err) => {
+                if (err) setSnackbar({ open: true, message: err, severity: "error" });
+                else setSnackbar({ open: true, message: res?.message || "Vacate notice created (reminder scheduled).", severity: "success" });
+                if (filterAptId) loadUnits(filterAptId); else loadUnits(null);
+            }} />
 
-            {/* Bulk confirm */}
+            {/* Bulk status confirm */}
             <ConfirmDialog
                 open={bulkConfirmOpen}
                 onCancel={() => setBulkConfirmOpen(false)}
@@ -1423,6 +2105,29 @@ export default function Properties() {
                 title="Apply status to selected units?"
                 content={`This will set ${statusList.find(s => s.StatusID === Number(bulkStatusId))?.StatusName || "the chosen status"} for ${selectedIds.length} unit(s).`}
                 confirmText="Apply"
+            />
+            {/* SMS one-off confirm */}
+            <ConfirmDialog
+                open={smsConfirmState.open}
+                onCancel={() => setSmsConfirmState({ open: false, unit: null, body: "" })}
+                onConfirm={sendOneSms}
+                loading={smsSending}
+                title="Send SMS to tenant?"
+                content={
+                    smsConfirmState.unit
+                        ? `To: ${smsConfirmState.unit.TenantName} — ${toE164(smsConfirmState.unit.TenantPhone)} • "${smsConfirmState.body}"`
+                        : ""
+                }
+                confirmText="Send SMS"
+            />
+            {/* Bulk SMS confirm */}
+            <ConfirmDialog
+                open={bulkSmsConfirm}
+                onCancel={() => setBulkSmsConfirm(false)}
+                onConfirm={sendBulkArrearsSms}
+                title="Send SMS to selected tenants?"
+                content={`We'll text an arrears reminder to tenants with a phone & unpaid balance in the ${selectedIds.length} selected unit(s).`}
+                confirmText="Send"
             />
 
             {/* Snackbar */}
