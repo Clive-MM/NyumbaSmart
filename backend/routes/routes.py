@@ -1,3 +1,5 @@
+from twilio.base.exceptions import TwilioRestException
+from flask import current_app
 from flask import current_app, Blueprint, request, jsonify
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
@@ -12,6 +14,7 @@ import time
 from decimal import Decimal
 from uuid import uuid4
 
+
 # if you use a custom SMS fallback elsewhere
 from utils.sms_helper import send_sms
 from utils.billing_helper import calculate_bill_amount
@@ -20,7 +23,8 @@ from utils.cloudinary_helper import upload_to_cloudinary
 from models import (
     db, User, Apartment, UnitCategory, RentalUnitStatus, RentalUnit, Tenant,
     VacateLog, TransferLog, VacateNotice, SMSUsageLog, TenantBill,
-    RentPayment, LandlordExpense, Profile, Feedback, Rating, PaymentAllocation
+    RentPayment, LandlordExpense, Profile, Feedback, Rating, PaymentAllocation,
+    OutgoingMessage, MessageTemplate, WebhookLog, CommsSetting
 )
 
 # ✅ Initialize Blueprint
@@ -237,16 +241,113 @@ def _to_e164(user):
         return f"+{user.Phone}"
     return None
 
+
+def landlord_comms_settings(landlord_id: int) -> CommsSetting | None:
+    return CommsSetting.query.filter_by(LandlordID=landlord_id).first()
+
+
+def is_quiet_hours(landlord_id: int, now_utc: datetime) -> bool:
+    """Uses CommsSettings QuietStartH/QuietEndH (local policy: treat as landlord’s local hours).
+       For simplicity, apply to UTC. If QuietStartH > QuietEndH = overnight window."""
+    cs = landlord_comms_settings(landlord_id)
+    if not cs:
+        return False
+    h = now_utc.hour
+    start_h, end_h = cs.QuietStartH, cs.QuietEndH
+    if start_h == end_h:
+        return False
+    if start_h < end_h:
+        return start_h <= h < end_h
+    # spans midnight
+    return h >= start_h or h < end_h
+
+
+def find_template(purpose: str, landlord_id: int) -> MessageTemplate | None:
+    # Prefer landlord custom template, then a global default
+    t = (MessageTemplate.query
+         .filter_by(LandlordID=landlord_id, Purpose=purpose)
+         .order_by(MessageTemplate.IsDefault.desc(), MessageTemplate.UpdatedAt.desc())
+         .first())
+    if t:
+        return t
+    return (MessageTemplate.query
+            .filter_by(LandlordID=None, Purpose=purpose, IsDefault=True)
+            .order_by(MessageTemplate.UpdatedAt.desc())
+            .first())
+
+
+def render_template_body(tmpl: str, **tokens) -> str:
+    # Very simple token replacement {Token}
+    out = tmpl
+    for k, v in tokens.items():
+        out = out.replace(f"{{{k}}}", str(v) if v is not None else "")
+    return out
+
+
+def enqueue_sms(*, to: str, body: str, user_id: int | None = None,
+                apartment_id: int | None = None, unit_id: int | None = None,
+                tenant_id: int | None = None, related_model: str | None = None,
+                related_id: int | None = None, scheduled_at: datetime | None = None) -> OutgoingMessage:
+    msg = OutgoingMessage(
+        Channel="SMS", Status="PENDING", Body=body,
+        ToPhone=to, UserID=user_id, ApartmentID=apartment_id,
+        UnitID=unit_id, TenantID=tenant_id,
+        RelatedModel=related_model, RelatedID=related_id,
+        ScheduledAt=scheduled_at
+    )
+    db.session.add(msg)
+    return msg
+
+# Landlord helpers
+
+
+def landlord_comms_settings(landlord_id: int):
+    return CommsSetting.query.filter_by(LandlordID=landlord_id).first()
+
+
+def is_quiet_hours(landlord_id: int, now_utc: datetime) -> bool:
+    cs = landlord_comms_settings(landlord_id)
+    if not cs:
+        return False
+    start_h, end_h = cs.QuietStartH, cs.QuietEndH
+    if start_h == end_h:
+        return False
+    h = now_utc.hour
+    return (start_h <= h < end_h) if start_h < end_h else (h >= start_h or h < end_h)
+
+
+def enqueue_sms(*, to: str, body: str, user_id: int | None = None,
+                apartment_id: int | None = None, unit_id: int | None = None,
+                tenant_id: int | None = None, related_model: str | None = None,
+                related_id: int | None = None, scheduled_at: datetime | None = None):
+    msg = OutgoingMessage(
+        Channel="SMS", Status="PENDING", Body=body, ToPhone=to,
+        UserID=user_id, ApartmentID=apartment_id, UnitID=unit_id, TenantID=tenant_id,
+        RelatedModel=related_model, RelatedID=related_id, ScheduledAt=scheduled_at
+    )
+    db.session.add(msg)
+    return msg
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Twilio wrappers (use single client set in app.extensions)
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def _twilio_verify():
+def _twilio_client():
     client = current_app.extensions.get("twilio_client")
+    if not client:
+        raise RuntimeError(
+            "Twilio client not configured in app.extensions['twilio_client']")
+    return client
+
+
+def _twilio_verify():
+    client = _twilio_client()
     sid = current_app.config.get("TWILIO_VERIFY_SERVICE_SID")
-    if not client or not sid:
-        raise RuntimeError("Twilio Verify not configured")
+    if not sid:
+        raise RuntimeError(
+            "Twilio Verify not configured (TWILIO_VERIFY_SERVICE_SID)")
     return client, sid
 
 
@@ -258,6 +359,42 @@ def send_verify_sms(to_e164: str):
 def check_verify_sms(to_e164: str, code: str):
     client, sid = _twilio_verify()
     return client.verify.services(sid).verification_checks.create(to=to_e164, code=code)
+
+# NEW: SMS send via Messaging Service or From number
+
+
+def send_sms(to_e164: str, body: str) -> str:
+    """
+    Send an SMS via Twilio and return the Message SID.
+    Prefers Messaging Service SID; falls back to From number.
+    Uses single client from app.extensions and config keys:
+      - TWILIO_MESSAGING_SID
+      - TWILIO_FROM_NUMBER (fallback)
+      - TWILIO_STATUS_CALLBACK_URL (optional)
+    """
+    client = _twilio_client()
+    mssid = current_app.config.get("TWILIO_MESSAGING_SID")
+    from_number = current_app.config.get("TWILIO_FROM_NUMBER")
+    status_cb = current_app.config.get("TWILIO_STATUS_CALLBACK_URL")
+
+    kwargs = dict(to=to_e164, body=body)
+    if status_cb:
+        kwargs["status_callback"] = status_cb
+
+    if mssid:
+        kwargs["messaging_service_sid"] = mssid
+    elif from_number:
+        kwargs["from_"] = from_number
+    else:
+        raise RuntimeError(
+            "Configure TWILIO_MESSAGING_SID or TWILIO_FROM_NUMBER")
+
+    try:
+        msg = client.messages.create(**kwargs)
+        return msg.sid
+    except TwilioRestException:
+        current_app.logger.exception("Twilio SMS send failed")
+        raise
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Auth & User flows
@@ -797,6 +934,33 @@ def create_apartment():
     db.session.add(new_apartment)
     db.session.commit()
 
+    # ── NEW: landlord SMS confirmation (queued) ────────────────────────────────
+    try:
+        cs = landlord_comms_settings(user.UserID)
+        landlord_cc = cs.CountryCode if cs and getattr(
+            cs, "CountryCode", None) else "+254"
+        landlord_to = normalize_phone_e164(
+            getattr(user, "PhoneE164", None) or getattr(user, "Phone", ""),
+            landlord_cc
+        )
+        if landlord_to:
+            body = (
+                f'Hi {user.FullName}, your property "{new_apartment.ApartmentName}" '
+                f'at {new_apartment.Location} has been created in PayNest.'
+            )
+            enqueue_sms(
+                to=landlord_to,
+                body=body,
+                user_id=user.UserID,
+                apartment_id=new_apartment.ApartmentID,
+                related_model="Apartment",
+                related_id=new_apartment.ApartmentID
+            )
+            db.session.commit()
+    except Exception as e:
+        # Don’t fail the main request because of SMS issues; just log it
+        current_app.logger.warning(f"Landlord SMS enqueue failed: {e}")
+
     return jsonify({
         "message": "✅ Apartment created successfully!",
         "Apartment": {
@@ -1145,6 +1309,14 @@ def get_units_by_apartment(apartment_id):
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+def _tenant_to_e164(t: Tenant) -> str | None:
+    if t.PhoneE164 and t.PhoneE164.startswith('+'):
+        return t.PhoneE164
+    if t.Phone and t.Phone.startswith('2547') and len(t.Phone) == 12:
+        return f"+{t.Phone}"
+    return None
+
+
 @routes.route('/tenants/add', methods=['POST'])
 @jwt_required()
 def add_tenant():
@@ -1152,17 +1324,20 @@ def add_tenant():
     data = request.get_json() or {}
 
     full_name = data.get('FullName')
-    phone = data.get('Phone')
+    raw_phone = (data.get('Phone') or '').strip()
     email = data.get('Email')
     id_number = data.get('IDNumber')
     rental_unit_id = data.get('RentalUnitID')
     move_in_date = data.get('MoveInDate')
 
-    if not all([full_name, phone, id_number, rental_unit_id, move_in_date]):
+    if not all([full_name, raw_phone, id_number, rental_unit_id, move_in_date]):
         return jsonify({"message": "All required fields must be filled."}), 400
 
-    if not re.fullmatch(r'2547\d{8}', phone):
-        return jsonify({"message": "Invalid phone number. It must start with '2547' and be 12 digits long."}), 400
+    # ✅ normalize to +2547XXXXXXXX and also store legacy 2547XXXXXXXX
+    phone_e164 = normalize_phone_e164(raw_phone)
+    if not phone_e164 or not E164_RE.match(phone_e164):
+        return jsonify({"message": "Invalid phone. Use 07XXXXXXXX, 7XXXXXXXXX, 2547XXXXXXXX or +2547XXXXXXXX."}), 400
+    phone_legacy = phone_e164.replace('+', '')  # 2547XXXXXXXX
 
     try:
         move_in = datetime.strptime(move_in_date, '%Y-%m-%d').date()
@@ -1172,24 +1347,31 @@ def add_tenant():
     unit = RentalUnit.query.get(rental_unit_id)
     if not unit:
         return jsonify({"message": "Rental unit not found."}), 404
-
     apartment = Apartment.query.get(unit.ApartmentID)
     if not apartment or apartment.UserID != user_id:
         return jsonify({"message": "Unauthorized: You do not own the apartment for this unit."}), 403
-
-    if unit.StatusID != 1:  # 1 = Vacant
+    if unit.StatusID != 1:  # Vacant
         return jsonify({"message": "This unit is not available. Only vacant units can be assigned."}), 400
 
-    existing_tenant = Tenant.query.filter_by(
-        Phone=phone, IDNumber=id_number).first()
+    # ✅ de-dup by either column
+    existing_tenant = Tenant.query.filter(
+        (Tenant.PhoneE164 == phone_e164) | (Tenant.Phone == phone_legacy),
+        Tenant.IDNumber == id_number
+    ).first()
+
+    # ─────────────────────────────────────────────────────────────────────
+    # CASE 1: Reactivate a returning tenant
+    # ─────────────────────────────────────────────────────────────────────
     if existing_tenant:
         if existing_tenant.Status == 'Inactive':
             existing_tenant.RentalUnitID = rental_unit_id
             existing_tenant.MoveInDate = move_in
             existing_tenant.MoveOutDate = None
             existing_tenant.Status = 'Active'
+            existing_tenant.PhoneE164 = existing_tenant.PhoneE164 or phone_e164
+            existing_tenant.Phone = existing_tenant.Phone or phone_legacy
 
-            unit.StatusID = 2
+            unit.StatusID = 2  # Occupied
             unit.CurrentTenantID = existing_tenant.TenantID
 
             log = TransferLog(
@@ -1202,8 +1384,28 @@ def add_tenant():
             db.session.add(log)
             db.session.commit()
 
+            # NEW: welcome SMS (queued) for returning tenant
+            try:
+                if existing_tenant.PhoneE164 and not getattr(existing_tenant, "SmsOptOut", False):
+                    rent = getattr(unit, "MonthlyRent", None)
+                    body = (
+                        f"Welcome {existing_tenant.FullName.split(' ')[0]}! You're set for "
+                        f"{apartment.ApartmentName} {unit.Label}. Monthly rent: KES {rent}. "
+                        f"Move-in: {existing_tenant.MoveInDate.strftime('%Y-%m-%d')}."
+                    )
+                    enqueue_sms(
+                        to=existing_tenant.PhoneE164, body=body, user_id=user_id,
+                        apartment_id=apartment.ApartmentID,
+                        unit_id=unit.UnitID, tenant_id=existing_tenant.TenantID,
+                        related_model="Tenant", related_id=existing_tenant.TenantID
+                    )
+                    db.session.commit()
+            except Exception as e:
+                current_app.logger.warning(
+                    f"Welcome SMS enqueue (returning) failed: {e}")
+
             return jsonify({
-                "message": f"🔁 Returning tenant {existing_tenant.FullName} successfully reassigned to {unit.Label}.",
+                "message": f"🔁 Returning tenant {existing_tenant.FullName} reassigned to {unit.Label}.",
                 "tenant": {
                     "TenantID": existing_tenant.TenantID,
                     "FullName": existing_tenant.FullName,
@@ -1214,9 +1416,13 @@ def add_tenant():
         else:
             return jsonify({"message": "A tenant with this phone number is already active."}), 400
 
+    # ─────────────────────────────────────────────────────────────────────
+    # CASE 2: Create brand-new tenant
+    # ─────────────────────────────────────────────────────────────────────
     tenant = Tenant(
         FullName=full_name,
-        Phone=phone,
+        Phone=phone_legacy,
+        PhoneE164=phone_e164,
         Email=email,
         IDNumber=id_number,
         RentalUnitID=rental_unit_id,
@@ -1226,16 +1432,36 @@ def add_tenant():
     db.session.add(tenant)
     db.session.flush()
 
-    unit.StatusID = 2
+    unit.StatusID = 2  # Occupied
     unit.CurrentTenantID = tenant.TenantID
     db.session.commit()
 
+    # NEW: welcome SMS (queued) for new tenant
+    try:
+        if tenant.PhoneE164 and not getattr(tenant, "SmsOptOut", False):
+            rent = getattr(unit, "MonthlyRent", None)
+            body = (
+                f"Welcome {tenant.FullName.split(' ')[0]}! You're set for "
+                f"{apartment.ApartmentName} {unit.Label}. Monthly rent: KES {rent}. "
+                f"Move-in: {tenant.MoveInDate.strftime('%Y-%m-%d')}."
+            )
+            enqueue_sms(
+                to=tenant.PhoneE164, body=body, user_id=user_id,
+                apartment_id=apartment.ApartmentID,
+                unit_id=unit.UnitID, tenant_id=tenant.TenantID,
+                related_model="Tenant", related_id=tenant.TenantID
+            )
+            db.session.commit()
+    except Exception as e:
+        current_app.logger.warning(f"Welcome SMS enqueue (new) failed: {e}")
+
     return jsonify({
-        "message": f"✅ Tenant {tenant.FullName} successfully assigned to {unit.Label}.",
+        "message": f"✅ Tenant {tenant.FullName} assigned to {unit.Label}.",
         "tenant": {
             "TenantID": tenant.TenantID,
             "FullName": tenant.FullName,
-            "Phone": tenant.Phone,
+            "Phone": tenant.Phone,          # legacy
+            "PhoneE164": tenant.PhoneE164,  # new
             "Email": tenant.Email,
             "IDNumber": tenant.IDNumber,
             "RentalUnit": unit.Label,
@@ -1253,25 +1479,94 @@ def vacate_unit(tenant_id):
     reason = data.get("Reason")
     notes = data.get("Notes")
 
+    # Optional new fields for scheduled vacate
+    expected_vacate_date_str = data.get("ExpectedVacateDate")  # YYYY-MM-DD
+    days_before = int((data.get("DaysBefore") or 3))
+
     tenant = Tenant.query.get(tenant_id)
     if not tenant:
         return jsonify({"message": "Tenant not found."}), 404
-    if tenant.Status != "Active":
-        return jsonify({"message": "This tenant is already inactive."}), 400
 
-    unit = RentalUnit.query.get(tenant.RentalUnitID)
+    unit = RentalUnit.query.get(
+        tenant.RentalUnitID) if tenant.RentalUnitID else None
     if not unit:
         return jsonify({"message": "Rental unit not found."}), 404
-    if unit.StatusID == 1:
-        return jsonify({"message": "This unit is already vacant."}), 400
 
-    apartment = Apartment.query.get(unit.ApartmentID)
+    apartment = Apartment.query.get(unit.ApartmentID) if unit else None
     if not apartment or apartment.UserID != user_id:
         return jsonify({"message": "Unauthorized: You do not own the apartment for this unit."}), 403
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # MODE A: Scheduled Vacate (create VacateNotice + schedule SMS reminder)
+    # ─────────────────────────────────────────────────────────────────────────
+    if expected_vacate_date_str:
+        try:
+            vacate_date = datetime.strptime(
+                expected_vacate_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({"message": "Invalid ExpectedVacateDate. Use YYYY-MM-DD."}), 400
+
+        # Do NOT change tenant/unit status here. Create a pending notice.
+        notice = VacateNotice(
+            TenantID=tenant.TenantID,
+            RentalUnitID=unit.UnitID,
+            ExpectedVacateDate=vacate_date,
+            Reason=reason,
+            InspectionDate=None,  # optional; pass in data if you want to set it
+            Status="Pending"
+        )
+        db.session.add(notice)
+        db.session.flush()  # make NoticeID available
+
+        # NEW: schedule one reminder X days before at 09:00 (UTC)
+        try:
+            if tenant.PhoneE164 and not getattr(tenant, "SmsOptOut", False):
+                send_at = datetime.combine(vacate_date, time(
+                    9, 0)) - timedelta(days=days_before)
+                if send_at < datetime.utcnow():
+                    # If computed time is in the past, send as soon as dispatcher runs
+                    send_at = datetime.utcnow()
+
+                body = (
+                    f"Reminder: Move-out for {apartment.ApartmentName} • {unit.Label} "
+                    f"is on {vacate_date.strftime('%Y-%m-%d')}. "
+                    f"Please finalize clearance & return keys."
+                )
+                enqueue_sms(
+                    to=tenant.PhoneE164, body=body, user_id=user_id,
+                    apartment_id=apartment.ApartmentID if apartment else None,
+                    unit_id=unit.UnitID if unit else None,
+                    tenant_id=tenant.TenantID,
+                    related_model="VacateNotice", related_id=notice.NoticeID,
+                    scheduled_at=send_at
+                )
+        except Exception as e:
+            current_app.logger.warning(f"Vacate reminder enqueue failed: {e}")
+
+        db.session.commit()
+        return jsonify({
+            "message": "✅ Vacate notice created and reminder scheduled.",
+            "VacateNotice": {
+                "NoticeID": notice.NoticeID,
+                "TenantID": tenant.TenantID,
+                "Apartment": apartment.ApartmentName,
+                "RentalUnit": unit.Label,
+                "ExpectedVacateDate": vacate_date.strftime('%Y-%m-%d'),
+                "Status": notice.Status,
+                "DaysBefore": days_before
+            }
+        }), 201
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # MODE B: Immediate Vacate (original behavior)
+    # ─────────────────────────────────────────────────────────────────────────
+    if tenant.Status != "Active":
+        return jsonify({"message": "This tenant is already inactive."}), 400
+    if unit.StatusID == 1:
+        return jsonify({"message": "This unit is already vacant."}), 400
+
     tenant.Status = "Inactive"
     tenant.MoveOutDate = datetime.utcnow()
-
     unit.StatusID = 1  # Vacant
     unit.CurrentTenantID = None
 
@@ -1336,7 +1631,8 @@ def transfer_tenant(tenant_id):
     old_apartment = Apartment.query.get(old_unit.ApartmentID)
     new_apartment = Apartment.query.get(new_unit.ApartmentID)
 
-    if not old_apartment or not new_apartment or old_apartment.UserID != user_id or new_apartment.UserID != user_id:
+    if (not old_apartment or not new_apartment or
+            old_apartment.UserID != user_id or new_apartment.UserID != user_id):
         return jsonify({"message": "Unauthorized: You can only transfer between your own units."}), 403
 
     if new_unit.StatusID != 1:
@@ -1365,6 +1661,29 @@ def transfer_tenant(tenant_id):
     db.session.add(transfer_log)
     db.session.commit()
 
+    # ── NEW: SMS to tenant (queued) ──────────────────────────────────────────
+    try:
+        if tenant.PhoneE164 and not getattr(tenant, "SmsOptOut", False):
+            rent = getattr(new_unit, "MonthlyRent", None)
+            first = tenant.FullName.split(
+                ' ')[0] if tenant.FullName else "Tenant"
+            body = (
+                f"Hi {first}, your unit has been changed from "
+                f"{old_apartment.ApartmentName} {old_unit.Label} to "
+                f"{new_apartment.ApartmentName} {new_unit.Label}. "
+                f"Move-in: {tenant.MoveInDate.strftime('%Y-%m-%d')}"
+                f"{f'. Monthly rent: KES {rent}.' if rent is not None else '.'}"
+            )
+            enqueue_sms(
+                to=tenant.PhoneE164, body=body, user_id=user_id,
+                apartment_id=new_apartment.ApartmentID,
+                unit_id=new_unit.UnitID, tenant_id=tenant.TenantID,
+                related_model="TransferLog", related_id=transfer_log.LogID
+            )
+            db.session.commit()
+    except Exception as e:
+        current_app.logger.warning(f"Transfer SMS enqueue failed: {e}")
+
     return jsonify({
         "message": (f"✅ Tenant {tenant.FullName} successfully transferred from unit {old_unit.Label} in "
                     f"apartment '{old_apartment.ApartmentName}' to unit {new_unit.Label} in "
@@ -1387,7 +1706,7 @@ def transfer_tenant_same_apartment(tenant_id):
 
     new_unit_id = data.get('NewRentalUnitID')
     move_in_date = data.get('MoveInDate')
-    reason = data.get('Reason')
+    reason = data.get('Reason', 'Same-apartment transfer')
 
     if not new_unit_id or not move_in_date:
         return jsonify({"message": "NewRentalUnitID and MoveInDate are required."}), 400
@@ -1408,15 +1727,18 @@ def transfer_tenant_same_apartment(tenant_id):
 
     old_apartment = Apartment.query.get(old_unit.ApartmentID)
     new_apartment = Apartment.query.get(new_unit.ApartmentID)
-    if not old_apartment or not new_apartment or old_apartment.UserID != user_id or new_apartment.UserID != user_id:
+    if (not old_apartment or not new_apartment or
+            old_apartment.UserID != user_id or new_apartment.UserID != user_id):
         return jsonify({"message": "Unauthorized: You can only transfer between your own apartments."}), 403
 
     if new_unit.StatusID != 1:
         return jsonify({"message": "New unit is not vacant."}), 400
 
+    # Vacate old unit
     old_unit.StatusID = 1
     old_unit.CurrentTenantID = None
 
+    # Assign the new unit
     tenant.RentalUnitID = new_unit_id
     tenant.MoveInDate = new_move_in
     tenant.MoveOutDate = None
@@ -1435,6 +1757,29 @@ def transfer_tenant_same_apartment(tenant_id):
     db.session.add(log)
     db.session.flush()
     db.session.commit()
+
+    # ── NEW: SMS to tenant (queued) ──────────────────────────────────────────
+    try:
+        if tenant.PhoneE164 and not getattr(tenant, "SmsOptOut", False):
+            rent = getattr(new_unit, "MonthlyRent", None)
+            first = tenant.FullName.split(
+                ' ')[0] if tenant.FullName else "Tenant"
+            body = (
+                f"Hi {first}, your unit in {new_apartment.ApartmentName} has been changed "
+                f"from {old_unit.Label} to {new_unit.Label}. "
+                f"Move-in: {tenant.MoveInDate.strftime('%Y-%m-%d')}"
+                f"{f'. Monthly rent: KES {rent}.' if rent is not None else '.'}"
+            )
+            enqueue_sms(
+                to=tenant.PhoneE164, body=body, user_id=user_id,
+                apartment_id=new_apartment.ApartmentID,
+                unit_id=new_unit.UnitID, tenant_id=tenant.TenantID,
+                related_model="TransferLog", related_id=log.LogID
+            )
+            db.session.commit()
+    except Exception as e:
+        current_app.logger.warning(
+            f"Same-apt transfer SMS enqueue failed: {e}")
 
     return jsonify({
         "message": f"✅ Tenant {tenant.FullName} has been transferred to unit {new_unit.Label}.",
@@ -1562,6 +1907,73 @@ def create_vacate_notice(tenant_id):
         "ExpectedVacateDate": vacate_date.strftime('%Y-%m-%d'),
         "InspectionDate": inspection.strftime('%Y-%m-%d') if inspection else "Not Scheduled"
     }), 201
+
+
+@routes.route("/twilio/sms", methods=["POST"])
+@jwt_required()
+def twilio_sms_send():
+    user_id = get_jwt_identity()
+    data = request.get_json() or {}
+    to_raw = (data.get("to") or "").strip()
+    body = (data.get("body") or "").strip()
+
+    if not to_raw or not body:
+        return jsonify({"message": "to and body are required."}), 400
+
+    cc = (landlord_comms_settings(user_id).CountryCode
+          if landlord_comms_settings(user_id) else "+254")
+    to = normalize_phone_e164(to_raw, cc)
+    if not to or not E164_RE.match(to):
+        return jsonify({"message": "Invalid destination phone (use E.164)."}), 400
+
+    # Send immediately (manual action). If you want to block quiet hours, check is_quiet_hours here.
+    try:
+        sid = send_sms(to, body)
+        m = OutgoingMessage(Channel="SMS", Status="SENT", Body=body, ToPhone=to,
+                            UserID=user_id, Provider="twilio", ProviderSID=sid,
+                            SentAt=datetime.utcnow())
+        db.session.add(m)
+        db.session.commit()
+        return jsonify({"message": "SMS sent.", "sid": sid}), 200
+    except Exception as e:
+        m = OutgoingMessage(Channel="SMS", Status="FAILED", Body=body, ToPhone=to,
+                            UserID=user_id, Provider="twilio", ErrorMessage=str(e)[:255])
+        db.session.add(m)
+        db.session.commit()
+        return jsonify({"message": "Failed to send SMS.", "error": str(e)}), 500
+
+
+@routes.route("/messages/dispatch", methods=["POST"])
+def messages_dispatch():
+    now = datetime.utcnow()
+    due = (OutgoingMessage.query
+           .filter(OutgoingMessage.Channel == "SMS",
+                   OutgoingMessage.Status == "PENDING",
+                   or_(OutgoingMessage.ScheduledAt == None,
+                       OutgoingMessage.ScheduledAt <= now))
+           .order_by(OutgoingMessage.MessageID.asc())
+           .limit(200)
+           .all())
+    sent, failed, deferred = 0, 0, 0
+    for m in due:
+        try:
+            # defer if landlord quiet hours
+            if m.UserID and is_quiet_hours(m.UserID, now):
+                deferred += 1
+                continue
+            sid = send_sms(m.ToPhone, m.Body)
+            m.Status = "SENT"
+            m.SentAt = now
+            m.Provider = "twilio"
+            m.ProviderSID = sid
+            sent += 1
+        except Exception as e:
+            m.Status = "FAILED"
+            m.ErrorMessage = str(e)[:255]
+            failed += 1
+    db.session.commit()
+    return jsonify({"sent": sent, "failed": failed, "deferred": deferred, "checked": len(due)}), 200
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Logs & KPIs

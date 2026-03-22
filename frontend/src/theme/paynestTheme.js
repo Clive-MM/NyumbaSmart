@@ -1,59 +1,73 @@
-// src/theme/paynestTheme.js
 import { createTheme } from "@mui/material/styles";
 
 const BRAND = {
-    start: "#FF0080",
-    end: "#7E00A6",
-    gradient: "linear-gradient(90deg,#FF0080 0%, #7E00A6 100%)",
+    primary: "#D4124E", // Your signature Magenta
+    secondary: "#7E00A6",
+    background: "#F8FAFC", // Clean, soft background
+    textMain: "#0F172A",    // Deep Slate (High visibility)
+    textMuted: "#64748B",
+    glass: "rgba(255, 255, 255, 0.8)",
 };
 
 export const paynestTheme = createTheme({
     palette: {
-        mode: "dark",
-        background: { default: "#0b0714", paper: "#0e0a17" },
-        text: { primary: "#fff", secondary: "rgba(237,237,241,.72)" },
-        divider: "rgba(255,255,255,0.08)",
+        mode: "light", // Switching to light mode for that clean UX
+        primary: { main: BRAND.primary },
+        background: { default: BRAND.background, paper: "#ffffff" },
+        text: { primary: BRAND.textMain, secondary: BRAND.textMuted },
     },
     typography: {
-        fontFamily: `"Nunito", system-ui, -apple-system, Segoe UI, Roboto, Arial`,
-        h4: { fontFamily: `"Cinzel", Georgia, serif`, fontWeight: 800, letterSpacing: .5 },
+        // Using Inter for body and Outfit for headings as discussed
+        fontFamily: `'Inter', "Segoe UI", Roboto, sans-serif`,
+        h4: { 
+            fontFamily: `'Outfit', sans-serif`, 
+            fontWeight: 800, 
+            letterSpacing: -0.5,
+            color: BRAND.textMain 
+        },
         button: { textTransform: "none", fontWeight: 700 },
     },
-    shape: { borderRadius: 12 },
+    shape: { borderRadius: 16 }, // Larger radius for modern look
     components: {
         MuiPaper: {
             styleOverrides: {
                 root: {
-                    color: "#fff",
-                    background: "#0e0a17",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    boxShadow: "9px 9px 18px rgba(0,0,0,.55), -9px -9px 18px rgba(255,255,255,.03)",
+                    background: BRAND.glass,
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid rgba(255, 255, 255, 0.4)",
+                    boxShadow: "0 10px 40px -10px rgba(0, 0, 0, 0.05)", // Soft shadow from images
                 },
             },
         },
         MuiButton: {
             styleOverrides: {
                 contained: {
-                    background: BRAND.gradient,
-                    boxShadow: "none",
-                    "&:hover": { filter: "brightness(1.05)" },
-                    borderRadius: 10,
+                    background: BRAND.primary,
+                    borderRadius: 50, // Pill shape for modern buttons
+                    padding: "10px 24px",
+                    boxShadow: "0 8px 20px rgba(212, 18, 78, 0.2)",
+                    "&:hover": { 
+                        background: "#B10E41",
+                        boxShadow: "0 12px 25px rgba(212, 18, 78, 0.3)" 
+                    },
                 },
                 outlined: {
-                    color: "#fff",
-                    borderColor: "rgba(255,255,255,0.35)",
-                    borderRadius: 10,
-                    "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" },
+                    borderRadius: 50,
+                    borderColor: "rgba(0,0,0,0.1)",
+                    color: BRAND.textMain,
+                    "&:hover": { borderColor: BRAND.primary, background: "rgba(212,18,78,0.04)" },
                 },
             },
         },
-        MuiChip: {
+        MuiAppBar: {
             styleOverrides: {
-                root: { color: "#fff", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 10 },
-            },
-        },
-        MuiTableCell: {
-            styleOverrides: { head: { color: "rgba(237,237,241,.9)", fontWeight: 700 } },
-        },
+                root: {
+                    background: "rgba(255, 255, 255, 0.8)",
+                    backdropFilter: "blur(20px) saturate(180%)",
+                    borderBottom: "1px solid rgba(0,0,0,0.05)",
+                    color: BRAND.textMain,
+                }
+            }
+        }
     },
 });

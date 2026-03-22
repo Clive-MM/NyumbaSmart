@@ -77,8 +77,11 @@ class Apartment(db.Model):
     ApartmentName = db.Column(db.String(100), nullable=False)
     Location = db.Column(db.String(150), nullable=False)
     Description = db.Column(db.String(500))
-    UserID = db.Column(db.Integer, db.ForeignKey('Users.UserID'))
-    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Landlord link (you had UserID; keep it but index + clearer comment)
+    UserID = db.Column(db.Integer, db.ForeignKey('Users.UserID'), index=True)
+
+    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationship
     rental_units = db.relationship(
@@ -140,18 +143,33 @@ class RentalUnit(db.Model):
 
 
 class Tenant(db.Model):
-    __tablename__ = 'Tenants'
+    __tablename__ = "Tenants"
 
-    TenantID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    TenantID = db.Column(db.Integer, primary_key=True)
     FullName = db.Column(db.String(100), nullable=False)
-    Phone = db.Column(db.String(20), nullable=False)
+
+    # Phone storage: legacy + normalized E.164 (e.g., +2547XXXXXXXX)
+    Phone = db.Column(db.String(20), nullable=False)  # legacy 2547XXXXXXXX
+    PhoneE164 = db.Column(db.String(16), index=True,
+                          nullable=True)  # +2547XXXXXXXX
+
     Email = db.Column(db.String(100))
-    IDNumber = db.Column(db.String(50))
-    RentalUnitID = db.Column(db.Integer, db.ForeignKey('RentalUnits.UnitID'))
+    IDNumber = db.Column(db.String(50), nullable=False)
+
+    RentalUnitID = db.Column(db.Integer, db.ForeignKey(
+        'RentalUnits.UnitID'), nullable=False)
     MoveInDate = db.Column(db.Date, nullable=False)
     MoveOutDate = db.Column(db.Date)
-    Status = db.Column(db.String(50), default="Active")
-    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
+
+    Status = db.Column(db.String(50))
+    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    # NEW: lightweight comms/compliance flags (keeps VacateDate external per your request)
+    # set after OTP or delivery success
+    PhoneVerifiedAt = db.Column(db.DateTime, nullable=True)
+    SmsOptOut = db.Column(db.Boolean, nullable=False, default=False)
+    # "SMS"|"EMAIL"|"WHATSAPP"
+    PreferredChannel = db.Column(db.String(10))
 
     # Relationship
     rental_unit = db.relationship(
@@ -166,15 +184,17 @@ class VacateNotice(db.Model):
 
     NoticeID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     TenantID = db.Column(db.Integer, db.ForeignKey(
-        'Tenants.TenantID'), nullable=False)
+        'Tenants.TenantID'), nullable=False, index=True)
     RentalUnitID = db.Column(db.Integer, db.ForeignKey(
-        'RentalUnits.UnitID'), nullable=False)
-    NoticeDate = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+        'RentalUnits.UnitID'), nullable=False, index=True)
+
+    NoticeDate = db.Column(db.Date, nullable=False, default=date.today)
     ExpectedVacateDate = db.Column(db.Date, nullable=False)
     Reason = db.Column(db.String(300))
     InspectionDate = db.Column(db.Date)
+    # Pending|Scheduled|Completed|Canceled
     Status = db.Column(db.String(50), default="Pending")
-    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow)
+    CreatedAt = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
     tenant = db.relationship('Tenant', backref='vacate_notices')
@@ -460,13 +480,25 @@ class SMSUsageLog(db.Model):
 
 
 class Profile(db.Model):
+    """
+    One-to-one profile for a User.
+    Stores branding, contact, payment, and address details used across statements/receipts.
+    """
     __tablename__ = "Profiles"
 
+    # PK
     ProfileID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    UserID = db.Column(db.Integer, db.ForeignKey(
-        "Users.UserID"), unique=True, nullable=False)
 
-    # Existing
+    # 1–1 with Users (delete profile when user is deleted)
+    UserID = db.Column(
+        db.Integer,
+        db.ForeignKey("Users.UserID", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    # Basic info
     ProfilePicture = db.Column(db.String(300))
     Address = db.Column(db.String(200))
     NationalID = db.Column(db.String(50))
@@ -474,32 +506,43 @@ class Profile(db.Model):
     Bio = db.Column(db.Text)
     DateOfBirth = db.Column(db.Date)
 
-    # New (what you chose)
+    # Display / support contacts
     DisplayName = db.Column(db.String(120))
-    SupportEmail = db.Column(db.String(120))
-    SupportPhone = db.Column(db.String(20))
+    SupportEmail = db.Column(db.String(120), index=True)
+    SupportPhone = db.Column(db.String(20),  index=True)
 
+    # M-Pesa details
     MpesaPaybill = db.Column(db.String(20))
     MpesaTill = db.Column(db.String(20))
     MpesaAccountName = db.Column(db.String(120))
 
+    # Banking details
     BankName = db.Column(db.String(120))
     BankBranch = db.Column(db.String(120))
     AccountName = db.Column(db.String(120))
     AccountNumber = db.Column(db.String(40))
 
+    # Addressing
     City = db.Column(db.String(100))
     County = db.Column(db.String(100))
     PostalCode = db.Column(db.String(20))
 
+    # Audit
     UpdatedAt = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False
+    )
 
+    # Relationship (true 1–1 via unique FK)
     user = db.relationship(
-        "User", backref=db.backref("profile", uselist=False))
-    # Relationship with User
-    user = db.relationship(
-        "User", backref=db.backref("profile", uselist=False))
+        "User",
+        backref=db.backref("profile", uselist=False, passive_deletes=True)
+    )
+
+    def __repr__(self) -> str:
+        return f"<Profile UserID={self.UserID} DisplayName={self.DisplayName!r}>"
 
 
 class Feedback(db.Model):
@@ -571,3 +614,135 @@ class PaymentAllocation(db.Model):
 
     def __repr__(self):
         return f"<PaymentAllocation PaymentID={self.PaymentID} BillID={self.BillID} Allocated={self.AllocatedAmount}>"
+
+
+class OutgoingMessage(db.Model):
+    """
+    Provider-agnostic outbox. Insert rows for:
+      - Apartment created (to landlord)
+      - Welcome tenant
+      - Scheduled vacate reminder
+    A worker/cron delivers when ScheduledAt is NULL or <= now().
+    """
+    __tablename__ = "OutgoingMessages"
+
+    MessageID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+
+    Channel = db.Column(db.String(10), nullable=False)  # "SMS" | "EMAIL"
+    Status = db.Column(db.String(16), nullable=False,
+                       index=True, default="PENDING")
+    Body = db.Column(db.Text, nullable=False)
+
+    ToPhone = db.Column(db.String(20), index=True)      # +2547...
+    ToEmail = db.Column(db.String(120), index=True)
+
+    # Context links (for audit & UI drilldowns)
+    UserID = db.Column(db.Integer, db.ForeignKey(
+        "Users.UserID"), index=True)           # Landlord (sender/owner)
+    ApartmentID = db.Column(db.Integer, db.ForeignKey(
+        "Apartments.ApartmentID"), index=True)
+    UnitID = db.Column(db.Integer, db.ForeignKey(
+        "RentalUnits.UnitID"), index=True)
+    TenantID = db.Column(db.Integer, db.ForeignKey(
+        "Tenants.TenantID"), index=True)
+
+    # "Apartment" | "Tenant" | "RentPayment" | "VacateNotice"
+    RelatedModel = db.Column(db.String(50))
+    RelatedID = db.Column(db.Integer)
+
+    # Scheduling & provider audit
+    # set for reminders; null for immediate
+    ScheduledAt = db.Column(db.DateTime, index=True)
+    CreatedAt = db.Column(db.DateTime, nullable=False,
+                          server_default=func.now())
+    SentAt = db.Column(db.DateTime)
+
+    Provider = db.Column(db.String(32))            # "twilio"
+    ProviderSID = db.Column(db.String(80), index=True)
+    ErrorCode = db.Column(db.String(32))
+    ErrorMessage = db.Column(db.String(255))
+
+    __table_args__ = (
+        db.Index("ix_outgoing_owner_time", "UserID", "ScheduledAt"),
+    )
+
+    def __repr__(self):
+        return f"<OutgoingMessage {self.Channel} {self.Status} to {self.ToPhone or self.ToEmail}>"
+
+
+class MessageTemplate(db.Model):
+    """
+    Optional, lets landlords customize message bodies with tokens:
+    {FirstName} {Apartment} {Unit} {Amount} {Date}
+    """
+    __tablename__ = "MessageTemplates"
+
+    TemplateID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    LandlordID = db.Column(db.Integer, db.ForeignKey(
+        "Users.UserID"), index=True)  # NULL = global
+    # e.g., "Welcome", "Vacate Reminder"
+    Name = db.Column(db.String(60), nullable=False)
+    # "WELCOME"|"APARTMENT_CREATED"|"VACATE_REMINDER"
+    Purpose = db.Column(db.String(32), nullable=False)
+    Channel = db.Column(db.String(10), nullable=False, default="SMS")
+    Body = db.Column(db.Text, nullable=False)
+    IsDefault = db.Column(db.Boolean, nullable=False, default=False)
+
+    CreatedAt = db.Column(db.DateTime, nullable=False,
+                          server_default=func.now())
+    UpdatedAt = db.Column(db.DateTime, nullable=False,
+                          server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        db.UniqueConstraint("LandlordID", "Purpose", "Name",
+                            name="uq_template_owner_purpose_name"),
+    )
+
+    def __repr__(self):
+        return f"<MessageTemplate {self.Purpose}:{self.Name} landlord={self.LandlordID}>"
+
+
+class WebhookLog(db.Model):
+    """
+    Stores Twilio status callbacks for delivery analytics & debugging.
+    """
+    __tablename__ = "WebhookLogs"
+
+    WebhookID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    Provider = db.Column(db.String(32), nullable=False)     # "twilio"
+    # maps to OutgoingMessage.ProviderSID
+    ProviderSID = db.Column(db.String(80), index=True)
+    PayloadJSON = db.Column(db.Text, nullable=False)
+    # delivered/failed/...
+    Status = db.Column(db.String(32), index=True)
+    ReceivedAt = db.Column(db.DateTime, nullable=False,
+                           server_default=func.now())
+    MessageID = db.Column(db.Integer, db.ForeignKey(
+        "OutgoingMessages.MessageID"), index=True)
+
+    def __repr__(self):
+        return f"<WebhookLog {self.Provider} {self.Status} {self.ProviderSID}>"
+
+
+class CommsSetting(db.Model):
+    """
+    Per-landlord communication preferences (quiet hours, etc.).
+    """
+    __tablename__ = "CommsSettings"
+
+    SettingID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    LandlordID = db.Column(db.Integer, db.ForeignKey(
+        "Users.UserID"), unique=True, index=True)
+
+    QuietStartH = db.Column(db.Integer, nullable=False, default=20)  # 20:00
+    QuietEndH = db.Column(db.Integer, nullable=False, default=8)   # 08:00
+    UseWhatsApp = db.Column(db.Boolean, nullable=False, default=False)
+    CountryCode = db.Column(db.String(8), nullable=False, default="+254")
+
+    CreatedAt = db.Column(db.DateTime, nullable=False,
+                          server_default=func.now())
+    UpdatedAt = db.Column(db.DateTime, nullable=False,
+                          server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self):
+        return f"<CommsSetting LandlordID={self.LandlordID}>"
