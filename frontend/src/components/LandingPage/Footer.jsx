@@ -233,7 +233,7 @@ export default function Footer() {
 
           <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems="center" spacing={2}>
             <Typography variant="caption" sx={{ color: BRAND.textSoft, opacity: 0.7 }}>
-              © {new Date().getFullYear()} PayNest Technology. All rights reserved.
+              © {new Date().getFullYear()} PayNest. All rights reserved.
             </Typography>
             <Typography variant="caption" sx={{ color: BRAND.textSoft, fontWeight: 600 }}>
               Developed by Landlords, for Landlords.
