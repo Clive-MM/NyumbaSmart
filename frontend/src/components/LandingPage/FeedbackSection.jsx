@@ -25,14 +25,14 @@ const BRAND = {
 };
 const headingGradient = `linear-gradient(90deg, ${BRAND.magenta}, ${BRAND.blue}, ${BRAND.pink})`;
 
-/* ---------- Section layout: always side-by-side ---------- */
+
 const Row = styled(Box)({
   display: "flex",
   gap: 28,
   alignItems: "stretch",
   justifyContent: "center",
   flexWrap: "nowrap",
-  overflowX: "auto",              // stay side-by-side; scroll on tiny screens
+  overflowX: "auto",              
   scrollSnapType: "x mandatory",
   paddingBottom: 6,
 });
@@ -268,21 +268,42 @@ function RatingForm() {
 export default function FeedbackRatingSection() {
   return (
     <Box
+      id="feedback"
       sx={{
-        py: 4,
+        py: 6,
         px: 2,
-        background:
-          "linear-gradient(180deg, rgba(10,10,10,1) 0%, rgba(16,0,36,0.95) 50%, rgba(5,5,5,1) 100%)",
+        // Swapped to White Glassmorphism background
+        background: "rgba(255, 255, 255, 0.75)",
+        backdropFilter: "blur(20px) saturate(180%)",
+        // Added the subtle slate border from your NavBar
+        borderTop: "1px solid rgba(15, 23, 42, 0.08)", 
+        position: "relative",
       }}
     >
+      {/* Subtle top shadow to match the "scrolled" elevation of your NavBar */}
+      <Box 
+        sx={{ 
+          position: 'absolute', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          height: '1px', 
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
+          zIndex: 1 
+        }} 
+      />
+
       <Typography
         variant="h5"
         sx={{
           fontWeight: 900,
           textAlign: "center",
-          color: BRAND.text,
-          mb: 3,
-          textShadow: "0 2px 12px rgba(126,0,166,.35)",
+          // Changed from BRAND.text to Slate (#0F172A) for contrast
+          color: "#0F172A", 
+          mb: 4,
+          fontFamily: "'Outfit', sans-serif",
+          letterSpacing: "0.5px",
+          textTransform: "uppercase",
         }}
       >
         We’d love your thoughts
