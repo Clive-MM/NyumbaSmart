@@ -8,16 +8,18 @@ import {
   Divider,
   Stack,
   Fab,
-  Tooltip,
   useScrollTrigger,
+  Container,
+  Tooltip,
 } from "@mui/material";
+import { styled, alpha } from "@mui/material/styles";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
-import TwitterIcon from "@mui/icons-material/Twitter";
+import TwitterIcon from "@mui/icons-material/Twitter"; // For X
 import InstagramIcon from "@mui/icons-material/Instagram";
-import LinkedInIcon from "@mui/icons-material/LinkedIn";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import FacebookIcon from "@mui/icons-material/Facebook";
 
-/* Brand */
+/* ---------- Brand Colors ---------- */
 const BRAND = {
   pink: "#FF0080",
   magenta: "#D4124E",
@@ -28,7 +30,10 @@ const BRAND = {
   bgViolet: "#140A1E",
   bgNavy: "#0E1220",
   bgDeep: "#0A0D16",
+  success: "#10b981",
+  whatsapp: "#25D366",
 };
+
 const brandGradient = `linear-gradient(90deg, ${BRAND.pink}, ${BRAND.magenta}, ${BRAND.purple}, ${BRAND.blue})`;
 const darkGradient = `
   radial-gradient(900px 700px at 10% -10%, rgba(255,46,196,0.14), transparent 60%),
@@ -36,62 +41,75 @@ const darkGradient = `
   linear-gradient(180deg, ${BRAND.bgViolet} 0%, ${BRAND.bgNavy} 45%, ${BRAND.bgDeep} 100%)
 `;
 
-const logoUrl =
-  "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
+const logoUrl = "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
 
-/* Load Orbitron once */
-(() => {
-  const href =
-    "https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&display=swap";
-  if (typeof document !== "undefined" && !document.head.querySelector(`link[href="${href}"]`)) {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = href;
-    document.head.appendChild(link);
-  }
-})();
+/* ---------- Styled Components ---------- */
+const SocialIconButton = styled(IconButton)(({ hovercolor }) => ({
+  color: BRAND.textSoft,
+  padding: 10,
+  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+  "&:hover": {
+    color: "#fff",
+    transform: "translateY(-5px) scale(1.1)",
+    background: alpha(hovercolor, 0.15),
+    filter: `drop-shadow(0 0 12px ${hovercolor})`,
+  },
+}));
 
-/* Reusable link (emoji + subtle hover) */
+const StatusDot = styled(Box)({
+  width: 8,
+  height: 8,
+  backgroundColor: BRAND.success,
+  borderRadius: "50%",
+  boxShadow: `0 0 10px ${BRAND.success}`,
+  animation: "pulse 2s infinite",
+  "@keyframes pulse": {
+    "0%": { opacity: 1, transform: "scale(1)" },
+    "50%": { opacity: 0.5, transform: "scale(1.2)" },
+    "100%": { opacity: 1, transform: "scale(1)" },
+  },
+});
+
+/* ---------- Sub-components ---------- */
 function FooterLink({ href, label, emoji }) {
   return (
-    <Tooltip title={`${emoji} ${label}`} arrow placement="top">
-      <MUILink
-        href={href}
-        underline="none"
-        sx={{
-          color: BRAND.textSoft,
-          fontSize: 14,
-          transition: "color .2s ease, transform .2s ease",
-          "&:hover": { color: BRAND.pink, transform: "translateY(-1px)" },
-          "&::before": { content: `"${emoji} "`, opacity: 0.9, marginRight: 4 },
-        }}
-      >
-        {label}
-      </MUILink>
-    </Tooltip>
+    <MUILink
+      href={href}
+      underline="none"
+      sx={{
+        color: BRAND.textSoft,
+        fontSize: "0.9rem",
+        display: "flex",
+        alignItems: "center",
+        gap: 1.5,
+        transition: "all 0.2s ease",
+        "&:hover": { color: BRAND.pink, transform: "translateX(5px)" },
+      }}
+    >
+      <span style={{ fontSize: "1.1rem" }}>{emoji}</span>
+      {label}
+    </MUILink>
   );
 }
 
-/* Back to top */
 function BackToTopFab() {
-  const trigger = useScrollTrigger({ threshold: 120 });
+  const trigger = useScrollTrigger({ threshold: 200 });
   return (
     <Fab
-      size="small"
-      aria-label="scroll back to top"
+      size="medium"
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
       sx={{
         position: "fixed",
-        right: 22,
+        right: 30,
         bottom: 30,
         opacity: trigger ? 1 : 0,
-        transform: trigger ? "scale(1)" : "scale(.92)",
-        transition: "all .25s ease",
+        transform: trigger ? "scale(1)" : "scale(0.5)",
+        transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
         background: brandGradient,
         color: "#fff",
-        boxShadow: "0 10px 24px rgba(212,18,78,0.28)",
+        boxShadow: `0 10px 25px ${alpha(BRAND.magenta, 0.4)}`,
         zIndex: 1100,
-        "&:hover": { filter: "brightness(1.05)" },
+        "&:hover": { transform: "translateY(-5px) scale(1.1)", filter: "brightness(1.1)" },
       }}
     >
       <KeyboardArrowUpIcon />
@@ -99,56 +117,55 @@ function BackToTopFab() {
   );
 }
 
+/* ---------- Main Footer Component ---------- */
 export default function Footer() {
+  const socialPlatforms = [
+    { Icon: TwitterIcon, color: BRAND.blue, tooltip: "Follow us on X", href: "#" },
+    { Icon: FacebookIcon, color: "#1877F2", tooltip: "Join our community", href: "#" },
+    { Icon: WhatsAppIcon, color: BRAND.whatsapp, tooltip: "Chat with us", href: "#" },
+    { Icon: InstagramIcon, color: BRAND.pink, tooltip: "See our latest stories", href: "#" },
+  ];
+
   return (
     <>
-      {/* thin accent line */}
-      <Box sx={{ height: 4, background: brandGradient, width: "100%" }} />
+      <Box sx={{ 
+        height: 4, 
+        background: brandGradient, 
+        width: "100%", 
+        boxShadow: `0 -4px 20px ${alpha(BRAND.magenta, 0.3)}`,
+        position: "relative",
+        zIndex: 2
+      }} />
 
-      {/* SINGLE full-width wrapper (no rounded corners, no inset card) */}
       <Box
         component="footer"
         sx={{
           width: "100%",
           background: darkGradient,
           color: BRAND.textStrong,
-          pb: { xs: 4, md: 5 },
-          pt: { xs: 3, md: 4 },
+          pt: { xs: 6, md: 10 },
+          pb: { xs: 4, md: 6 },
+          borderTop: "1px solid rgba(255,255,255,0.05)",
         }}
       >
-        <Box sx={{ maxWidth: 1300, mx: "auto", px: { xs: 2, md: 3 } }}>
-          {/* TOP ROW */}
-          <Grid
-            container
-            columns={12}
-            columnSpacing={{ xs: 3, md: 6 }}
-            rowSpacing={{ xs: 3, md: 4 }}
-            alignItems="flex-start"
-            justifyContent="space-between"
-            sx={{ mb: { xs: 2, md: 3 } }}
-          >
-            {/* Brand + slogan */}
+        <Container maxWidth="lg">
+          <Grid container spacing={6} justifyContent="space-between">
+            
             <Grid item xs={12} md={4}>
-              <Stack spacing={2}>
-                <Stack direction="row" spacing={1.25} alignItems="center">
+              <Stack spacing={4}>
+                <Box display="flex" alignItems="center" gap={2}>
                   <Box
                     component="img"
                     src={logoUrl}
                     alt="PayNest"
-                    sx={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 1.5,
-                      boxShadow:
-                        "0 10px 20px rgba(255,0,128,0.18), inset 0 0 0 1px rgba(255,255,255,0.6)",
-                    }}
+                    sx={{ width: 50, height: 50, borderRadius: 2, boxShadow: "0 8px 16px rgba(0,0,0,0.4)" }}
                   />
                   <Typography
-                    variant="h6"
+                    variant="h5"
                     sx={{
                       fontFamily: "'Orbitron', sans-serif",
                       fontWeight: 900,
-                      letterSpacing: 0.6,
+                      letterSpacing: 1.5,
                       background: brandGradient,
                       WebkitBackgroundClip: "text",
                       WebkitTextFillColor: "transparent",
@@ -156,90 +173,73 @@ export default function Footer() {
                   >
                     PayNest
                   </Typography>
-                </Stack>
-
-                <Typography variant="body2" sx={{ color: BRAND.textSoft }}>
-                  Smart Homes, Smarter Payments.
+                </Box>
+                <Typography variant="body1" sx={{ color: BRAND.textSoft, lineHeight: 1.7 }}>
+                  Empowering landlords with next-gen automation. 
+                  <b> Smart Homes, Smarter Payments.</b>
                 </Typography>
-
+                
+                {/* Social Media Section with Custom Tooltips */}
                 <Stack direction="row" spacing={1}>
-                  {[TwitterIcon, InstagramIcon, LinkedInIcon, FacebookIcon].map((Icon, i) => (
-                    <IconButton
-                      key={i}
-                      size="small"
-                      sx={{
-                        color: BRAND.textSoft,
-                        transition: "transform .2s, color .2s, filter .2s",
-                        "&:hover": {
-                          color: "#fff",
-                          transform: "translateY(-2px)",
-                          filter:
-                            "drop-shadow(0 0 8px rgba(255,0,128,.35)) drop-shadow(0 0 12px rgba(41,121,255,.25))",
-                        },
-                      }}
-                    >
-                      <Icon fontSize="small" />
-                    </IconButton>
+                  {socialPlatforms.map((platform, index) => (
+                    <Tooltip key={index} title={platform.tooltip} arrow placement="top">
+                      <SocialIconButton 
+                        hovercolor={platform.color}
+                        href={platform.href}
+                        target="_blank"
+                      >
+                        <platform.Icon fontSize="small" />
+                      </SocialIconButton>
+                    </Tooltip>
                   ))}
                 </Stack>
               </Stack>
             </Grid>
 
-            {/* Quick links */}
-            <Grid item xs={12} md={4}>
-              <Stack spacing={1.25}>
-                <Typography
-                  variant="subtitle2"
-                  sx={{
-                    fontFamily: "'Orbitron', sans-serif",
-                    fontWeight: 800,
-                    letterSpacing: 0.4,
-                  }}
-                >
-                  Quick Links
-                </Typography>
+            <Grid item xs={6} md={2.5}>
+              <Typography variant="subtitle1" sx={{ fontFamily: "'Orbitron', sans-serif", fontWeight: 800, mb: 4, color: "#fff", fontSize: "0.85rem", textTransform: "uppercase" }}>
+                Platform
+              </Typography>
+              <Stack spacing={2.5}>
                 <FooterLink href="/" label="Home" emoji="🏠" />
-                <FooterLink href="#features" label="Features" emoji="✨" />
-                <FooterLink href="#services" label="Services" emoji="🧰" />
-               
+                <FooterLink href="#features" label="Features" emoji="🚀" />
+                <FooterLink href="#services" label="Services" emoji="🛠️" />
+                <FooterLink href="#feedback" label="Feedback" emoji="💬" />
               </Stack>
             </Grid>
 
-            {/* Contact */}
-            <Grid item xs={12} md={4}>
-              <Stack spacing={1.25}>
-                <Typography
-                  variant="subtitle2"
-                  sx={{
-                    fontFamily: "'Orbitron', sans-serif",
-                    fontWeight: 800,
-                    letterSpacing: 0.4,
-                  }}
-                >
-                  Get in touch
-                </Typography>
+            <Grid item xs={6} md={3}>
+              <Typography variant="subtitle1" sx={{ fontFamily: "'Orbitron', sans-serif", fontWeight: 800, mb: 4, color: "#fff", fontSize: "0.85rem", textTransform: "uppercase" }}>
+                Get in touch
+              </Typography>
+              <Stack spacing={3}>
                 <FooterLink href="mailto:support@paynest.app" label="support@paynest.app" emoji="✉️" />
-                <Typography variant="body2" sx={{ color: BRAND.textSoft }}>
-                  Mon–Fri · 9:00–17:00
-                </Typography>
+                <Box>
+                   <Typography variant="body2" sx={{ color: BRAND.textSoft, mb: 1 }}>
+                    🕒 Mon–Fri · 9:00–17:00
+                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mt: 2 }}>
+                    <StatusDot />
+                    <Typography variant="caption" sx={{ color: BRAND.success, fontWeight: 800, letterSpacing: 1 }}>
+                      SYSTEMS OPERATIONAL
+                    </Typography>
+                  </Box>
+                </Box>
               </Stack>
             </Grid>
           </Grid>
 
-          <Divider sx={{ borderColor: "rgba(255,255,255,.08)" }} />
+          <Divider sx={{ my: 6, borderColor: "rgba(255,255,255,0.06)" }} />
 
-          {/* Bottom bar */}
-          <Stack spacing={1} alignItems="center" sx={{ mt: { xs: 2.5, md: 3 } }}>
-            <Typography variant="body2" sx={{ color: BRAND.textSoft }} align="center">
-              © {new Date().getFullYear()} PayNest. All rights reserved.
+          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems="center" spacing={2}>
+            <Typography variant="caption" sx={{ color: BRAND.textSoft, opacity: 0.7 }}>
+              © {new Date().getFullYear()} PayNest Technology. All rights reserved.
             </Typography>
-            {/* <Stack direction="row" spacing={2}>
-              <FooterLink href="/privacy" label="Privacy" emoji="🔒" />
-              <FooterLink href="/terms" label="Terms" emoji="📄" />
-              <FooterLink href="/cookies" label="Cookies" emoji="🍪" />
-            </Stack> */}
+            <Typography variant="caption" sx={{ color: BRAND.textSoft, fontWeight: 600 }}>
+              Developed by Landlords, for Landlords.
+            </Typography>
           </Stack>
-        </Box>
+        </Container>
       </Box>
 
       <BackToTopFab />
