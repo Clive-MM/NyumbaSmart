@@ -25,7 +25,7 @@ const logoUrl =
 
 /* ---------- Neumorphic styling ---------- */
 const NeumorphicPaper = styled(Paper)(() => ({
-    padding: "2rem 1.5rem",
+    padding: "1rem 1.5rem",
     borderRadius: "20px",
     background: "#e0e0e0",
     boxShadow:
@@ -165,7 +165,10 @@ export default function ResetPassword() {
                 message: "✅ Password reset successful! Redirecting to login...",
                 severity: "success",
             });
-            setTimeout(() => navigate("/login"), 2500);
+            setTimeout(() => {
+                navigate("/login", { replace: true });
+                window.scrollTo(0, 0);
+            }, 2500);
         } catch (error) {
             setSnackbar({
                 open: true,

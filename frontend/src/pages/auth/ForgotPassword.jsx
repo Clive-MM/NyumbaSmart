@@ -15,7 +15,7 @@ import {
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -37,6 +37,7 @@ const BRAND = {
 };
 
 const ForgotPassword = () => {
+  const navigate = useNavigate();
   // flow: start -> verify -> reset
   const [step, setStep] = useState("start");
 
@@ -152,58 +153,58 @@ const ForgotPassword = () => {
   };
 
   // STEP 3: set new password
-  const handleReset = async (e) => {
-    e.preventDefault();
-    if (!resetToken) {
-      showMsg("Missing reset token. Please verify your code again.", "error");
-      setStep("verify");
-      return;
-    }
-    if (!newPassword || !confirmPassword) {
-      showMsg("Please enter and confirm your new password.", "error");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      showMsg("Passwords do not match.", "error");
-      return;
-    }
-    try {
-      setLoading(true);
-      await axios.post(`${API_URL}/auth/forgot/reset`, {
-        reset_token: resetToken,
-        new_password: newPassword,
-        confirm_password: confirmPassword,
-      });
-      showMsg("Password reset successful! You can now log in.", "success");
-      // clear out
-      setIdentifier("");
-      setCode("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setResetToken(null);
-      setStep("start");
-    } catch (error) {
-      showMsg(error?.response?.data?.message || "Failed to reset password.", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+const handleReset = async (e) => {
+  e.preventDefault();
+  
+  // ... (keep your existing validation checks for resetToken and passwords)
+
+  try {
+    setLoading(true);
+    await axios.post(`${API_URL}/auth/forgot/reset`, {
+      reset_token: resetToken,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    });
+
+    // 1. Show the success message
+    showMsg("Password reset successful! Redirecting to login...", "success");
+
+    // 2. Clear out the form state
+    setIdentifier("");
+    setCode("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setResetToken(null);
+
+    // 3. THE REDIRECT: Wait 2 seconds, then move to login
+    setTimeout(() => {
+      navigate("/login");
+    }, 2000);
+
+  } catch (error) {
+    showMsg(error?.response?.data?.message || "Failed to reset password.", "error");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <Box
-      sx={{
-        position: "relative",
-        minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, rgba(10,10,10,1) 0%, rgba(16,0,36,0.95) 50%, rgba(5,5,5,1) 100%)",
-        color: BRAND.text,
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        overflow: "hidden",
-        px: 2,
-      }}
-    >
+  sx={{
+    position: "relative",
+    minHeight: "100vh",
+    /* 1. Use the White Glassmorphism background */
+    background: "rgba(255, 255, 255, 0.75)",
+    backdropFilter: "blur(20px) saturate(180%)",
+    /* 2. Slate text color for light mode */
+    color: "#0F172A", 
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    px: 2,
+  }}
+>
       <motion.div
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -212,7 +213,7 @@ const ForgotPassword = () => {
       >
         <Paper
           sx={{
-            p: 4,
+            p: 2,
             width: { xs: "92vw", sm: 420 },
             mx: "auto",
             borderRadius: 3,

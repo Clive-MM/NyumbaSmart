@@ -60,7 +60,7 @@ const Screen = styled(Box)({
   placeItems: "center",
   background: "rgba(255, 255, 255, 0.75)",
   backdropFilter: "blur(20px) saturate(180%)",
-  /* Use a professional dark slate for all base text */
+
   color: "#0F172A", 
   padding: 16,
   overflow: "hidden",
@@ -82,20 +82,20 @@ const Shell = styled(Paper)({
   background: "rgba(255, 255, 255, 0.95)",
   backdropFilter: "blur(10px)",
 
-  /* 4. Natural Elevation: Swapping neon glows for a soft, professional drop shadow */
+
   boxShadow: "0 20px 60px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.05)",
 });
 
 const HeaderBar = styled(Link)({
   position: "absolute",
-  top: 5, // Lowered slightly for better balance
+  top: 5,
   left: 0,
   width: "100%",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   gap: 12,
-  zIndex: 30, // Higher Z-index to stay above sliding panels
+  zIndex: 30, 
   textDecoration: "none",
   cursor: "pointer",
 });
@@ -123,10 +123,7 @@ const FormCard = styled(Box)({
   boxShadow: `inset 6px 6px 14px ${BRAND.insetDark}, inset -6px -6px 14px ${BRAND.insetLight}, 0 0 12px rgba(255,0,128,0.18)`,
 });
 
-/**
- * IMPORTANT: Prevent `active` prop from reaching the DOM to avoid
- * "Received `false` for a non-boolean attribute `active`" warning.
- */
+
 const OverlayWrap = styled(
   Box,
   { shouldForwardProp: (prop) => prop !== "active" }
@@ -185,10 +182,7 @@ const NInput = styled(TextField)({
   "& .MuiInputLabel-root": { color: BRAND.subtext },
 });
 
-/**
- * Replace deprecated motion(Button) with motion.create(Button)
- * to remove "motion() is deprecated" warning.
- */
+
 const MotionButton = motion.create(Button);
 
 const NButton = styled(MotionButton)({
@@ -589,7 +583,7 @@ function LoginForm({ onSuccess, onNeedOtp }) {
       const resp = await axios.post(`${API_URL}/login`, formData);
       const { token, user } = resp.data;
       // If password-only (no 2FA needed), parent will store and redirect via onNeedOtp? No, we handle here:
-      onNeedOtp?.({ mode: "direct-success", token, user, remember_me: formData.remember_me });
+      onNeedOtp?.({ mode: "direct-success", token, user, remember_me: formData.remember_me,password: formData.password});
     } catch (err) {
       const status = err.response?.status;
       const needs = err.response?.data?.needs_verification;
@@ -691,7 +685,7 @@ export default function AuthDoubleSliderRefined() {
   const [otpMode, setOtpMode] = useState("login"); // "login" | "registration"
   const [otpEmail, setOtpEmail] = useState("");
   const [loginRememberMe, setLoginRememberMe] = useState(false);
-
+  const [loginPassword, setLoginPassword] = useState("");
   const navigate = useNavigate();
 
   const notify = (message, severity = "success", redirect) => {
@@ -699,22 +693,26 @@ export default function AuthDoubleSliderRefined() {
     if (redirect) setTimeout(() => navigate(redirect), 1200);
   };
 
-  const storeSession = (remember, token, user) => {
-    if (!token || !user) return;
-    if (remember) {
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
-      localStorage.setItem("remember_me", "true");
-      localStorage.setItem("remember_email", user.Email || "");
-      // do not store password on OTP flow
-    } else {
-      sessionStorage.setItem("token", token);
-      sessionStorage.setItem("user", JSON.stringify(user));
-      localStorage.removeItem("remember_me");
-      localStorage.removeItem("remember_email");
-      localStorage.removeItem("remember_password");
+  const storeSession = (remember, token, user, password) => {
+  if (!token || !user) return;
+  if (remember) {
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(user));
+    localStorage.setItem("remember_me", "true");
+    localStorage.setItem("remember_email", user.Email || "");
+    
+    // ✅ FIX: Store the encrypted password
+    if (password) {
+      localStorage.setItem("remember_password", encrypt(password));
     }
-  };
+  } else {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("remember_me");
+    localStorage.removeItem("remember_email");
+    localStorage.removeItem("remember_password");
+  }
+};
 
   const openOtp = ({ email, mode = "login", remember_me = false }) => {
     setOtpMode(mode);
@@ -782,14 +780,15 @@ export default function AuthDoubleSliderRefined() {
           >
             <LoginForm
               onSuccess={handleNotify}
-              onNeedOtp={({ mode, email, remember_me, token, user }) => {
+              onNeedOtp={({ mode, email, remember_me, token, user , password}) => {
                 // If login completed with no OTP needed
                 if (mode === "direct-success" && token && user) {
-                  storeSession(!!remember_me, token, user);
+                  storeSession(!!remember_me, token, user,password);
                   handleNotify(`🎉 Welcome back, ${user.FullName}! Redirecting...`, "success", "/dashboard");
                   return;
                 }
                 // Otherwise open OTP (step-up 2FA)
+                setLoginPassword(password);
                 openOtp({ email, mode: "login", remember_me });
               }}
             />
@@ -849,14 +848,17 @@ export default function AuthDoubleSliderRefined() {
         onClose={() => setOtpOpen(false)}
         onVerified={(result) => {
           if (otpMode === "login" && result?.token && result?.user) {
-            // Finalize login directly from /auth/login-verify response
-            storeSession(loginRememberMe, result.token, result.user);
-            handleNotify(`🎉 Welcome back, ${result.user.FullName}! Redirecting...`, "success", "/dashboard");
-          } else {
-            // Registration verify → slide back to login
-            setRightActive(false);
-          }
-        }}
+    // ✅ PASS loginPassword to storeSession here
+    storeSession(loginRememberMe, result.token, result.user, loginPassword); 
+    
+    handleNotify(`🎉 Welcome back, ${result.user.FullName}! Redirecting...`, "success", "/dashboard");
+    
+    // Clear the password from memory after saving
+    setLoginPassword(""); 
+  } else {
+    setRightActive(false);
+  }
+}}
         onMessage={handleNotify}
       />
 
