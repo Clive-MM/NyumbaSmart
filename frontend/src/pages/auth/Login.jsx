@@ -58,35 +58,44 @@ const Screen = styled(Box)({
   minHeight: "100vh",
   display: "grid",
   placeItems: "center",
-  background:
-    "linear-gradient(180deg, rgba(10,10,10,1) 0%, rgba(16,0,36,0.95) 50%, rgba(5,5,5,1) 100%)",
-  color: BRAND.text,
+  background: "rgba(255, 255, 255, 0.75)",
+  backdropFilter: "blur(20px) saturate(180%)",
+  /* Use a professional dark slate for all base text */
+  color: "#0F172A", 
   padding: 16,
   overflow: "hidden",
 });
 
 const Shell = styled(Paper)({
   position: "relative",
-  width: 1140,
-  maxWidth: "98vw",
-  height: 520,
+  
+  width: 550, 
+  maxWidth: "60vw", 
+
+  
+  height: 540, 
+  
   borderRadius: 24,
   overflow: "hidden",
-  background: "linear-gradient(135deg, rgba(20,20,28,0.94), rgba(12,12,16,0.98))",
-  boxShadow:
-    "0 0 14px rgba(255,0,128,0.25), 0 0 24px rgba(69,107,188,0.2), 14px 14px 32px rgba(0,0,0,0.65), -8px -8px 20px rgba(255,255,255,0.02)",
+
+  
+  background: "rgba(255, 255, 255, 0.95)",
+  backdropFilter: "blur(10px)",
+
+  /* 4. Natural Elevation: Swapping neon glows for a soft, professional drop shadow */
+  boxShadow: "0 20px 60px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.05)",
 });
 
 const HeaderBar = styled(Link)({
   position: "absolute",
-  top: 14,
+  top: 5, // Lowered slightly for better balance
   left: 0,
   width: "100%",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   gap: 12,
-  zIndex: 20,
+  zIndex: 30, // Higher Z-index to stay above sliding panels
   textDecoration: "none",
   cursor: "pointer",
 });
@@ -754,7 +763,7 @@ export default function AuthDoubleSliderRefined() {
                     textShadow: "0 0 14px rgba(255,0,128,0.18)",
                   }}
                 >
-                  PayNest&nbsp;&nbsp;Smart Homes, Smarter Payments
+                  PayNest
                 </Typography>
               </motion.div>
             </Box>
@@ -821,9 +830,9 @@ export default function AuthDoubleSliderRefined() {
                 <Typography variant="h4" fontWeight={900}>
                   Landlords, Let’s Make It Pay.
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 1, color: BRAND.subtext }}>
+                {/* <Typography variant="body2" sx={{ mt: 1, color: BRAND.subtext }}>
                   Your smart hub for rent, bills, and peace of mind.
-                </Typography>
+                </Typography> */}
                 <OverlayButton onClick={() => setRightActive(true)}>REGISTER HERE</OverlayButton>
               </Box>
             </OverlayPanel>
