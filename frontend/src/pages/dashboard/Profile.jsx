@@ -1,147 +1,160 @@
 // src/pages/dashboard/Profile.jsx
 import React, { useEffect, useState } from "react";
 import {
-    Box, Typography, Avatar, CircularProgress, Alert, Collapse, Grid,
+    Box, Typography, Avatar, CircularProgress, Alert, Collapse, Grid, alpha
 } from "@mui/material";
-import { styled } from "@mui/material/styles";
+import { styled, keyframes } from "@mui/material/styles";
 import { motion } from "framer-motion";
 import TextField from "@mui/material/TextField";
 import axios from "axios";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
-/* ---------- Brand (shared) ---------- */
+/* ---------- Branding & Constants (Synced for Light Theme) ---------- */
 const BRAND = {
     pink: "#FF0080",
     magenta: "#D4124E",
     orange: "#E8511E",
     purple: "#7E00A6",
     blue: "#456BBC",
-    text: "#e6e6e6",
-    subtext: "#b8b8b8",
-    card: "#11131A",
-    insetLight: "#2a2d36",
-    insetDark: "#07080d",
+    text: "#1A1D23",      // Darker text for light background
+    subtext: "#64748B",   // Muted slate for labels
+    glassWhite: "rgba(255, 255, 255, 0.85)",
 };
-const headingGradient = `linear-gradient(90deg, ${BRAND.magenta}, ${BRAND.blue}, ${BRAND.pink})`;
+
+const brandGradient = `linear-gradient(90deg, ${BRAND.pink}, ${BRAND.magenta}, ${BRAND.orange}, ${BRAND.blue}, ${BRAND.purple})`;
+
 const FONTS = {
     display: `"Cinzel", ui-serif, Georgia, serif`,
-    subhead: `"Nunito", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial`,
-    number: `"Sora", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial`,
+    subhead: `"Nunito", ui-sans-serif, system-ui`,
+    number: `"Sora", ui-sans-serif, system-ui`,
 };
-/* ---------- Card ---------- */
+
+/* ---------- Animations ---------- */
+const glareSweep = keyframes`
+  0% { transform: translateX(-120%) rotate(18deg); opacity: 0; }
+  10% { opacity: .30; } 50% { opacity: .40; } 90% { opacity: .10; }
+  100% { transform: translateX(120%) rotate(18deg); opacity: 0; }
+`;
+
+/* ---------- Styled Components ---------- */
 const FormCard = styled(Box)({
     maxWidth: 980,
     width: "100%",
-    borderRadius: 20,
-    padding: 22,
+    borderRadius: 24,
+    padding: 32,
     marginInline: "auto",
     position: "relative",
-    background: BRAND.card,
-    boxShadow: `
-    0 0 14px rgba(255,0,128,0.20),
-    0 16px 36px rgba(0,0,0,0.55),
-    inset 6px 6px 14px ${BRAND.insetDark},
-    inset -6px -6px 14px ${BRAND.insetLight}
-  `,
+    // Light Glassmorphism
+    background: `linear-gradient(135deg, ${alpha('#fff', 0.90)}, ${alpha('#f8fafc', 0.85)})`,
+    backdropFilter: "saturate(160%) blur(18px)",
+    border: "1px solid rgba(255, 255, 255, 0.7)",
+    boxShadow: "0 20px 40px rgba(0,0,0,0.06), inset 0 0 0 1px rgba(255,255,255,0.5)",
+    overflow: "hidden",
     isolation: "isolate",
     "&::before": {
         content: '""',
         position: "absolute",
-        inset: 0,
-        padding: 1,
-        borderRadius: 20,
-        background: `linear-gradient(135deg, ${BRAND.magenta}, ${BRAND.orange}, ${BRAND.pink})`,
-        WebkitMask:
-            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-        WebkitMaskComposite: "xor",
-        maskComposite: "exclude",
-        zIndex: -1,
-        opacity: 0.6,
+        top: -100, bottom: -100, left: 0, width: "50%",
+        background: "linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.6), rgba(255,255,255,0))",
+        transform: "translateX(-120%) rotate(18deg)",
+        animation: `${glareSweep} 7s ease-in-out infinite`,
+        pointerEvents: "none",
+        mixBlendMode: "overlay",
+        zIndex: 1,
     },
 });
 
-/* ---------- Inputs ---------- */
 const NInput = styled(TextField)({
     marginTop: 12,
     "& .MuiOutlinedInput-root": {
         borderRadius: 12,
-        background: "#0f1219",
+        background: "rgba(255, 255, 255, 0.6)", 
         color: BRAND.text,
-        boxShadow: `inset 3px 3px 6px ${BRAND.insetDark}, inset -3px -3px 6px ${BRAND.insetLight}`,
-        "& fieldset": { borderColor: "rgba(255,255,255,0.08)" },
-        "&.Mui-focused fieldset": { borderColor: "transparent" },
+        // Light Neumorphism: Inner shadow for "pressed" look
+        boxShadow: `inset 2px 2px 5px rgba(0,0,0,0.03), inset -2px -2px 5px rgba(255,255,255,0.8)`,
+        "& fieldset": { borderColor: "rgba(0,0,0,0.04)" },
+        "&.Mui-focused fieldset": { borderColor: alpha(BRAND.pink, 0.2) },
         "&.Mui-focused": {
-            boxShadow:
-                `0 0 0 2px rgba(212,18,78,.35), 0 0 18px rgba(69,107,188,.22), inset 3px 3px 6px ${BRAND.insetDark}, inset -3px -3px 6px ${BRAND.insetLight}`,
+            background: "#fff",
+            boxShadow: `0 8px 16px ${alpha(BRAND.pink, 0.08)}`,
         },
     },
-    "& .MuiInputLabel-root": { color: BRAND.subtext },
+    "& .MuiInputLabel-root": { color: BRAND.subtext, fontSize: "0.85rem", fontWeight: 600 },
 });
 
-/* ---------- Buttons ---------- */
 const NButton = styled(motion.button)({
     borderRadius: 12,
-    background: `linear-gradient(90deg, ${BRAND.magenta}, ${BRAND.orange}, ${BRAND.pink}, ${BRAND.blue})`,
+    background: brandGradient,
     color: "#fff",
     fontWeight: 800,
-    padding: "12px 14px",
+    padding: "12px 24px",
     border: "none",
     cursor: "pointer",
     minWidth: 160,
-    boxShadow: `6px 6px 12px ${BRAND.insetDark}, -6px -6px 12px ${BRAND.insetLight}`,
+    boxShadow: `0 10px 20px ${alpha(BRAND.pink, 0.3)}`,
+    fontFamily: FONTS.subhead,
+    textTransform: "uppercase",
+    letterSpacing: 1,
 });
-const btnTap = { whileTap: { scale: 0.97 } };
 
-/* ---------- Section heading ---------- */
+const CompletenessBar = styled(Box)(({ percent }) => ({
+    width: "100%",
+    height: 6,
+    borderRadius: 3,
+    background: "rgba(0,0,0,0.05)",
+    position: "relative",
+    overflow: "hidden",
+    marginTop: 8,
+    "&::after": {
+        content: '""',
+        position: "absolute",
+        left: 0,
+        top: 0,
+        height: "100%",
+        width: `${percent}%`,
+        background: brandGradient,
+        transition: "width 1s cubic-bezier(0.4, 0, 0.2, 1)",
+    }
+}));
+
 const SectionTitle = ({ children }) => (
     <Typography
         variant="subtitle2"
         sx={{
-            mt: 2.5,
-            mb: .25,
+            mt: 4,
+            mb: 1.5,
             fontWeight: 900,
-            letterSpacing: .3,
-            color: BRAND.text,
+            fontFamily: FONTS.display,
+            color: BRAND.pink, // Uniform pink color
+            letterSpacing: 1.8,
             textTransform: "uppercase",
-            opacity: .9,
+            // Underline removed as requested
+            display: "block", 
+            textAlign: "left"
         }}
     >
         {children}
     </Typography>
 );
 
-/* ---------- Avatar Ring + Upload ---------- */
 const AvatarWrap = styled("label")({
     display: "grid",
     placeItems: "center",
-    width: 112,
-    height: 112,
-    margin: "2px auto 8px",
+    width: 120,
+    height: 120,
+    margin: "0 auto 16px",
     borderRadius: "50%",
     position: "relative",
     cursor: "pointer",
-    background:
-        "linear-gradient(135deg, rgba(212,18,78,.35), rgba(69,107,188,.25))",
-    boxShadow:
-        "0 10px 26px rgba(0,0,0,0.4), inset 0 0 0 3px rgba(255,255,255,0.05)",
-    transition: "filter .2s ease, transform .2s ease",
-    "&:hover": { filter: "brightness(1.05)", transform: "translateY(-1px)" },
-    "&::after": {
-        content: '""',
-        position: "absolute",
-        inset: -6,
-        borderRadius: "50%",
-        background:
-            "linear-gradient(90deg, rgba(212,18,78,.45), rgba(69,107,188,.45), rgba(255,0,128,.45))",
-        filter: "blur(14px)",
-        zIndex: -1,
-        opacity: 0.65,
-    },
+    background: "#fff",
+    border: `1px solid ${alpha(BRAND.blue, 0.1)}`,
+    boxShadow: `0 10px 25px ${alpha(BRAND.blue, 0.15)}`,
+    transition: "all .3s ease",
+    "&:hover": { transform: "scale(1.05)", boxShadow: `0 12px 30px ${alpha(BRAND.pink, 0.2)}` },
 });
-const HiddenFile = styled("input")({ display: "none" });
 
-/* ---------- Component ---------- */
+/* ---------- Main Component ---------- */
 export default function Profile() {
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -149,358 +162,178 @@ export default function Profile() {
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
     const [formData, setFormData] = useState({
-        // identity
-        DisplayName: "",
-        Bio: "",
-        DateOfBirth: "",
-        // contact
-        Address: "",
-        City: "",
-        County: "",
-        PostalCode: "",
-        SupportEmail: "",
-        SupportPhone: "",
-        // IDs
-        NationalID: "",
-        KRA_PIN: "",
-        // mpesa
-        MpesaPaybill: "",
-        MpesaTill: "",
-        MpesaAccountName: "",
-        // bank
-        BankName: "",
-        BankBranch: "",
-        AccountName: "",
-        AccountNumber: "",
+        DisplayName: "", Bio: "", DateOfBirth: "",
+        Address: "", City: "", County: "", PostalCode: "",
+        SupportEmail: "", SupportPhone: "",
+        NationalID: "", KRA_PIN: "",
+        MpesaPaybill: "", MpesaTill: "", MpesaAccountName: "",
+        BankName: "", BankBranch: "", AccountName: "", AccountNumber: "",
     });
 
     const [preview, setPreview] = useState(null);
     const [toast, setToast] = useState({ open: false, type: "success", msg: "" });
-    const closeToastSoon = () =>
-        setTimeout(() => setToast((t) => ({ ...t, open: false })), 2300);
 
-    /* ----- Load profile ----- */
     const fetchProfile = async () => {
         try {
-            console.log("[PROFILE] GET /viewprofile");
             const res = await axios.get(`${API_URL}/viewprofile`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
             });
-            console.log("[PROFILE] viewprofile response:", res.data);
             setProfile(res.data);
-            setFormData((f) => ({
-                ...f,
-                // identity
-                DisplayName: res.data.DisplayName || "",
-                Bio: res.data.Bio || "",
-                DateOfBirth: res.data.DateOfBirth || "",
-                // contact + address
-                Address: res.data.Address || "",
-                City: res.data.City || "",
-                County: res.data.County || "",
-                PostalCode: res.data.PostalCode || "",
-                SupportEmail: res.data.SupportEmail || "",
-                SupportPhone: res.data.SupportPhone || "",
-                // IDs
-                NationalID: res.data.NationalID || "",
-                KRA_PIN: res.data.KRA_PIN || "",
-                // mpesa
-                MpesaPaybill: res.data.MpesaPaybill || "",
-                MpesaTill: res.data.MpesaTill || "",
-                MpesaAccountName: res.data.MpesaAccountName || "",
-                // bank
-                BankName: res.data.BankName || "",
-                BankBranch: res.data.BankBranch || "",
-                AccountName: res.data.AccountName || "",
-                AccountNumber: res.data.AccountNumber || "",
-            }));
-            setPreview(res.data.ProfilePicture || null);
+            setFormData(res.data);
+            setPreview(res.data.ProfilePicture);
         } catch (err) {
-            console.error("[PROFILE] Failed to load:", err?.response?.data || err);
-            setToast({ open: true, type: "error", msg: "Failed to load profile." });
-            closeToastSoon();
-        } finally {
-            setLoading(false);
-        }
+            setToast({ open: true, type: "error", msg: "Welcome! Complete your profile." });
+        } finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchProfile(); }, []); // eslint-disable-line
+    useEffect(() => { fetchProfile(); }, []);
 
-    /* ----- Avatar upload -> /profile/avatar ----- */
     const handleFileChange = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-
-        const previous = preview;              // keep to revert on error
-        const localUrl = URL.createObjectURL(file);
-        setPreview(localUrl);                   // instant preview
+        setPreview(URL.createObjectURL(file));
         setUploadingAvatar(true);
+        const fd = new FormData();
+        fd.append("ProfilePicture", file);
 
         try {
-            const fd = new FormData();
-            // Backend accepts "file" or "ProfilePicture"
-            fd.append("file", file);
-            fd.append("ProfilePicture", file);
-
-            console.log("[PROFILE] POST /profile/avatar (size:", file.size, "type:", file.type, ")");
             const res = await axios.post(`${API_URL}/profile/avatar`, fd, {
                 headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
             });
-
-            console.log("[PROFILE] avatar upload response:", res.data);
-
-            const newUrl = res?.data?.profile?.ProfilePicture;
-            if (newUrl) {
-                setProfile(res.data.profile);
-                setPreview(newUrl);
-                setToast({ open: true, type: "success", msg: "Avatar updated." });
-
-                // sync header cache
-                try {
-                    const current = JSON.parse(localStorage.getItem("user") || "{}");
-                    localStorage.setItem("user", JSON.stringify({ ...current, ProfilePicture: newUrl }));
-                } catch { /* ignore */ }
-            } else {
-                setToast({ open: true, type: "warning", msg: "Uploaded, but no URL returned." });
-                setPreview(previous);
-            }
+            setProfile(res.data.profile);
+            setToast({ open: true, type: "success", msg: "Avatar updated!" });
         } catch (err) {
-            console.error("[PROFILE] Avatar upload failed:", err?.response?.data || err);
-            setToast({
-                open: true,
-                type: "error",
-                msg: err?.response?.data?.message || "Failed to upload avatar.",
-            });
-            setPreview(previous);
-        } finally {
-            setUploadingAvatar(false);
-        }
+            setToast({ open: true, type: "error", msg: "Upload failed." });
+        } finally { setUploadingAvatar(false); }
     };
 
-    /* ----- Text fields save (no file) ----- */
-    const handleChange = (e) =>
-        setFormData((f) => ({ ...f, [e.target.name]: e.target.value }));
+    const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
     const handleSave = async () => {
-        const form = new FormData();
-        Object.entries(formData).forEach(([k, v]) => {
-            if (v !== null && v !== undefined && v !== "") form.append(k, v);
-        });
-
-        // Use your existing endpoints: POST /create_profile, PUT /refreshprofile
-        const hasProfile = !!profile; // after first GET, this is reliable
+        setLoading(true);
+        const hasProfile = !!profile;
         const url = hasProfile ? `${API_URL}/refreshprofile` : `${API_URL}/create_profile`;
         const method = hasProfile ? "put" : "post";
 
         try {
-            console.log(`[PROFILE] ${method.toUpperCase()} ${url}`);
             const res = await axios({
-                method,
-                url,
-                data: form,
+                method, url, data: formData,
                 headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-                // NOTE: don't set Content-Type for FormData; axios sets boundary automatically
             });
-            console.log("[PROFILE] save response:", res.data);
-            setToast({ open: true, type: "success", msg: res.data.message || "Saved!" });
+            setProfile(res.data.profile);
             setIsEditing(false);
-            if (res.data.profile) setProfile(res.data.profile);
-            closeToastSoon();
+            setToast({ open: true, type: "success", msg: "Profile successfully saved!" });
         } catch (err) {
-            console.error("[PROFILE] Save failed:", err?.response?.data || err);
-            const msg = err?.response?.data?.message || "Failed to save profile.";
-            setToast({ open: true, type: "error", msg });
-            closeToastSoon();
-        }
+            setToast({ open: true, type: "error", msg: "Save failed. Please check inputs." });
+        } finally { setLoading(false); }
     };
 
-    if (loading) return <CircularProgress sx={{ m: 5 }} />;
+    if (loading) return <Box sx={{ display: 'grid', placeItems: 'center', height: '60vh' }}><CircularProgress color="secondary" /></Box>;
 
     return (
-        <Box sx={{ py: 3 }}>
-            <FormCard as={motion.div} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                {/* Header */}
-                <Typography
-                    variant="h6"
-                    sx={{
-                        // Original styles
-                        textAlign: "center",
-                        mb: 1,
+        <Box sx={{ pt: 0, pb: 8, px: 2 }}>
+            <FormCard as={motion.div} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                
+                {/* Header Section */}
+                <Typography 
+    variant="h4" 
+    sx={{ 
+        fontFamily: FONTS.display, 
+        textAlign: 'center', 
+        mb: 1, 
+        // CHANGE: Set color to BRAND.pink and remove gradient/transparent fill
+        color: BRAND.pink, 
+        fontWeight: 900, 
+        letterSpacing: 3 
+    }}
+>
+    LANDLORD PROFILE
+</Typography>
 
-                        // Styles from the "Billing" component
-                        fontWeight: 800,
-                        background: BRAND.gradient, // Using BRAND.gradient for the background
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        fontFamily: FONTS.display, // Added fontFamily for "Cinzel"
-                        letterSpacing: .5,       // Added letterSpacing
-                    }}
-                >
-                    PROFILE
-                </Typography>
-
-
-                {/* Avatar */}
-                <Box sx={{ textAlign: "center", mb: 1 }}>
-                    <AvatarWrap htmlFor="avatar-upload" title={isEditing ? "Change avatar" : ""}>
-                        <HiddenFile
-                            accept="image/*"
-                            id="avatar-upload"
-                            type="file"
-                            onChange={handleFileChange}
-                            disabled={!isEditing || uploadingAvatar}
-                        />
-                        <Avatar
-                            src={preview || undefined}
-                            sx={{
-                                width: 96,
-                                height: 96,
-                                bgcolor: "#0f1219",
-                                border: "3px solid rgba(255,255,255,0.08)",
-                                color: BRAND.text,
-                                fontWeight: 800,
-                                opacity: uploadingAvatar ? 0.6 : 1,
-                            }}
-                        />
-                    </AvatarWrap>
-                    {profile?.FullName && (
-                        <Typography sx={{ color: BRAND.text, fontWeight: 800, fontSize: 16, mb: 1 }}>
-                            {profile.FullName}
-                        </Typography>
-                    )}
+                {/* Completeness Tracker */}
+                <Box sx={{ mb: 5, textAlign: 'center', maxWidth: 400, mx: 'auto' }}>
+                    <Typography variant="caption" sx={{ color: BRAND.subtext, fontWeight: 700, letterSpacing: 1 }}>
+                        PROFILE STRENGTH: {profile?.completeness || 0}%
+                    </Typography>
+                    <CompletenessBar percent={profile?.completeness || 0} />
                 </Box>
 
-                {/* Identity */}
-                <SectionTitle>Identity</SectionTitle>
-                <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                        <NInput
-                            fullWidth
-                            label="Display Name"
-                            name="DisplayName"
-                            value={formData.DisplayName}
-                            onChange={handleChange}
-                            disabled={!isEditing}
-                        />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                        <NInput
-                            fullWidth
-                            type="date"
-                            label="Date of Birth"
-                            name="DateOfBirth"
-                            value={formData.DateOfBirth}
-                            onChange={handleChange}
-                            disabled={!isEditing}
-                            InputLabelProps={{ shrink: true }}
-                        />
-                    </Grid>
-                    <Grid item xs={12}>
-                        <NInput
-                            fullWidth
-                            multiline
-                            rows={2}
-                            label="Bio"
-                            name="Bio"
-                            value={formData.Bio}
-                            onChange={handleChange}
-                            disabled={!isEditing}
-                        />
-                    </Grid>
+                {/* Avatar Section */}
+                <Box sx={{ position: 'relative', zIndex: 2, textAlign: 'center', mb: 2 }}>
+    <AvatarWrap htmlFor="avatar-upload">
+        <input hidden accept="image/*" id="avatar-upload" type="file" onChange={handleFileChange} disabled={!isEditing} />
+        
+        <Avatar 
+            src={preview} 
+            sx={{ 
+                width: 106, 
+                height: 106, 
+                // CHANGE 1: Background is now pinkish (alpha adds subtle transparency)
+                bgcolor: alpha(BRAND.pink, 0.1), 
+                // CHANGE 2: Solid pink border for uniformity
+                border: `3px solid ${BRAND.pink}`,
+                // Optional: color of initials if no image is present
+                color: BRAND.pink,
+                fontWeight: 900,
+                fontSize: '2rem',
+                fontFamily: FONTS.display
+            }} 
+        >
+            {/* This shows initials if 'preview' is empty/null */}
+            {!preview && formData.DisplayName?.charAt(0).toUpperCase()}
+        </Avatar>
+
+        {uploadingAvatar && (
+            <CircularProgress 
+                size={120} 
+                sx={{ 
+                    position: 'absolute', 
+                    color: BRAND.pink,
+                    top: -7, // Adjusted to sit perfectly around the new border
+                    left: -7 
+                }} 
+            />
+        )}
+    </AvatarWrap>
+</Box>
+
+                {/* Form Sections */}
+                <SectionTitle>Identity & Bio</SectionTitle>
+                <Grid container spacing={3}>
+                    <Grid item xs={12} sm={6}><NInput fullWidth label="Display Name" name="DisplayName" value={formData.DisplayName} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={6}><NInput fullWidth type="date" label="Date of Birth" name="DateOfBirth" value={formData.DateOfBirth} onChange={handleChange} disabled={!isEditing} InputLabelProps={{ shrink: true }} /></Grid>
+                    <Grid item xs={12}><NInput fullWidth multiline rows={2} label="Short Bio" name="Bio" value={formData.Bio} onChange={handleChange} disabled={!isEditing} /></Grid>
                 </Grid>
 
-                {/* Contact & Address */}
                 <SectionTitle>Contact & Address</SectionTitle>
-                <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                        <NInput fullWidth label="Support Email" name="SupportEmail" value={formData.SupportEmail}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                        <NInput fullWidth label="Support Phone" name="SupportPhone" value={formData.SupportPhone}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-
-                    <Grid item xs={12}>
-                        <NInput fullWidth label="Address" name="Address" value={formData.Address}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                        <NInput fullWidth label="City" name="City" value={formData.City}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                        <NInput fullWidth label="County" name="County" value={formData.County}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                        <NInput fullWidth label="Postal Code" name="PostalCode" value={formData.PostalCode}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
+                <Grid container spacing={3}>
+                    <Grid item xs={12} sm={6}><NInput fullWidth label="Business Email" name="SupportEmail" value={formData.SupportEmail} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={6}><NInput fullWidth label="Business Phone" name="SupportPhone" value={formData.SupportPhone} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12}><NInput fullWidth label="Physical Address" name="Address" value={formData.Address} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={4}><NInput fullWidth label="City" name="City" value={formData.City} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={4}><NInput fullWidth label="County" name="County" value={formData.County} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={4}><NInput fullWidth label="Postal Code" name="PostalCode" value={formData.PostalCode} onChange={handleChange} disabled={!isEditing} /></Grid>
                 </Grid>
 
-                {/* Identification */}
-                <SectionTitle>Identification</SectionTitle>
-                <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                        <NInput fullWidth label="National ID" name="NationalID" value={formData.NationalID}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                        <NInput fullWidth label="KRA PIN" name="KRA_PIN" value={formData.KRA_PIN}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
+                <SectionTitle>Statutory & Payments</SectionTitle>
+                <Grid container spacing={3}>
+                    <Grid item xs={12} sm={6}><NInput fullWidth label="National ID" name="NationalID" value={formData.NationalID} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={6}><NInput fullWidth label="KRA PIN" name="KRA_PIN" value={formData.KRA_PIN} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={4}><NInput fullWidth label="M-Pesa Paybill" name="MpesaPaybill" value={formData.MpesaPaybill} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={4}><NInput fullWidth label="M-Pesa Till" name="MpesaTill" value={formData.MpesaTill} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={4}><NInput fullWidth label="Bank Account" name="AccountNumber" value={formData.AccountNumber} onChange={handleChange} disabled={!isEditing} /></Grid>
                 </Grid>
 
-                {/* M‑Pesa */}
-                <SectionTitle>M‑Pesa Details</SectionTitle>
-                <Grid container spacing={2}>
-                    <Grid item xs={12} sm={4}>
-                        <NInput fullWidth label="Paybill" name="MpesaPaybill" value={formData.MpesaPaybill}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                        <NInput fullWidth label="Till" name="MpesaTill" value={formData.MpesaTill}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                        <NInput fullWidth label="Account Name" name="MpesaAccountName" value={formData.MpesaAccountName}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                </Grid>
-
-                {/* Bank */}
-                <SectionTitle>Bank Details</SectionTitle>
-                <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                        <NInput fullWidth label="Bank Name" name="BankName" value={formData.BankName}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                        <NInput fullWidth label="Bank Branch" name="BankBranch" value={formData.BankBranch}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                        <NInput fullWidth label="Account Name" name="AccountName" value={formData.AccountName}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                        <NInput fullWidth label="Account Number" name="AccountNumber" value={formData.AccountNumber}
-                            onChange={handleChange} disabled={!isEditing} />
-                    </Grid>
-                </Grid>
-
-                {/* Actions */}
-                <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center", mt: 2 }}>
+                {/* Action Buttons */}
+                <Box sx={{ display: "flex", gap: 2, justifyContent: "center", mt: 8 }}>
                     {!isEditing ? (
-                        <NButton {...btnTap} onClick={() => setIsEditing(true)}>Edit Profile</NButton>
+                        <NButton onClick={() => setIsEditing(true)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Edit Profile</NButton>
                     ) : (
                         <>
-                            <NButton {...btnTap} onClick={handleSave}>Save Changes</NButton>
-                            <NButton
-                                {...btnTap}
-                                style={{ background: "linear-gradient(90deg,#555,#333)" }}
-                                onClick={() => { setIsEditing(false); fetchProfile(); }}
+                            <NButton onClick={handleSave} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Save Changes</NButton>
+                            <NButton 
+                                onClick={() => { setIsEditing(false); fetchProfile(); }} 
+                                style={{ background: "rgba(0,0,0,0.05)", color: BRAND.text, border: '1px solid rgba(0,0,0,0.1)' }}
                             >
                                 Cancel
                             </NButton>
@@ -508,12 +341,12 @@ export default function Profile() {
                     )}
                 </Box>
 
-                {/* Toasts */}
-                <Collapse in={toast.open} appear>
-                    <Alert sx={{ mt: 2, borderRadius: 2 }} severity={toast.type} variant="filled">
+                <Collapse in={toast.open} sx={{ mt: 4 }}>
+                    <Alert severity={toast.type} variant="filled" onClose={() => setToast({ ...toast, open: false })} sx={{ borderRadius: 3 }}>
                         {toast.msg}
                     </Alert>
                 </Collapse>
+
             </FormCard>
         </Box>
     );

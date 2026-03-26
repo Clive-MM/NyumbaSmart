@@ -185,10 +185,18 @@ export default function SideMenu({
     };
 
     const iconSx = {
-        color: theme.palette.text.primary,
-        opacity: 0.92,
+        // This applies the pink-to-purple gradient to the icon itself
+        background: GRADIENT,
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+
+        // We increase opacity to 1 so the colors are vivid like the KM avatar
+        opacity: 1,
         fontSize: 22,
         transition: "transform .15s ease, opacity .2s ease",
+
+        // Adds a very soft glow so the colors "pop" against white glass
+        filter: "drop-shadow(0px 2px 4px rgba(255, 0, 128, 0.08))",
     };
 
     const menuItems = [
@@ -275,18 +283,7 @@ export default function SideMenu({
                             <ListItemIcon
                                 sx={{ minWidth: collapsed ? 0 : 36, mr: collapsed ? 0 : 0.5 }}
                             >
-                                <Box
-                                    component="span"
-                                    sx={{
-                                        display: "inline-flex",
-                                        ...(active && {
-                                            background: GRADIENT,
-                                            WebkitBackgroundClip: "text",
-                                            WebkitTextFillColor: "transparent",
-                                            textShadow: "0 0 18px rgba(255,0,128,.14)",
-                                        }),
-                                    }}
-                                >
+                                <Box component="span" sx={{ display: "inline-flex" }}>
                                     {item.icon}
                                 </Box>
                             </ListItemIcon>
@@ -307,7 +304,7 @@ export default function SideMenu({
                                                 WebkitTextFillColor: "transparent",
                                                 textShadow: "0 0 18px rgba(255,0,128,.14)",
                                             }
-                                            : { color: alpha("#fff", 0.92) }),
+                                            : { color: "#475569" }),
                                     }}
                                 />
                             )}
