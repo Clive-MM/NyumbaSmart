@@ -3772,26 +3772,41 @@ def update_profile():
     if not profile:
         return jsonify({"message": "Profile not found"}), 404
 
+    # Support both Form Data (for files) and JSON
     data = request.form.to_dict() if request.form else (request.get_json() or {})
+    
+    # Validate payload
     errors = validate_profile_payload(data)
     if errors:
         return jsonify({"message": "Validation failed", "errors": errors}), 400
 
-    # Update Image
-    file = request.files.get("ProfilePicture")
+    # --- 1. HANDLE IMAGE UPLOAD FIRST ---
+    # This ensures the Cloudinary URL is captured before text updates
+    file = request.files.get("ProfilePicture") or request.files.get("file")
     if file:
         try:
             upload_result = upload_to_cloudinary(file)
             profile.ProfilePicture = upload_result.get("url")
+            # Immediate commit so the URL isn't lost if text fields fail
+            db.session.commit()
         except Exception as e:
+            db.session.rollback()
             return jsonify({"message": "Image upload failed", "error": str(e)}), 500
 
-    # Update Fields
-    profile.Address = data.get("Address", profile.Address)
-    profile.NationalID = data.get("NationalID", profile.NationalID)
-    profile.Bio = data.get("Bio", profile.Bio)
+    # --- 2. IDENTITY & BIO ---
     profile.DisplayName = data.get("DisplayName", profile.DisplayName)
+    profile.Bio = data.get("Bio", profile.Bio)
+    profile.NationalID = data.get("NationalID", profile.NationalID)
+    
+    if data.get("DateOfBirth"):
+        try:
+            profile.DateOfBirth = datetime.strptime(data["DateOfBirth"], "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    # --- 3. CONTACT & LOCATION ---
     profile.SupportEmail = data.get("SupportEmail", profile.SupportEmail)
+    profile.Address = data.get("Address", profile.Address)
     profile.City = data.get("City", profile.City)
     profile.County = data.get("County", profile.County)
     profile.PostalCode = data.get("PostalCode", profile.PostalCode)
@@ -3802,18 +3817,29 @@ def update_profile():
     if "KRA_PIN" in data:
         profile.KRA_PIN = data["KRA_PIN"].strip().upper() if data["KRA_PIN"] else None
 
-    # Payments
+    # --- 4. PAYMENTS & BANKING (Full Field List) ---
     profile.MpesaPaybill = data.get("MpesaPaybill", profile.MpesaPaybill)
     profile.MpesaTill = data.get("MpesaTill", profile.MpesaTill)
+    profile.MpesaAccountName = data.get("MpesaAccountName", profile.MpesaAccountName)
+    
     profile.BankName = data.get("BankName", profile.BankName)
+    profile.BankBranch = data.get("BankBranch", profile.BankBranch)
+    profile.AccountName = data.get("AccountName", profile.AccountName)
     profile.AccountNumber = data.get("AccountNumber", profile.AccountNumber)
 
-    db.session.commit()
-    return jsonify({
-        "message": "✅ Profile refreshed",
-        "profile": serialize_profile(user, profile)
-    }), 200
-
+    # --- 5. FINAL PERSISTENCE ---
+    try:
+        db.session.commit()
+        # Force the app to re-read the data from the DB to confirm it's there
+        db.session.refresh(profile) 
+        
+        return jsonify({
+            "message": "✅ Profile refreshed",
+            "profile": serialize_profile(user, profile)
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Database update failed", "error": str(e)}), 500
 
 @routes.route("/profile", methods=["PATCH"])
 @jwt_required()
@@ -3861,7 +3887,6 @@ def patch_profile():
 @routes.route("/profile/avatar", methods=["POST"])
 @jwt_required()
 def upload_avatar():
-    """Dedicated route for updating just the logo/photo."""
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
     profile = Profile.query.filter_by(UserID=user_id).first()
@@ -3869,23 +3894,33 @@ def upload_avatar():
     if not profile:
         return jsonify({"message": "Create profile first"}), 404
 
+    # Check for both possible keys from frontend
     file = request.files.get("ProfilePicture") or request.files.get("file")
     if not file:
         return jsonify({"message": "No image provided"}), 400
 
     try:
+        # 1. Upload to Cloudinary
         upload_result = upload_to_cloudinary(file)
-        profile.ProfilePicture = upload_result.get("url")
+        new_url = upload_result.get("url")
+
+        # 2. Update the Profile object
+        profile.ProfilePicture = new_url
+        
+        # 3. CRITICAL: Commit to DB
         db.session.commit()
+        
+        # 4. REFRESH the object from the DB to ensure it persisted
+        db.session.refresh(profile) 
+
         return jsonify({
             "message": "✅ Photo updated",
-            "url": profile.ProfilePicture,
+            "url": profile.ProfilePicture, # This is now the confirmed DB value
             "profile": serialize_profile(user, profile)
         }), 200
     except Exception as e:
+        db.session.rollback() # Rollback if commit fails
         return jsonify({"message": "Upload failed", "error": str(e)}), 500
-
-
 # route for enabling the user send a feedback abput the website
 
 
