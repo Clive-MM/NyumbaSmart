@@ -166,8 +166,8 @@ export default function Profile() {
         Address: "", City: "", County: "", PostalCode: "",
         SupportEmail: "", SupportPhone: "",
         NationalID: "", KRA_PIN: "",
-        MpesaPaybill: "", MpesaTill: "", MpesaAccountName: "",
-        BankName: "", BankBranch: "", AccountName: "", AccountNumber: "",
+        MpesaPaybill: "", MpesaTill: "", MpesaAccountName: "", // Fixed: Added MpesaAccountName
+        BankName: "", BankBranch: "", AccountName: "", AccountNumber: "", // Fixed: Added BankName, Branch, AccName
     });
 
     const [preview, setPreview] = useState(null);
@@ -236,19 +236,18 @@ export default function Profile() {
                 
                 {/* Header Section */}
                 <Typography 
-    variant="h4" 
-    sx={{ 
-        fontFamily: FONTS.display, 
-        textAlign: 'center', 
-        mb: 1, 
-        // CHANGE: Set color to BRAND.pink and remove gradient/transparent fill
-        color: BRAND.pink, 
-        fontWeight: 900, 
-        letterSpacing: 3 
-    }}
->
-    LANDLORD PROFILE
-</Typography>
+                    variant="h4" 
+                    sx={{ 
+                        fontFamily: FONTS.display, 
+                        textAlign: 'center', 
+                        mb: 1, 
+                        color: BRAND.pink, 
+                        fontWeight: 900, 
+                        letterSpacing: 3 
+                    }}
+                >
+                    LANDLORD PROFILE
+                </Typography>
 
                 {/* Completeness Tracker */}
                 <Box sx={{ mb: 5, textAlign: 'center', maxWidth: 400, mx: 'auto' }}>
@@ -260,42 +259,38 @@ export default function Profile() {
 
                 {/* Avatar Section */}
                 <Box sx={{ position: 'relative', zIndex: 2, textAlign: 'center', mb: 2 }}>
-    <AvatarWrap htmlFor="avatar-upload">
-        <input hidden accept="image/*" id="avatar-upload" type="file" onChange={handleFileChange} disabled={!isEditing} />
-        
-        <Avatar 
-            src={preview} 
-            sx={{ 
-                width: 106, 
-                height: 106, 
-                // CHANGE 1: Background is now pinkish (alpha adds subtle transparency)
-                bgcolor: alpha(BRAND.pink, 0.1), 
-                // CHANGE 2: Solid pink border for uniformity
-                border: `3px solid ${BRAND.pink}`,
-                // Optional: color of initials if no image is present
-                color: BRAND.pink,
-                fontWeight: 900,
-                fontSize: '2rem',
-                fontFamily: FONTS.display
-            }} 
-        >
-            {/* This shows initials if 'preview' is empty/null */}
-            {!preview && formData.DisplayName?.charAt(0).toUpperCase()}
-        </Avatar>
+                    <AvatarWrap htmlFor="avatar-upload">
+                        <input hidden accept="image/*" id="avatar-upload" type="file" onChange={handleFileChange} disabled={!isEditing} />
+                        
+                        <Avatar 
+                            src={preview} 
+                            sx={{ 
+                                width: 106, 
+                                height: 106, 
+                                bgcolor: alpha(BRAND.pink, 0.1), 
+                                border: `3px solid ${BRAND.pink}`,
+                                color: BRAND.pink,
+                                fontWeight: 900,
+                                fontSize: '2rem',
+                                fontFamily: FONTS.display
+                            }} 
+                        >
+                            {!preview && formData.DisplayName?.charAt(0).toUpperCase()}
+                        </Avatar>
 
-        {uploadingAvatar && (
-            <CircularProgress 
-                size={120} 
-                sx={{ 
-                    position: 'absolute', 
-                    color: BRAND.pink,
-                    top: -7, // Adjusted to sit perfectly around the new border
-                    left: -7 
-                }} 
-            />
-        )}
-    </AvatarWrap>
-</Box>
+                        {uploadingAvatar && (
+                            <CircularProgress 
+                                size={120} 
+                                sx={{ 
+                                    position: 'absolute', 
+                                    color: BRAND.pink,
+                                    top: -7, 
+                                    left: -7 
+                                }} 
+                            />
+                        )}
+                    </AvatarWrap>
+                </Box>
 
                 {/* Form Sections */}
                 <SectionTitle>Identity & Bio</SectionTitle>
@@ -315,13 +310,19 @@ export default function Profile() {
                     <Grid item xs={12} sm={4}><NInput fullWidth label="Postal Code" name="PostalCode" value={formData.PostalCode} onChange={handleChange} disabled={!isEditing} /></Grid>
                 </Grid>
 
-                <SectionTitle>Statutory & Payments</SectionTitle>
+                <SectionTitle>Statutory Compliance & Financials</SectionTitle>
                 <Grid container spacing={3}>
                     <Grid item xs={12} sm={6}><NInput fullWidth label="National ID" name="NationalID" value={formData.NationalID} onChange={handleChange} disabled={!isEditing} /></Grid>
                     <Grid item xs={12} sm={6}><NInput fullWidth label="KRA PIN" name="KRA_PIN" value={formData.KRA_PIN} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    
                     <Grid item xs={12} sm={4}><NInput fullWidth label="M-Pesa Paybill" name="MpesaPaybill" value={formData.MpesaPaybill} onChange={handleChange} disabled={!isEditing} /></Grid>
                     <Grid item xs={12} sm={4}><NInput fullWidth label="M-Pesa Till" name="MpesaTill" value={formData.MpesaTill} onChange={handleChange} disabled={!isEditing} /></Grid>
-                    <Grid item xs={12} sm={4}><NInput fullWidth label="Bank Account" name="AccountNumber" value={formData.AccountNumber} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={4}><NInput fullWidth label="M-Pesa Account Name" name="MpesaAccountName" value={formData.MpesaAccountName} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    
+                    <Grid item xs={12} sm={6}><NInput fullWidth label="Bank Name" name="BankName" value={formData.BankName} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={6}><NInput fullWidth label="Bank Branch" name="BankBranch" value={formData.BankBranch} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={6}><NInput fullWidth label="Account Holder Name" name="AccountName" value={formData.AccountName} onChange={handleChange} disabled={!isEditing} /></Grid>
+                    <Grid item xs={12} sm={6}><NInput fullWidth label="Account Number" name="AccountNumber" value={formData.AccountNumber} onChange={handleChange} disabled={!isEditing} /></Grid>
                 </Grid>
 
                 {/* Action Buttons */}
