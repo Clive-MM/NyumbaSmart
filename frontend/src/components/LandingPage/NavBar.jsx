@@ -126,38 +126,45 @@ const StyledInputBase = styled(InputBase)({
 
 
 const GlassIconBtn = styled(IconButton)(({ active }) => ({
-  margin: "0 6px",
-  width: 48,
-  height: 48,
+  margin: "0 8px",
+  width: 46,
+  height: 46,
   borderRadius: "14px", 
   transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
   
+  // 1. CARVED-IN BASE: Match the AppBar's light glass background
+  background: "#F8FAFC", 
 
-  background: `linear-gradient(135deg, ${BRAND.magenta} 0%, #9f0d3a 100%)`,
-  color: "#fff",
-
-
-  border: "1px solid rgba(255, 255, 255, 0.4)",
+  // 2. NEGATIVE NEUMORPHISM (The Inset Shadows)
+  // This creates the physical "hole" in the navigation bar
   boxShadow: `
-    0 8px 16px -4px rgba(0, 0, 0, 0.3), 
-    0 4px 8px ${alpha(BRAND.magenta, 0.4)}, 
-    inset 0 1px 1px rgba(255, 255, 255, 0.5)
+    inset 4px 4px 8px ${BRAND.insetDark}, 
+    inset -4px -4px 8px ${BRAND.insetLight}
   `,
 
+  // 3. ICON COLOR: Make the icon itself pop with your brand color
+  color: BRAND.magenta,
+  border: "none",
+
   "&:hover": {
-    transform: "translateY(-4px) scale(1.1)",
-    background: `linear-gradient(135deg, #f01e6a 0%, ${BRAND.magenta} 100%)`,
-    boxShadow: `0 12px 20px -5px rgba(0, 0, 0, 0.35), 0 6px 12px ${alpha(BRAND.magenta, 0.5)}`,
+    // Deepen the "press" effect on hover
+    transform: "scale(0.96)", 
+    boxShadow: `
+      inset 6px 6px 12px ${BRAND.insetDark}, 
+      inset -6px -6px 12px ${BRAND.insetLight}
+    `,
+    color: "#f01e6a", // Slightly brighter pink on hover
   },
 
   "&:active": {
-    transform: "translateY(1px) scale(0.95)",
-    boxShadow: "inset 0 1px 4px rgba(0,0,0,0.1)",
+    transform: "scale(0.92)",
+    boxShadow: "inset 8px 8px 16px rgba(0,0,0,0.4)",
   },
 
   "& .MuiSvgIcon-root": {
-    fontSize: "1.4rem",
-    filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.2))",
+    fontSize: "1.3rem",
+    // Make the icon look like it's glowing inside the carved socket
+    filter: `drop-shadow(0 0 5px ${alpha(BRAND.magenta, 0.3)})`,
   },
 }));
 
