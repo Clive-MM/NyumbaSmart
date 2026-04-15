@@ -827,7 +827,7 @@ export default function AuthDoubleSliderRefined() {
             <OverlayPanel>
               <Box textAlign="center">
                 <Typography variant="h4" fontWeight={900}>
-                  Landlords, Let’s Make It Pay.
+                  Smart Homes, Smarter Payments.
                 </Typography>
                 {/* <Typography variant="body2" sx={{ mt: 1, color: BRAND.subtext }}>
                   Your smart hub for rent, bills, and peace of mind.
