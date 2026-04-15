@@ -219,7 +219,7 @@ export default function Footer() {
                     🕒 Mon–Fri · 9:00–17:00
                   </Typography>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mt: 2 }}>
-                    <StatusDot />
+                   
                     
                   </Box>
                 </Box>
