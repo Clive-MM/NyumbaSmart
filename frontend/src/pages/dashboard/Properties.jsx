@@ -82,38 +82,31 @@ const softCard = {
 };
 /* Shared field style */
 const fieldNeumorphSx = {
-    "& .MuiFormControl-root": { overflow: "visible" },
     "& .MuiInputLabel-root": {
-        color: "rgba(255,255,255,0.92)",
-        fontFamily: FONTS.subhead,
-        whiteSpace: "nowrap",
-        overflow: "visible",
-        textOverflow: "clip",
-        maxWidth: "none"
+        color: "#64748B !important", // Dark Slate Label
+        fontFamily: "'Orbitron', sans-serif",
+        fontWeight: 700,
+        fontSize: '0.75rem'
     },
-    "& .MuiInputLabel-root.MuiInputLabel-shrink": { maxWidth: "none" },
     "& .MuiInputBase-root": {
-        background: "rgba(255,255,255,0.03)",
-        borderRadius: 2,
-        boxShadow:
-            "inset 6px 6px 12px rgba(0,0,0,.45), inset -6px -6px 12px rgba(255,255,255,.03)",
-        paddingTop: 1,
-        paddingBottom: 1
+        background: "#F8FAFC", 
+        borderRadius: '12px',
+        // NEGATIVE NEUMORPHISM: The inner shadows that create depth
+        boxShadow: "inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff",
+        border: "none",
     },
-    "& .MuiInputBase-input": { color: "#fff", fontFamily: FONTS.subhead },
-    "& .MuiInputBase-input::placeholder": {
-        color: "rgba(255,255,255,0.7)",
-        opacity: 1
+    "& .MuiInputBase-input": { 
+        color: "#0F172A !important", // BOLD DARK TEXT (This fixes the "invisible" text)
+        fontFamily: FONTS.subhead,
+        fontWeight: 600
     },
     "& .MuiOutlinedInput-notchedOutline": {
-        borderColor: "rgba(255,255,255,0.22)"
+        border: "none" // Remove the standard line border
     },
-    "&:hover .MuiOutlinedInput-notchedOutline": {
-        borderColor: "rgba(255,255,255,0.45)"
-    },
-    "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: BRAND.start }
+    "&.Mui-focused .MuiInputBase-root": {
+        boxShadow: "inset 2px 2px 5px #d1d9e6, inset -2px -2px 5px #ffffff, 0 0 5px rgba(255,0,128,0.1)"
+    }
 };
-
 /* ------------------------- Reusable Modal Shell ------------------------- */
 function ModalShell({
     open,
@@ -152,33 +145,78 @@ function ModalShell({
             <Paper
                 elevation={0}
                 sx={{
-                    ...softCard,
+                    // 1. Uniformity: Switch from dark to the light page background
+                    bgcolor: "#F8FAFC", 
                     width,
                     maxHeight,
                     overflow: "hidden",
                     p: 0,
-                    borderRadius: 3,
-                    position: "relative"
+                    borderRadius: 5, // Softer rounding for the dialog
+                    position: "relative",
+                    
+                    // 2. Neumorphic Lift: Light shadow on one side, dark on the other
+                    boxShadow: "20px 20px 60px #d1d9e6, -20px -20px 60px #ffffff",
+                    border: "none"
                 }}
             >
+                {/* Header */}
                 {/* Header */}
                 <Stack
                     direction="row"
                     alignItems="center"
                     spacing={1}
-                    sx={{ p: 1.5, pb: 1, borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+                    sx={{ p: 2, pb: 1, borderBottom: "1px solid rgba(15, 23, 42, 0.05)" }}
                 >
                     <Typography
-                        variant="subtitle1"
-                        sx={{ fontWeight: 900, fontFamily: FONTS.subhead }}
+                        variant="h6" // Slightly larger for emphasis
+                        sx={{ 
+                            fontWeight: 900, 
+                            fontFamily: "'Orbitron', sans-serif",
+                            // 3. Pinkish/Violet Mixture Gradient
+                            background: BRAND.gradient,
+                            WebkitBackgroundClip: "text",
+                            WebkitTextFillColor: "transparent",
+                        }}
                     >
                         {title}
                     </Typography>
                     <Box sx={{ flex: 1 }} />
                     {headerRight}
-                    <Button onClick={onClose} sx={{ color: "#fff", textTransform: "none" }}>
-                        Close
-                    </Button>
+                    <Button 
+    onClick={onClose} 
+    sx={{ 
+        textTransform: "none", 
+        fontWeight: 900,
+        fontFamily: "'Orbitron', sans-serif",
+        fontSize: '0.75rem',
+        px: 2,
+        borderRadius: '10px',
+
+        // 1. The "Carved-In" Surface
+        bgcolor: "#F8FAFC", // Match the header background
+        boxShadow: `
+            inset 3px 3px 6px #d1d9e6, 
+            inset -3px -3px 6px #ffffff
+        `,
+
+        // 2. The Pinkish-Violet Text Mixture
+        background: BRAND.gradient,
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+
+        transition: "all 0.2s ease",
+        "&:hover": {
+            // 3. Deepen the "press" on hover
+            boxShadow: `
+                inset 5px 5px 8px #c2cedd, 
+                inset -5px -5px 8px #ffffff
+            `,
+            transform: "scale(0.98)"
+        }
+    }}
+>
+    Close
+</Button>
                 </Stack>
 
                 {/* Body */}
@@ -212,24 +250,68 @@ function ModalShell({
 /* -------------------------- KPI & small components -------------------------- */
 function KpiCard({ icon, label, value, sublabel }) {
     return (
-        <Paper elevation={0} sx={{ ...softCard, height: 120 }}>
+        <Paper
+            elevation={0}
+            sx={{
+                p: 2,
+                height: 120,
+                borderRadius: '24px', // Softer rounded corners
+                bgcolor: "#F8FAFC",   // Must match the main background
+
+                // NEGATIVE NEUMORPHISM (The Carved-In Look)
+                boxShadow: "inset 6px 6px 12px #d1d9e6, inset -6px -6px 12px #ffffff",
+                border: "none",
+
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                transition: "transform 0.2s ease",
+                "&:hover": {
+                    transform: "scale(0.98)" // Subtle "press" effect on hover
+                }
+            }}
+        >
             <Stack direction="row" alignItems="center" spacing={1}>
-                {icon}
+                {/* ICON: Changed to Brand Pink for visibility */}
+                {React.cloneElement(icon, {
+                    sx: { color: "#FF0080", fontSize: "1.2rem" }
+                })}
                 <Typography
                     variant="body2"
-                    sx={{ opacity: 0.88, fontFamily: FONTS.subhead, letterSpacing: 0.2 }}
+                    sx={{
+                        color: "#0F172A", // BLACK/Dark Slate for visibility
+                        fontWeight: 700,
+                        fontFamily: "'Orbitron', sans-serif",
+                        fontSize: '0.65rem',
+                        letterSpacing: 0.5
+                    }}
                 >
                     {label}
                 </Typography>
             </Stack>
+
             <Typography
                 variant="h5"
-                sx={{ mt: 0.5, fontWeight: 800, fontFamily: FONTS.number }}
+                sx={{
+                    mt: 1,
+                    fontWeight: 900,
+                    color: "#0F172A", // BOLD BLACK
+                    fontFamily: "'Orbitron', sans-serif"
+                }}
             >
                 {value}
             </Typography>
+
             {sublabel ? (
-                <Typography variant="caption" sx={{ opacity: 0.72, fontFamily: FONTS.subhead }}>
+                <Typography
+                    variant="caption"
+                    sx={{
+                        color: "#64748B", // Muted Slate for sub-info
+                        fontWeight: 600,
+                        fontFamily: "'Orbitron', sans-serif",
+                        fontSize: '0.6rem'
+                    }}
+                >
                     {sublabel}
                 </Typography>
             ) : null}
@@ -241,33 +323,69 @@ function RectCard({ icon, label, value, help, loading = false }) {
         <Paper
             elevation={0}
             sx={{
-                ...softCard,
                 p: 2.25,
-                borderRadius: 2,
-                height: 88,
+                borderRadius: '32px', // Slightly larger rounding for these wider cards
+                height: 95,
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "center",
-                gap: 0.25
+                gap: 0.25,
+                bgcolor: "#F8FAFC", // Match page background
+
+                // NEGATIVE NEUMORPHISM (Inset Shadows)
+                boxShadow: "inset 6px 6px 12px #d1d9e6, inset -6px -6px 12px #ffffff",
+                border: "none",
+
+                transition: "all 0.3s ease",
+                "&:hover": {
+                    transform: "scale(0.985)",
+                    boxShadow: "inset 8px 8px 16px #c2cedd, inset -8px -8px 16px #ffffff",
+                }
             }}
         >
             <Stack direction="row" spacing={1} alignItems="center">
-                {icon}
-                <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead }}>
+                {/* ICON: We keep the passed-in color (Green/Red/Purple) but ensure it's bold */}
+                {React.cloneElement(icon, { sx: { ...icon.props.sx, fontSize: "1.3rem" } })}
+                <Typography
+                    variant="body2"
+                    sx={{
+                        color: "#0F172A", // Bold Black
+                        fontWeight: 700,
+                        fontFamily: "'Orbitron', sans-serif",
+                        fontSize: '0.7rem',
+                        letterSpacing: 0.5
+                    }}
+                >
                     {label}
                 </Typography>
             </Stack>
+
             <Stack direction="row" alignItems="baseline" spacing={1}>
-                <Typography variant="h5" sx={{ fontWeight: 900, fontFamily: FONTS.number }}>
+                <Typography
+                    variant="h5"
+                    sx={{
+                        fontWeight: 900,
+                        color: "#0F172A", // Bold Black
+                        fontFamily: "'Orbitron', sans-serif"
+                    }}
+                >
                     {value}
                 </Typography>
                 {help ? (
-                    <Typography variant="caption" sx={{ opacity: 0.7, fontFamily: FONTS.subhead }}>
+                    <Typography
+                        variant="caption"
+                        sx={{
+                            color: "#64748B", // Muted Slate
+                            fontFamily: "'Orbitron', sans-serif",
+                            fontWeight: 600,
+                            fontSize: '0.65rem'
+                        }}
+                    >
                         {help}
                     </Typography>
                 ) : null}
             </Stack>
-            {loading ? <LinearProgress sx={{ mt: 0.5 }} /> : null}
+            {loading ? <LinearProgress sx={{ mt: 0.5, height: 2, borderRadius: 1 }} /> : null}
         </Paper>
     );
 }
@@ -276,27 +394,32 @@ function StatChip({ icon, label, value, help }) {
         <Paper
             elevation={0}
             sx={{
-                ...softCard,
                 p: 1.5,
-                borderRadius: 2,
+                borderRadius: '24px',
                 height: 72,
                 display: "flex",
                 flexDirection: "column",
-                justifyContent: "center"
+                justifyContent: "center",
+                bgcolor: "#F8FAFC",
+                // DOUBLE INSET: This makes them look carved into the already carved tray
+                boxShadow: "inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff",
+                transition: "transform 0.2s ease",
+                "&:hover": { transform: "scale(0.97)" }
             }}
         >
             <Stack direction="row" spacing={1} alignItems="center">
-                {icon}
-                <Typography variant="body2" sx={{ opacity: 0.88, fontFamily: FONTS.subhead }}>
+                {/* Icons use the Brand Pink for visibility */}
+                {React.cloneElement(icon, { sx: { color: "#FF0080", fontSize: '1.1rem' } })}
+                <Typography variant="body2" sx={{ color: "#0F172A", fontWeight: 700, fontFamily: "'Orbitron', sans-serif", fontSize: '0.65rem' }}>
                     {label}
                 </Typography>
             </Stack>
             <Stack direction="row" spacing={1} alignItems="baseline">
-                <Typography variant="subtitle1" sx={{ fontWeight: 800, fontFamily: FONTS.number }}>
+                <Typography variant="subtitle1" sx={{ color: "#0F172A", fontWeight: 900, fontFamily: "'Orbitron', sans-serif" }}>
                     {value}
                 </Typography>
                 {help ? (
-                    <Typography variant="caption" sx={{ opacity: 0.7, fontFamily: FONTS.subhead }}>
+                    <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, fontFamily: "'Orbitron', sans-serif", fontSize: '0.6rem' }}>
                         {help}
                     </Typography>
                 ) : null}
@@ -357,17 +480,34 @@ function PropertyCard({ p, onOpen, onEdit, onAddUnits }) {
             elevation={0}
             onClick={() => onOpen?.(p)}
             sx={{
-                ...softCard,
-                cursor: "pointer",
+                p: 2.5,
+                borderRadius: '32px',
                 height: "100%",
-                "&:hover .donut": { transform: "scale(1.06)" }
+                cursor: "pointer",
+                bgcolor: "#F8FAFC", // Match background exactly
+
+                // NEGATIVE NEUMORPHISM (The Carved Pocket)
+                boxShadow: "inset 6px 6px 12px #d1d9e6, inset -6px -6px 12px #ffffff",
+                border: "none",
+
+                transition: "all 0.3s ease",
+                "&:hover": {
+                    transform: "scale(0.99)",
+                    boxShadow: "inset 8px 8px 16px #c2cedd, inset -8px -8px 16px #ffffff",
+                }
             }}
         >
             <Stack direction="row" alignItems="center" spacing={1}>
-                <HomeWorkIcon fontSize="small" />
+                {/* ICON: Using Brand Pink for the tech-look anchor */}
+                <HomeWorkIcon sx={{ color: BRAND.start, fontSize: '1.2rem' }} />
                 <Typography
                     variant="subtitle1"
-                    sx={{ fontWeight: 800, fontFamily: FONTS.subhead }}
+                    sx={{
+                        fontWeight: 900,
+                        color: "#0F172A", // BLACK for visibility
+                        fontFamily: "'Orbitron', sans-serif",
+                        fontSize: '0.85rem'
+                    }}
                 >
                     {p.ApartmentName}
                 </Typography>
@@ -376,105 +516,111 @@ function PropertyCard({ p, onOpen, onEdit, onAddUnits }) {
                     label={p.Location || "—"}
                     sx={{
                         ml: "auto",
-                        color: "#fff",
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        bgcolor: "rgba(255,255,255,0.04)",
-                        fontFamily: FONTS.subhead
+                        color: "#64748B",
+                        bgcolor: "#F8FAFC",
+                        // Double Inset: A carved chip inside a carved card
+                        boxShadow: "inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff",
+                        fontFamily: "'Orbitron', sans-serif",
+                        fontWeight: 700,
+                        fontSize: '0.6rem'
                     }}
                 />
             </Stack>
-            <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1.5 }}>
+
+            <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 2 }}>
                 <Donut
                     occupied={s.OccupiedUnits || 0}
                     vacant={s.VacantUnits || 0}
                     reserved={s.ReservedUnits || 0}
                 />
                 <Box sx={{ flex: 1 }}>
-                    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
                         <Chip
                             size="small"
                             label={`Units: ${fmtNum(s.TotalUnits)}`}
                             sx={{
-                                color: "#fff",
-                                border: "1px solid rgba(255,255,255,0.14)",
-                                fontFamily: FONTS.subhead
-                            }}
-                        />
-                        <Chip
-                            size="small"
-                            label={`Occupied: ${fmtNum(s.OccupiedUnits)}`}
-                            icon={<CheckCircleOutlineIcon sx={{ color: OCCUPIED_COLOR }} />}
-                            sx={{
-                                color: "#fff",
-                                border: "1px solid rgba(255,255,255,0.14)",
-                                fontFamily: FONTS.subhead
-                            }}
-                        />
-                        <Chip
-                            size="small"
-                            label={`Vacant: ${fmtNum(s.VacantUnits)}`}
-                            icon={<CancelOutlinedIcon sx={{ color: VACANT_COLOR }} />}
-                            sx={{
-                                color: "#fff",
-                                border: "1px solid rgba(255,255,255,0.14)",
-                                fontFamily: FONTS.subhead
+                                color: "#0F172A",
+                                bgcolor: "#F8FAFC",
+                                boxShadow: "inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff",
+                                fontFamily: "'Orbitron', sans-serif",
+                                fontWeight: 800,
+                                fontSize: '0.65rem'
                             }}
                         />
                     </Stack>
-                    {p.Description ? (
-                        <Typography
-                            variant="caption"
-                            sx={{ mt: 1, display: "block", opacity: 0.8, fontFamily: FONTS.subhead }}
-                        >
-                            {p.Description}
-                        </Typography>
-                    ) : null}
                 </Box>
             </Stack>
-            <Divider sx={{ my: 1.5, borderColor: "rgba(255,255,255,0.08)" }} />
-            <Stack direction="row" spacing={1}>
+
+            <Divider sx={{ my: 2, borderColor: "rgba(15, 23, 42, 0.08)" }} />
+
+            <Stack direction="row" spacing={1} justifyContent="center">
                 <Button
                     onClick={(e) => { e.stopPropagation(); onOpen?.(p); }}
                     size="small"
                     variant="contained"
                     sx={{
                         textTransform: "none",
-                        borderRadius: 2,
-                        background: BRAND.gradient,
-                        boxShadow: "none"
+                        borderRadius: '12px',
+                        background: BRAND.gradient, // Keep the Pink/Violet for primary action
+                        fontSize: '0.7rem',
+                        fontFamily: "'Orbitron', sans-serif",
+                        fontWeight: 900,
+                        boxShadow: "2px 2px 5px #d1d9e6"
                     }}
-                    startIcon={<OpenInNewIcon />}
                 >
                     View
                 </Button>
-                <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={(e) => { e.stopPropagation(); onEdit?.(p); }}
-                    startIcon={<EditIcon />}
-                    sx={{
-                        textTransform: "none",
-                        borderColor: "rgba(255,255,255,0.35)",
-                        color: "#fff",
-                        "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" }
-                    }}
-                >
-                    Edit
-                </Button>
-                <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={(e) => { e.stopPropagation(); onAddUnits?.(p); }}
-                    startIcon={<AddHomeWorkIcon />}
-                    sx={{
-                        textTransform: "none",
-                        borderColor: "rgba(255,255,255,0.35)",
-                        color: "#fff",
-                        "&:hover": { borderColor: BRAND.end, background: "rgba(126,0,166,.08)" }
-                    }}
-                >
-                    Add Units
-                </Button>
+               <Tooltip 
+    title="Edit" 
+    arrow 
+    placement="top"
+    componentsProps={{
+        tooltip: {
+            sx: {
+                bgcolor: 'rgba(15, 23, 42, 0.9)',
+                fontFamily: "'Orbitron', sans-serif",
+                fontWeight: 600,
+                fontSize: '0.65rem',
+                borderRadius: '8px',
+                padding: '4px 8px'
+            }
+        }
+    }}
+>
+    <IconButton
+        size="small"
+        onClick={(e) => { e.stopPropagation(); onEdit?.(p); }}
+        sx={{
+            bgcolor: "#F8FAFC",
+            boxShadow: "inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff",
+            color: "#64748B",
+            transition: "all 0.2s ease",
+            "&:hover": {
+                color: BRAND.start, // Optional: turns pinkish on hover
+                transform: "scale(1.1)"
+            }
+        }}
+    >
+        <EditIcon fontSize="small" />
+    </IconButton>
+</Tooltip>
+                {/* Add this button to the Stack in PropertyCard */}
+<Tooltip title="Add Units">
+    <IconButton
+        size="small"
+        onClick={(e) => { 
+            e.stopPropagation(); 
+            onAddUnits?.(p); // This triggers the AddUnitsDialog
+        }}
+        sx={{
+            bgcolor: "#F8FAFC",
+            boxShadow: "inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff",
+            color: BRAND.start // Pinkish icon
+        }}
+    >
+        <AddHomeWorkIcon fontSize="small" />
+    </IconButton>
+</Tooltip>
             </Stack>
         </Paper>
     );
@@ -1723,7 +1869,8 @@ export default function Properties() {
     };
 
     return (
-        <Box sx={{ p: 3, bgcolor: "#0b0714", minHeight: "100vh", position: "relative" }}>
+        // Matches your DashboardHome and FeaturesSection background
+        <Box sx={{ p: 3, bgcolor: "#F8FAFC", minHeight: "100vh", position: "relative" }}>
             {/* Header */}
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
                 <Typography
@@ -1745,31 +1892,119 @@ export default function Properties() {
                     label={twilioOk === null ? "SMS: Checking…" : twilioOk ? "SMS: Ready" : "SMS: Unavailable"}
                     sx={{
                         ml: 1,
-                        color: "#fff",
-                        bgcolor: twilioOk ? "rgba(110,231,183,.15)" : "rgba(251,113,133,.15)",
-                        border: "1px solid rgba(255,255,255,.18)",
-                        fontFamily: FONTS.subhead
+                        // 1. Visibility: Using the BRAND.muted slate color
+                        color: "#64748B",
+                        // 2. Base: Must match the background exactly for the 'carved' illusion
+                        bgcolor: "#F8FAFC",
+                        // 3. Negative Neumorphism (The Inset Shadows)
+                        boxShadow: "inset 2px 2px 5px #d1d9e6, inset -2px -2px 5px #ffffff",
+                        border: "none",
+                        // 4. Uniformity: Switching to your brand font
+                        fontFamily: "'Orbitron', sans-serif",
+                        fontWeight: 700,
+                        "& .MuiChip-icon": {
+                            fontSize: "1.1rem"
+                        }
                     }}
                 />
                 <Box sx={{ flexGrow: 1 }} />
                 <Tooltip title={lastSync ? `Refresh • Last sync ${dayjs(lastSync).format("HH:mm:ss")}` : "Refresh"}>
                     <span>
-                        <IconButton onClick={handleRefresh} sx={{ color: "#fff" }} disabled={isRefreshing}>
-                            {isRefreshing ? <CircularProgress size={20} /> : <RefreshIcon />}
+                        <IconButton
+                            onClick={handleRefresh}
+                            disabled={isRefreshing}
+                            sx={{
+                                // 1. The "Carved Circle" Material
+                                bgcolor: "#F8FAFC",
+                                width: 44,
+                                height: 44,
+                                borderRadius: "50%",
+
+                                // 2. Negative Neumorphism (Inset Shadows)
+                                boxShadow: "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
+
+                                // 3. The Pink/Violet Brand Mixture
+                                // We use a linear gradient on the icon itself via svg styling
+                                "& .MuiSvgIcon-root": {
+                                    fontSize: 22,
+                                    // This trick applies the gradient to the icon shape
+                                    fill: "currentColor",
+                                    color: BRAND.start,
+                                    backgroundImage: BRAND.gradient,
+                                    WebkitBackgroundClip: "text",
+                                    WebkitTextFillColor: "transparent",
+                                },
+
+                                transition: "all 0.3s ease",
+                                "&:hover": {
+                                    bgcolor: "#F8FAFC",
+                                    boxShadow: "inset 4px 4px 10px #c2cedd, inset -4px -4px 10px #ffffff",
+                                    transform: "scale(0.96)",
+                                    "& .MuiSvgIcon-root": {
+                                        color: BRAND.end, // Shifting to the Violet end of your brand
+                                    }
+                                },
+                                "&:disabled": {
+                                    opacity: 0.6,
+                                    boxShadow: "inset 1px 1px 2px #d1d9e6"
+                                }
+                            }}
+                        >
+                            {isRefreshing ? (
+                                <CircularProgress
+                                    size={20}
+                                    sx={{ color: BRAND.start }} // Pinkish Loading
+                                />
+                            ) : (
+                                <RefreshIcon />
+                            )}
                         </IconButton>
                     </span>
                 </Tooltip>
                 <Button
-                    startIcon={<AddIcon />}
+                    startIcon={<AddIcon sx={{ color: BRAND.start }} />}
                     variant="contained"
+                    onClick={() => setAddOpen(true)}
                     sx={{
                         textTransform: "none",
-                        borderRadius: 2,
-                        background: BRAND.gradient,
-                        boxShadow: "none",
-                        "&:hover": { boxShadow: BRAND.glow }
+                        // 1. Shape: Rounding it to match your modern dashboard theme
+                        borderRadius: '20px',
+                        fontFamily: "'Orbitron', sans-serif",
+                        fontWeight: 900,
+                        px: 4,
+                        py: 1.2,
+
+                        // 2. The Base: Must be the SAME color as the main background for the carved effect
+                        background: "#F8FAFC",
+                        color: "#64748B", // BRAND.muted color for the text to match the SMS chip
+
+                        // 3. Negative Neumorphism (The Inset / Carved Shadows)
+                        // This is the EXACT same shadow logic as your SMS ready chip
+                        boxShadow: `
+            inset 4px 4px 8px #d1d9e6, 
+            inset -4px -4px 8px #ffffff
+        `,
+
+                        border: "none",
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+
+                        "&:hover": {
+                            // 4. Hover: We make the "hole" look slightly deeper and shift text color
+                            background: "#F8FAFC",
+                            boxShadow: `
+                inset 6px 6px 12px #c2cedd, 
+                inset -6px -6px 12px #ffffff
+            `,
+                            color: BRAND.start, // Pops to Magenta on hover
+                            transform: "scale(0.98)" // Physically looks like it's being pressed deeper
+                        },
+                        "&:active": {
+                            boxShadow: `
+                inset 8px 8px 16px #b8c2d1, 
+                inset -8px -8px 16px #ffffff
+            `,
+                        }
                     }}
-                    onClick={() => setAddOpen(true)}
                 >
                     Add Property
                 </Button>
@@ -1808,8 +2043,28 @@ export default function Properties() {
             </Grid>
 
             {/* Expenses by Apartment + Highlights */}
-            <Paper elevation={0} sx={{ ...softCard, mb: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, fontFamily: FONTS.subhead }}>
+            <Paper
+                elevation={0}
+                sx={{
+                    p: 4,
+                    mb: 3,
+                    borderRadius: '48px',
+                    bgcolor: "#F8FAFC",
+                    // DEEP INSET: Makes the whole section look like a large tray
+                    boxShadow: "inset 10px 10px 20px #d1d9e6, inset -10px -10px 20px #ffffff",
+                    border: "none"
+                }}
+            >
+                <Typography
+                    variant="h6"
+                    sx={{
+                        fontWeight: 900,
+                        mb: 2,
+                        color: "#0F172A",
+                        fontFamily: "'Orbitron', sans-serif",
+                        letterSpacing: 1
+                    }}
+                >
                     Expenses — {monthKey}
                 </Typography>
                 {expenseHL.count === 0 ? (
@@ -1859,16 +2114,30 @@ export default function Properties() {
             </Paper>
 
             {/* Properties grid */}
-            <Typography variant="h6" sx={{ color: "#fff", mb: 1, fontWeight: 800, fontFamily: FONTS.subhead }}>
+            <Typography variant="h6" sx={{ color: "#0F172A", mb: 2, fontWeight: 900, fontFamily: "'Orbitron', sans-serif" }}>
                 Your Properties
             </Typography>
             {loading ? (
                 <Box sx={{ display: "grid", placeItems: "center", py: 6 }}><CircularProgress /></Box>
             ) : apartments.length === 0 ? (
-                <Paper elevation={0} sx={{ ...softCard, textAlign: "center", mb: 3 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1, fontFamily: FONTS.subhead }}>No properties found</Typography>
-                    <Typography variant="body2" sx={{ opacity: 0.8, fontFamily: FONTS.subhead }}>Try adding your first property.</Typography>
-                </Paper>
+                <Paper 
+    elevation={0} 
+    sx={{ 
+        textAlign: "center", 
+        mb: 3, 
+        p: 6, 
+        borderRadius: '32px', 
+        bgcolor: "#F8FAFC",
+        boxShadow: "inset 8px 8px 16px #d1d9e6, inset -8px -8px 16px #ffffff",
+    }}
+>
+    <Typography variant="h6" sx={{ fontWeight: 900, mb: 1, color: "#0F172A", fontFamily: "'Orbitron', sans-serif" }}>
+        No properties found
+    </Typography>
+    <Typography variant="body2" sx={{ color: "#64748B", fontFamily: "'Orbitron', sans-serif", fontWeight: 600 }}>
+        Try adding your first property to get started.
+    </Typography>
+</Paper>
             ) : (
                 <Grid container spacing={2} sx={{ mb: 3 }}>
                     {apartments.map((p) => (
@@ -1885,31 +2154,111 @@ export default function Properties() {
             )}
 
             {/* Rental Units & Tenants */}
-            <Paper ref={tableRef} elevation={0} sx={{ ...softCard }}>
+            <Paper
+                ref={tableRef}
+                elevation={0}
+                sx={{
+                    p: 4,
+                    borderRadius: '48px',
+                    bgcolor: "#F8FAFC",
+                    // DEEP CARVED TRAY
+                    boxShadow: "inset 10px 10px 20px #d1d9e6, inset -10px -10px 20px #ffffff",
+                    border: "none",
+                    color: "#0F172A" // Force text to Black
+                }}
+            >
                 <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
                     <Stack direction="row" alignItems="center" spacing={1}>
-                        <Typography variant="h6" sx={{ fontWeight: 800, color: "#fff", fontFamily: FONTS.subhead }}>
+                        <Typography variant="h6" sx={{ fontWeight: 800, color: "#0F172A", fontFamily: FONTS.subhead }}>
                             Rental Units & Tenants
                         </Typography>
                         {filterAptId ? (
                             <Chip
-                                label={`Filtered: ${apartments.find((a) => a.ApartmentID === filterAptId)?.ApartmentName || ""}`}
-                                onDelete={clearFilter}
-                                sx={{ bgcolor: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.18)" }}
-                            />
+    label={`Filtered: ${apartments.find((a) => a.ApartmentID === filterAptId)?.ApartmentName || ""}`}
+    onDelete={clearFilter}
+    sx={{ 
+        // 1. Match the tray background for the neumorphic effect
+        bgcolor: "#F8FAFC", 
+        
+        // 2. The Pinkish/Violet Text Mixture
+        "& .MuiChip-label": {
+            background: BRAND.gradient,
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            fontWeight: 900,
+            fontFamily: "'Orbitron', sans-serif",
+            fontSize: '0.7rem',
+            letterSpacing: 0.5
+        },
+
+        // 3. The Carved-In "Pocket" for the Chip
+        boxShadow: "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
+        border: "none",
+        height: 32,
+        borderRadius: "16px",
+
+        // 4. Style for the Delete (X) Icon
+        "& .MuiChip-deleteIcon": {
+            color: BRAND.start, // Make the X pink
+            fontSize: '1.1rem',
+            marginRight: '8px',
+            bgcolor: "#F8FAFC",
+            borderRadius: "50%",
+            // Gives the X icon its own tiny carved-in circular socket
+            boxShadow: "inset 2px 2px 4px #d1d9e6, inset -2px -2px 4px #ffffff",
+            padding: '2px',
+            transition: "all 0.2s ease",
+            "&:hover": {
+                color: BRAND.end, // Shift to violet on hover
+                transform: "scale(1.1)"
+            }
+        }
+    }}
+/>
                         ) : null}
                     </Stack>
                     <Stack direction="row" spacing={1}>
                         <Button
                             size="small"
-                            variant="outlined"
-                            startIcon={<FileDownloadOutlinedIcon />}
+                            variant="contained" // Switched to contained to support the bgcolor/shadow effect
+                            startIcon={<FileDownloadOutlinedIcon sx={{ color: BRAND.start }} />}
                             sx={{
                                 textTransform: "none",
-                                borderRadius: 2,
-                                color: "#fff",
-                                borderColor: "rgba(255,255,255,0.35)",
-                                "&:hover": { borderColor: BRAND.start, background: "rgba(255,0,128,.08)" }
+                                borderRadius: '12px',
+
+                                // 1. Visibility & Font
+                                color: "#0F172A", // Dark Slate/Black
+                                fontFamily: "'Orbitron', sans-serif",
+                                fontWeight: 800,
+                                fontSize: '0.75rem',
+
+                                // 2. The Base: Must match the page background
+                                bgcolor: "#F8FAFC",
+
+                                // 3. Negative Neumorphism (The Carved-In Look)
+                                boxShadow: `
+            inset 3px 3px 6px #d1d9e6, 
+            inset -3px -3px 6px #ffffff
+        `,
+                                border: "none",
+                                transition: "all 0.3s ease",
+
+                                "&:hover": {
+                                    // 4. Hover: "Deepens" the hole and shifts text color
+                                    bgcolor: "#F8FAFC",
+                                    boxShadow: `
+                inset 5px 5px 10px #c2cedd, 
+                inset -5px -5px 10px #ffffff
+            `,
+                                    color: BRAND.start,
+                                    transform: "scale(0.98)" // Physically looks like it's being pressed
+                                },
+                                "&:active": {
+                                    boxShadow: `
+                inset 7px 7px 12px #b8c2d1, 
+                inset -7px -7px 12px #ffffff
+            `
+                                }
                             }}
                             onClick={() => setExportOpen(true)}
                         >
@@ -1989,16 +2338,69 @@ export default function Properties() {
                     />
                 ) : null}
 
-                <Table size="small" sx={{ "& th, & td": { borderColor: "rgba(255,255,255,0.08)", color: "#fff", fontFamily: FONTS.subhead } }}>
+                <Table
+                    size="small"
+                    sx={{
+                        "& th": {
+                            color: "#0F172A !important",
+                            fontWeight: 900,
+                            fontFamily: "'Orbitron', sans-serif",
+                            textTransform: "uppercase",
+                            fontSize: "0.7rem",
+                            letterSpacing: 1,
+                            borderColor: "rgba(15, 23, 42, 0.08)"
+                        },
+                        "& td": {
+                            color: "#475569 !important", // Slightly softer slate for the row data
+                            fontFamily: "'Orbitron', sans-serif",
+                            fontWeight: 600,
+                            borderColor: "rgba(15, 23, 42, 0.05)"
+                        }
+                    }}
+                >
                     <TableHead>
                         <TableRow>
                             <TableCell padding="checkbox">
-                                <Checkbox
-                                    indeterminate={selectedIds.length > 0 && !allSelected}
-                                    checked={allSelected}
-                                    onChange={toggleSelectAll}
-                                    sx={{ color: "#fff" }}
-                                />
+                               {/* Wrapper for the Negative Neumorphism effect */}
+<Box
+    sx={{
+        width: 38, // Slightly larger than standard to show the "socket"
+        height: 38,
+        borderRadius: "10px", // Match button rounding
+        bgcolor: "#F8FAFC", // Match page background
+        display: "grid",
+        placeItems: "center",
+        // NEGATIVE NEUMORPHISM (Inset Shadows)
+        boxShadow: "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
+        border: "none"
+    }}
+>
+    <Checkbox
+        indeterminate={selectedIds.length > 0 && !allSelected}
+        checked={allSelected}
+        onChange={toggleSelectAll}
+        size="small"
+        sx={{
+            p: 0,
+            // 1. Unchecked color: Dark Slate
+            color: "#64748B", 
+            "&.Mui-checked, &.MuiCheckbox-indeterminate": {
+                // 2. Checked color: Brand Pink
+                color: BRAND.start, 
+            },
+            // Hover: shifts text color
+            "&:hover": {
+                transform: "scale(0.98)" // Physically looks like it's being pressed deeper
+            },
+            "&:active": {
+                boxShadow: `
+                    inset 8px 8px 16px #b8c2d1, 
+                    inset -8px -8px 16px #ffffff
+                `,
+            }
+        }}
+    />
+</Box>
                             </TableCell>
                             <TableCell>Property</TableCell>
                             <TableCell>Rental Unit</TableCell>
@@ -2013,7 +2415,11 @@ export default function Properties() {
                         {unitsLoading ? (
                             <TableRow><TableCell colSpan={8}><LinearProgress /></TableCell></TableRow>
                         ) : units.length === 0 ? (
-                            <TableRow><TableCell colSpan={8} sx={{ opacity: 0.8 }}>No units to display.</TableCell></TableRow>
+                            <TableRow>
+                                <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4, color: "#64748B !important", fontWeight: 700 }}>
+                                    No units to display. Try selecting a property or adding a unit.
+                                </TableCell>
+                            </TableRow>
                         ) : (
                             units.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((u) => {
                                 const rowId = `${u.ApartmentID}-${u.UnitID}`;

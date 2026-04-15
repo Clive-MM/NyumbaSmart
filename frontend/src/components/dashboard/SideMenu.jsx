@@ -328,7 +328,7 @@ export default function SideMenu({
             <Box sx={{ mt: "auto", px: 1.25, pb: 1 }}>
                 {!collapsed && (
                     <>
-                        <FooterPill
+                        {/* <FooterPill
                             onClick={handleCopyVersion}
                             onDoubleClick={toggleCollapsed}
                             initial={{ opacity: 0.95 }}
@@ -338,7 +338,7 @@ export default function SideMenu({
                             transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
                         >
                             {copied ? "Copied ✓" : `PayNest ${version}`}
-                        </FooterPill>
+                        </FooterPill> */}
 
                         <Typography
                             variant="caption"
