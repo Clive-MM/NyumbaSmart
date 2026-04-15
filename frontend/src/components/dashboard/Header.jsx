@@ -73,37 +73,29 @@ const IconPill = styled(motion.button, {
     padding: "0 10px",
     cursor: "pointer",
     position: "relative",
-    overflow: "hidden",
     outline: 'none',
-    border: `1px solid ${darkmode ? "rgba(255,255,255,0.18)" : "rgba(15,23,42,0.12)"}`,
-    borderBottom: `2px solid ${alpha(brandcolor, 0.4)}`, 
+    border: "none", // Remove standard border to let shadows define the shape
+
+    // 1. CARVED-IN BASE: Match the Header background for the illusion
+    background: darkmode ? "#0B0B0F" : "#F8FAFC", 
     
-    background: darkmode 
-        ? `linear-gradient(135deg, ${alpha("#fff", 0.12)} 0%, ${alpha(brandcolor, 0.08)} 100%)`
-        : `linear-gradient(135deg, ${alpha("#fff", 0.95)} 0%, ${alpha(brandcolor, 0.05)} 100%)`,
-        
-    backgroundSize: "200% 100%",
-    backdropFilter: "blur(8px)",
-    
+    // 2. NEGATIVE NEUMORPHISM (The Inset Shadows)
+    // Darker shadow on top-left, white/light highlight on bottom-right
     boxShadow: darkmode 
-        ? `0 8px 20px -6px rgba(0,0,0,0.5), inset 0 0 0 1px ${alpha("#fff", 0.05)}`
-        : `0 10px 15px -3px ${alpha(brandcolor, 0.15)}, inset 0 0 0 1px #fff`,
+        ? "inset 4px 4px 8px rgba(0,0,0,0.8), inset -2px -2px 6px rgba(255,255,255,0.05)"
+        : "inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff",
         
     transition: "all .3s cubic-bezier(0.4, 0, 0.2, 1)",
 
     "&:hover": {
-        border: `1px solid ${alpha(brandcolor, 0.6)}`,
-        boxShadow: `0 12px 20px -5px ${alpha(brandcolor, 0.3)}`,
+        // Subtle glow using the specific icon's brand color
+        boxShadow: darkmode
+            ? `inset 2px 2px 4px rgba(0,0,0,0.9), 0 0 12px ${alpha(brandcolor, 0.2)}`
+            : `inset 4px 4px 8px #c2cedd, inset -4px -4px 8px #ffffff, 0 0 10px ${alpha(brandcolor, 0.1)}`,
     },
 
-    "&:before": {
-        content: '""',
-        position: "absolute",
-        inset: 0,
-        background: `radial-gradient(circle at top left, ${alpha(brandcolor, 0.2)}, transparent 70%)`,
-        opacity: 0.5,
-        pointerEvents: "none",
-    }
+    // 3. Remove the old radial-gradient :before to keep the carve clean
+    "&:before": { content: 'none' } 
 }));
 
 const ProgressRail = styled("div", { shouldForwardProp: (p) => p !== "darkmode" })(({ darkmode }) => ({
@@ -114,19 +106,44 @@ const ProgressRail = styled("div", { shouldForwardProp: (p) => p !== "darkmode" 
 const ProgressBar = styled("div")({ height: "100%", background: brandGradient, transition: "width .15s linear" });
 
 const LogoutChip = styled("button", { shouldForwardProp: (p) => p !== "darkmode" })(({ darkmode }) => ({
-    height: 42, padding: "0 14px", borderRadius: 10,
-    border: `1px solid ${darkmode ? "rgba(255,255,255,0.12)" : "rgba(15,23,42,0.08)"}`,
-    background: darkmode ? "rgba(20,22,31,0.96)" : "#fff",
-    color: darkmode ? "#EDEDF1" : "#0F172A",
-    fontWeight: 700, cursor: "pointer",
-    boxShadow: darkmode ? "0 10px 22px rgba(0,0,0,0.5)" : "0 10px 22px rgba(15,23,42,0.08)",
-    transition: "transform .12s ease, box-shadow .2s ease",
+    height: 42, 
+    padding: "0 20px", 
+    borderRadius: 12,
+    border: "none",
+    fontWeight: 900, // Increased to 900 for better gradient visibility
+    cursor: "pointer",
+    fontFamily: "'Orbitron', sans-serif",
+    fontSize: '0.75rem',
+    textTransform: "uppercase",
+    letterSpacing: 1.5,
+
+    // 1. CARVED-IN BASE
+    background: darkmode ? "#0B0B0F" : "#F8FAFC",
+
+    // 2. PINKISH-VIOLET TEXT GRADIENT
+    // This creates the mixture of Pink and Purple you want
+    background: brandGradient, 
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+
+    // 3. NEGATIVE NEUMORPHISM
+    boxShadow: darkmode 
+        ? "inset 4px 4px 8px rgba(0,0,0,0.8), inset -2px -2px 6px rgba(255,255,255,0.05)"
+        : "inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff",
+
+    transition: "all .3s cubic-bezier(0.4, 0, 0.2, 1)",
+
     "&:hover": {
+        // Deepen the "press" and add a subtle outer glow on hover
         boxShadow: darkmode
-            ? "0 14px 28px rgba(0,0,0,0.65), 0 0 0 2px rgba(255,255,255,0.06) inset"
-            : "0 14px 28px rgba(15,23,42,0.12), 0 0 0 2px rgba(15,23,42,0.06) inset",
+            ? "inset 2px 2px 4px rgba(0,0,0,1), 0 0 15px rgba(255,0,128,0.15)"
+            : "inset 5px 5px 10px #c2cedd, inset -5px -5px 10px #ffffff, 0 0 15px rgba(255,0,128,0.1)",
+        transform: "scale(0.98)",
     },
-    "&:active": { transform: "scale(0.98)" },
+    "&:active": { 
+        transform: "scale(0.95)",
+        opacity: 0.9
+    },
 }));
 
 /* -------- Utility -------- */
