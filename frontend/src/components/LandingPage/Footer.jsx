@@ -220,9 +220,7 @@ export default function Footer() {
                   </Typography>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mt: 2 }}>
                     <StatusDot />
-                    <Typography variant="caption" sx={{ color: BRAND.success, fontWeight: 800, letterSpacing: 1 }}>
-                      SYSTEMS OPERATIONAL
-                    </Typography>
+                    
                   </Box>
                 </Box>
               </Stack>
