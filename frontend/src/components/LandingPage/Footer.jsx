@@ -56,19 +56,7 @@ const SocialIconButton = styled(IconButton)(({ hovercolor }) => ({
   },
 }));
 
-const StatusDot = styled(Box)({
-  width: 8,
-  height: 8,
-  backgroundColor: BRAND.success,
-  borderRadius: "50%",
-  boxShadow: `0 0 10px ${BRAND.success}`,
-  animation: "pulse 2s infinite",
-  "@keyframes pulse": {
-    "0%": { opacity: 1, transform: "scale(1)" },
-    "50%": { opacity: 0.5, transform: "scale(1.2)" },
-    "100%": { opacity: 1, transform: "scale(1)" },
-  },
-});
+
 
 /* ---------- Sub-components ---------- */
 function FooterLink({ href, label, emoji }) {
@@ -233,9 +221,7 @@ export default function Footer() {
             <Typography variant="caption" sx={{ color: BRAND.textSoft, opacity: 0.7 }}>
               © {new Date().getFullYear()} PayNest. All rights reserved.
             </Typography>
-            <Typography variant="caption" sx={{ color: BRAND.textSoft, fontWeight: 600 }}>
-              Developed by Landlords, for Landlords.
-            </Typography>
+            
           </Stack>
         </Container>
       </Box>
