@@ -48,20 +48,16 @@ const FONTS = {
 /* ---------- Card styling ---------- */
 const softCard = {
     p: 2,
-    borderRadius: 3,
-    color: "#fff",
-    background: "#0e0a17",
-    boxShadow:
-        "9px 9px 18px rgba(0,0,0,.55), -9px -9px 18px rgba(255,255,255,.03), inset 0 0 0 rgba(255,255,255,0)",
-    border: "1px solid rgba(255,255,255,0.06)",
-    transition: "transform .2s ease, box-shadow .2s ease, border-color .2s ease",
+    borderRadius: '24px',
+    color: "#0F172A", // Dark slate text for readability
+    background: "#F8FAFC", // Matches the main background
+    // This dual inset shadow creates the "carved into the page" effect
+    boxShadow: "inset 6px 6px 12px #d1d9e6, inset -6px -6px 12px #ffffff",
+    border: "none",
+    transition: "all .3s ease",
     "&:hover": {
-        transform: "translateY(-3px)",
-        boxShadow: "12px 12px 24px rgba(0,0,0,.6), -12px -12px 24px rgba(255,255,255,.035)",
-        borderColor: "transparent",
-        background:
-            "linear-gradient(#0e0a17,#0e0a17) padding-box, " + BRAND.gradient + " border-box",
-        filter: "drop-shadow(0 18px 28px rgba(255,0,128,.16))",
+        boxShadow: "inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff",
+        transform: "scale(0.99)", // Sinks slightly deeper on hover
     },
 };
 const MotionCard = styled(motion.div)({ ...softCard, padding: 16 });
@@ -539,8 +535,8 @@ const Tenants = () => {
             render: () => (
                 <Box>
                     <Box display="flex" justifyContent="space-between" mb={0.5}>
-                        <Typography sx={{ fontFamily: FONTS.subhead }}>Active</Typography>
-                        <Typography sx={{ fontFamily: FONTS.number, fontWeight: 800 }}>
+                        <Typography sx={{ fontFamily: FONTS.subhead, fontWeight: 800, color: "#475569" }}>Active</Typography>
+                        <Typography sx={{ fontFamily: FONTS.number, fontWeight: 900, color: "#0F172A" }}>
                             {kpi.active} / {kpi.total}
                         </Typography>
                     </Box>
@@ -550,10 +546,10 @@ const Tenants = () => {
                         sx={{
                             height: 8, borderRadius: 8,
                             "& .MuiLinearProgress-bar": { background: BRAND.gradient },
-                            backgroundColor: "rgba(255,255,255,0.08)"
+                            backgroundColor: "rgba(0,0,0,0.05)" // Visible on light bg
                         }}
                     />
-                    <Typography sx={{ opacity: .75, fontSize: 12, mt: .75, fontFamily: FONTS.subhead }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 12, mt: .75, fontFamily: FONTS.subhead, color: "#64748B" }}>
                         Inactive: {kpi.inactive}
                     </Typography>
                 </Box>
@@ -565,12 +561,12 @@ const Tenants = () => {
             key: "rate", title: "Collection Rate",
             render: () => (
                 <Box>
-                    <Typography sx={{ fontSize: 26, fontWeight: 800, fontFamily: FONTS.number }}>
+                    <Typography sx={{ fontSize: 28, fontWeight: 900, fontFamily: FONTS.number, color: "#0F172A" }}>
                         {kpi.collectionRate != null ? `${kpi.collectionRate}%` : "—"}
                     </Typography>
-                    <Typography sx={{ opacity: .75, fontSize: 12, mt: .25, fontFamily: FONTS.subhead }}>Collected / Expected</Typography>
+                    <Typography sx={{ fontWeight: 700, fontSize: 12, mt: .25, fontFamily: FONTS.subhead, color: "#64748B" }}>Collected / Expected</Typography>
                     <LinearProgress variant="determinate" value={kpi.collectionRate || 0}
-                        sx={{ mt: 1, height: 8, borderRadius: 8, "& .MuiLinearProgress-bar": { background: BRAND.gradient }, backgroundColor: "rgba(255,255,255,0.08)" }} />
+                        sx={{ mt: 1, height: 8, borderRadius: 8, "& .MuiLinearProgress-bar": { background: BRAND.gradient }, backgroundColor: "rgba(0,0,0,0.05)" }} />
                 </Box>
             )
         },
@@ -579,7 +575,7 @@ const Tenants = () => {
     ];
 
     return (
-        <Box sx={{ background: "#0b0714", minHeight: "100vh", p: { xs: 2, md: 3 } }}>
+        <Box sx={{ background: "#F8FAFC", minHeight: "100vh", p: { xs: 2, md: 4 } }}>
             {/* Header */}
             <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
                 <Typography
@@ -604,62 +600,49 @@ const Tenants = () => {
             </Box>
 
             {/* KPI GRID */}
-            <Box
-                sx={{
-                    display: "grid",
-                    gridTemplateColumns: { xs: "1fr", sm: "repeat(6, 1fr)", md: "repeat(12, 1fr)" },
-                    gap: 2,
-                    gridAutoFlow: "dense",
-                    mb: 3
-                }}
-            >
+            {/* KPI GRID */}
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(6, 1fr)", md: "repeat(12, 1fr)" }, gap: 2, mb: 3 }}>
                 {kpis.map((k) => {
                     const col = { xs: "span 12", sm: "span 3", md: "span 3" };
                     const height = k.isDist ? 260 : "auto";
                     return (
                         <MotionCard key={k.key} {...kpiHover}
                             sx={{ gridColumn: col, height, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                            <Typography sx={{ opacity: .85, fontSize: 13, fontFamily: FONTS.subhead }}>
+
+                            {/* KPI Title: Bold & Slate */}
+                            <Typography sx={{ color: "#475569", fontSize: 13, fontFamily: FONTS.subhead, fontWeight: 800, mb: 1 }}>
                                 {k.title}
                             </Typography>
 
                             {k.isDist ? (
-                                <Paper elevation={0} sx={{ ...softCard, p: 1.25, borderRadius: 2, height: "100%" }}>
+                                <Paper elevation={0} sx={{ background: "transparent", p: 0, height: "100%" }}>
                                     <List dense disablePadding sx={{ maxHeight: 190, overflowY: "auto" }}>
                                         {dist.items.map((a) => (
                                             <ListItem key={a.name} sx={{ py: .6, flexDirection: "column", alignItems: "stretch" }}>
                                                 <Box display="flex" justifyContent="space-between" width="100%">
-                                                    <Typography sx={{ color: "#fff", fontWeight: 800, fontFamily: FONTS.subhead, mr: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                    {/* Changed color to dark slate for light theme */}
+                                                    <Typography sx={{ color: "#1E293B", fontWeight: 800, fontFamily: FONTS.subhead }}>
                                                         {a.name}
                                                     </Typography>
-                                                    <Typography sx={{ color: "#fff", fontWeight: 900, fontFamily: FONTS.number, whiteSpace: "nowrap" }}>
-                                                        {a.count} <Typography component="span" sx={{ opacity: .7, fontFamily: FONTS.subhead, fontWeight: 600 }}>({a.share}%)</Typography>
+                                                    <Typography sx={{ color: "#0F172A", fontWeight: 900, fontFamily: FONTS.number }}>
+                                                        {a.count} <Typography component="span" sx={{ color: "#64748B", fontSize: 11, fontWeight: 700 }}>({a.share}%)</Typography>
                                                     </Typography>
                                                 </Box>
-                                                <LinearProgress
-                                                    variant="determinate"
-                                                    value={a.share}
-                                                    sx={{
-                                                        mt: .5, height: 6, borderRadius: 6,
-                                                        "& .MuiLinearProgress-bar": { background: BRAND.gradient },
-                                                        backgroundColor: "rgba(255,255,255,0.08)"
-                                                    }}
-                                                />
+                                                <LinearProgress variant="determinate" value={a.share}
+                                                    sx={{ mt: .5, height: 6, borderRadius: 6, "& .MuiLinearProgress-bar": { background: BRAND.gradient }, backgroundColor: "rgba(0,0,0,0.05)" }} />
                                             </ListItem>
                                         ))}
-                                        {dist.items.length === 0 && (
-                                            <ListItem><ListItemText primary="No active tenants yet." /></ListItem>
-                                        )}
                                     </List>
                                 </Paper>
                             ) : k.render ? (
                                 k.render()
                             ) : (
                                 <>
-                                    <Typography sx={{ color: "#fff", fontSize: 26, fontWeight: 800, mt: 0.5, fontFamily: FONTS.number }}>
+                                    {/* Standard KPI Values: Bold & Dark */}
+                                    <Typography sx={{ color: "#0F172A", fontSize: 26, fontWeight: 900, mt: 0.5, fontFamily: FONTS.number }}>
                                         {k.value}
                                     </Typography>
-                                    <Typography sx={{ color: "rgba(255,255,255,0.72)", fontSize: 12, mt: 0.25, fontFamily: FONTS.subhead }}>
+                                    <Typography sx={{ color: "#64748B", fontSize: 12, mt: 0.25, fontFamily: FONTS.subhead, fontWeight: 700 }}>
                                         {k.short}
                                     </Typography>
                                 </>
@@ -670,7 +653,8 @@ const Tenants = () => {
             </Box>
 
             {/* Filters */}
-            <Paper elevation={0} sx={{ ...softCard, p: 2, borderRadius: 2, mb: 2 }}>
+            {/* Filters */}
+            <Paper elevation={0} sx={{ ...softCard, borderRadius: '32px', overflow: "hidden", p: 1 }}>
                 <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems="center">
                     <TextField
                         size="small"
@@ -680,23 +664,36 @@ const Tenants = () => {
                         InputProps={{
                             startAdornment: (
                                 <InputAdornment position="start">
-                                    <SearchIcon sx={{ opacity: 0.7 }} />
+                                    <SearchIcon sx={{ opacity: 0.7, color: "#64748B" }} />
                                 </InputAdornment>
                             ),
                         }}
                         sx={{
                             flex: 1, ...labelFixSx,
-                            "& .MuiInputBase-root": { color: "#fff", background: "#0e0a17", borderRadius: 1.5 },
-                            "& fieldset": { borderColor: "rgba(255,255,255,0.25)" },
+                            // CHANGED: Removed #0e0a17 and set text to dark slate
+                            "& .MuiInputBase-root": {
+                                color: "#0F172A",
+                                background: "#F1F5F9", // Soft light gray/slate
+                                borderRadius: 1.5
+                            },
+                            // CHANGED: Border color to match light theme
+                            "& fieldset": { borderColor: "rgba(0,0,0,0.1)" },
                             "& .MuiInputBase-input": { fontFamily: FONTS.subhead }
                         }}
                         InputLabelProps={{ shrink: true }}
                         label="Search"
                     />
+
                     <TextField
                         size="small" select label="Apartment"
                         value={apartmentId} onChange={(e) => { setApartmentId(e.target.value); setPage(1); }}
-                        sx={{ minWidth: 220, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" }, "& .MuiInputBase-root": { color: "#fff" }, ...labelFixSx }}
+                        // CHANGED: text color to dark slate
+                        sx={{
+                            minWidth: 220,
+                            "& fieldset": { borderColor: "rgba(0,0,0,0.1)" },
+                            "& .MuiInputBase-root": { color: "#0F172A" },
+                            ...labelFixSx
+                        }}
                         InputLabelProps={{ shrink: true }}
                     >
                         <MenuItem value="">All</MenuItem>
@@ -704,10 +701,17 @@ const Tenants = () => {
                             <MenuItem key={a.ApartmentID} value={a.ApartmentID}>{a.ApartmentName}</MenuItem>
                         ))}
                     </TextField>
+
                     <TextField
                         size="small" select label="Status"
                         value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}
-                        sx={{ minWidth: 180, "& fieldset": { borderColor: "rgba(255,255,255,0.25)" }, "& .MuiInputBase-root": { color: "#fff" }, ...labelFixSx }}
+                        // CHANGED: text color to dark slate
+                        sx={{
+                            minWidth: 180,
+                            "& fieldset": { borderColor: "rgba(0,0,0,0.1)" },
+                            "& .MuiInputBase-root": { color: "#0F172A" },
+                            ...labelFixSx
+                        }}
                         InputLabelProps={{ shrink: true }}
                     >
                         <MenuItem value="">All</MenuItem>
@@ -773,9 +777,18 @@ const Tenants = () => {
             <Paper elevation={0} sx={{ ...softCard, borderRadius: 2, overflow: "hidden" }}>
                 <Table
                     sx={{
-                        "& th": { color: "rgba(255,255,255,0.8)", fontWeight: 700, fontFamily: FONTS.subhead, background: "#0e0a17" },
-                        "& td": { color: "#fff", fontFamily: FONTS.subhead, borderColor: "rgba(255,255,255,0.08)" },
-                        "& th, & td": { borderColor: "rgba(255,255,255,0.08)" }
+                        "& th": {
+                            color: "#475569",
+                            fontWeight: 800,
+                            fontFamily: FONTS.subhead,
+                            background: "transparent", // Let the carved tray show
+                            borderBottom: "1px solid #E2E8F0"
+                        },
+                        "& td": {
+                            color: "#1E293B",
+                            fontFamily: FONTS.subhead,
+                            borderColor: "#F1F5F9"
+                        }
                     }}
                 >
                     <TableHead>
@@ -804,7 +817,10 @@ const Tenants = () => {
                         {!loading && tenants.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={8}>
-                                    <Typography sx={{ color: "rgba(255,255,255,0.7)" }}>No tenants found.</Typography>
+                                    {/* UPDATED: Bold and Black/Dark Slate for light theme */}
+                                    <Typography sx={{ color: "#0F172A", fontWeight: 800, textAlign: "center", py: 3 }}>
+                                        No tenants found.
+                                    </Typography>
                                 </TableCell>
                             </TableRow>
                         )}
@@ -857,14 +873,29 @@ const Tenants = () => {
 
                 <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
                 <Box p={1.5} display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography sx={{ color: "rgba(255,255,255,0.72)", fontSize: 12, fontFamily: FONTS.subhead }}>
-                        {total} result(s)
-                    </Typography>
+                    <Typography sx={{ color: "#1E293B", fontSize: 13, fontWeight: 800, fontFamily: FONTS.subhead }}>
+        {total} result(s)
+    </Typography>
                     <Pagination
                         count={Math.max(1, Math.ceil(total / limit))}
                         page={page}
                         onChange={(_, p) => setPage(p)}
-                        sx={{ "& .MuiPaginationItem-root": { color: "#fff" } }}
+                        sx={{
+                            "& .MuiPaginationItem-root": {
+                                color: "#0F172A", // Dark slate for numbers
+                                fontFamily: FONTS.number,
+                                fontWeight: 800,
+                                transition: "all 0.2s ease"
+                            },
+                            "& .Mui-selected": {
+                                background: `${BRAND.gradient} !important`, // Use your brand gradient for active page
+                                color: "#fff !important", // White text for the selected circle
+                                boxShadow: BRAND.glow
+                            },
+                            "& .MuiPaginationItem-icon": {
+                                color: "#64748B" // Slate gray for the arrow icons
+                            }
+                        }}
                     />
                 </Box>
             </Paper>

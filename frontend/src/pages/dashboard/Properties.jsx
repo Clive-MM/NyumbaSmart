@@ -889,51 +889,122 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
         }
     };
 
+    // --- REPLACED RETURN STATEMENT STARTS HERE ---
     return (
         <>
-            <ModalShell open={open} onClose={saving ? () => { } : onClose} title={`Add Units — ${apartment?.ApartmentName}`} width="min(620px, 94vw)">
-                <Grid container spacing={1.25}>
-                    <Grid item xs={12} sm={3}>
-                        <TextField size="small" fullWidth label="Prefix" name="prefix" placeholder="e.g., A-" value={form.prefix} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
-                    </Grid>
-                    <Grid item xs={12} sm={2}>
-                        <TextField size="small" fullWidth label="Start at" name="startAt" type="number" value={form.startAt} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
-                    </Grid>
-                    <Grid item xs={12} sm={2}>
-                        <TextField size="small" fullWidth label="Count" name="count" type="number" value={form.count} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
-                    </Grid>
-                    <Grid item xs={12} sm={2}>
-                        <TextField size="small" fullWidth label="Pad" name="pad" type="number" value={form.pad} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
-                    </Grid>
-                    <Grid item xs={12} sm={3}>
-                        <TextField size="small" select fullWidth label="Category" name="CategoryID" value={form.CategoryID} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}>
-                            {cats.map((c) => <MenuItem key={c.CategoryID} value={c.CategoryID}>{c.CategoryName}</MenuItem>)}
-                        </TextField>
-                    </Grid>
-                </Grid>
+            <ModalShell 
+                open={open} 
+                onClose={saving ? () => { } : onClose} 
+                title={`Add Units — ${apartment?.ApartmentName}`} 
+                width="min(700px, 95vw)" // Widened for better spacing
+            >
+                <Box sx={{ overflow: 'visible' }}> {/* Ensures dropdown pop-out is not clipped */}
+                    <Grid container spacing={2.5}>
+                        {/* Row 1: Label Config */}
+                        <Grid item xs={12} sm={4}>
+                            <TextField size="small" fullWidth label="Unit Prefix" name="prefix" placeholder="e.g., A-" value={form.prefix} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                        </Grid>
+                        <Grid item xs={6} sm={4}>
+                            <TextField size="small" fullWidth label="Start At" name="startAt" type="number" value={form.startAt} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                        </Grid>
+                        <Grid item xs={6} sm={4}>
+                            <TextField size="small" fullWidth label="Unit Count" name="count" type="number" value={form.count} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                        </Grid>
 
-                <Typography variant="caption" sx={{ display: "block", mt: 1, opacity: 0.9, fontFamily: FONTS.subhead }}>
-                    Example: {labelsPreview.first} … {labelsPreview.last} ({labelsPreview.count} unit{labelsPreview.count > 1 ? "s" : ""})
-                </Typography>
+                        {/* Row 2: Category & Status */}
+                        <Grid item xs={12} sm={6}>
+                            <TextField 
+                                size="small" 
+                                select 
+                                fullWidth 
+                                label="Unit Category" 
+                                name="CategoryID" 
+                                value={form.CategoryID} 
+                                onChange={onChange} 
+                                InputLabelProps={{ shrink: true }} 
+                                sx={fieldNeumorphSx}
+                                SelectProps={{
+                                    MenuProps: {
+                                        PaperProps: {
+                                            sx: { 
+                                                maxHeight: 300, 
+                                                bgcolor: "#F8FAFC", 
+                                                boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
+                                                zIndex: 9999 
+                                            }
+                                        }
+                                    }
+                                }}
+                            >
+                                {cats.map((c) => <MenuItem key={c.CategoryID} value={c.CategoryID}>{c.CategoryName}</MenuItem>)}
+                            </TextField>
+                        </Grid>
 
-                <Grid container spacing={1.25} sx={{ mt: 0.5 }}>
-                    <Grid item xs={12} sm={6}>
-                        <TextField size="small" fullWidth label="Monthly Rent" name="MonthlyRent" type="number" value={form.MonthlyRent} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                        <TextField size="small" select fullWidth label="Status" name="StatusID" value={form.StatusID} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx}>
-                            {statuses.map((s) => <MenuItem key={s.StatusID} value={s.StatusID}>{s.StatusName}</MenuItem>)}
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={12}>
-                        <TextField size="small" fullWidth multiline minRows={3} label="Description (optional)" name="Description" value={form.Description} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
-                    </Grid>
-                </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField 
+                                size="small" 
+                                select 
+                                fullWidth 
+                                label="Initial Status" 
+                                name="StatusID" 
+                                value={form.StatusID} 
+                                onChange={onChange} 
+                                InputLabelProps={{ shrink: true }} 
+                                sx={fieldNeumorphSx}
+                                SelectProps={{
+                                    MenuProps: {
+                                        PaperProps: {
+                                            sx: { 
+                                                maxHeight: 300, 
+                                                bgcolor: "#F8FAFC", 
+                                                boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
+                                                zIndex: 9999 
+                                            }
+                                        }
+                                    }
+                                }}
+                            >
+                                {statuses.map((s) => <MenuItem key={s.StatusID} value={s.StatusID}>{s.StatusName}</MenuItem>)}
+                            </TextField>
+                        </Grid>
 
-                <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1.5 }}>
-                    <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none" }}>Cancel</Button>
-                    <Button onClick={requestCreate} disabled={saving} variant="contained" startIcon={<AddHomeWorkIcon />} sx={{ textTransform: "none", borderRadius: 2, background: BRAND.gradient, boxShadow: "none" }}>
-                        {saving ? "Creating…" : "Create Units"}
+                        {/* Row 3: Finance and Extra Config */}
+                        <Grid item xs={12} sm={6}>
+                            <TextField size="small" fullWidth label="Monthly Rent (KES)" name="MonthlyRent" type="number" value={form.MonthlyRent} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                            <TextField size="small" fullWidth label="Label Padding" name="pad" type="number" value={form.pad} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} helperText="Example: Pad 2 = A-01, Pad 0 = A-1" />
+                        </Grid>
+
+                        <Grid item xs={12}>
+                            <TextField size="small" fullWidth multiline minRows={2} label="Unit Description" name="Description" value={form.Description} onChange={onChange} InputLabelProps={{ shrink: true }} sx={fieldNeumorphSx} />
+                        </Grid>
+                    </Grid>
+
+                    {/* Modern Preview Tray */}
+                    <Box sx={{ mt: 2.5, p: 1.5, borderRadius: '16px', bgcolor: 'rgba(15, 23, 42, 0.03)', border: '1px dashed #d1d9e6' }}>
+                        <Typography variant="caption" sx={{ display: "block", textAlign: 'center', fontWeight: 800, color: BRAND.start, fontFamily: "'Orbitron', sans-serif" }}>
+                            PREVIEW: {labelsPreview.first} … {labelsPreview.last} ({labelsPreview.count} Units)
+                        </Typography>
+                    </Box>
+                </Box>
+
+                <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 3 }}>
+                    <Button onClick={onClose} disabled={saving} sx={{ textTransform: "none", fontWeight: 700 }}>Cancel</Button>
+                    <Button 
+                        onClick={requestCreate} 
+                        disabled={saving} 
+                        variant="contained" 
+                        startIcon={<AddHomeWorkIcon />} 
+                        sx={{ 
+                            textTransform: "none", 
+                            borderRadius: '12px', 
+                            background: BRAND.gradient, 
+                            px: 4,
+                            boxShadow: BRAND.glow 
+                        }}
+                    >
+                        {saving ? "Creating Units..." : "Create Units"}
                     </Button>
                 </Stack>
             </ModalShell>
@@ -943,9 +1014,9 @@ function AddUnitsDialog({ open, onClose, apartment, api, onDone }) {
                 onCancel={() => setConfirmOpen(false)}
                 onConfirm={handleCreate}
                 loading={saving}
-                title="Create these units?"
-                content={`Apartment: ${apartment?.ApartmentName || "—"} • Range: ${labelsPreview.first} … ${labelsPreview.last} (${labelsPreview.count}) • Rent: ${form.MonthlyRent || "—"}`}
-                confirmText="Create Units"
+                title="Confirm Bulk Creation"
+                content={`You are about to create ${labelsPreview.count} units in ${apartment?.ApartmentName}. Is the pricing and category correct?`}
+                confirmText="Proceed"
             />
         </>
     );
