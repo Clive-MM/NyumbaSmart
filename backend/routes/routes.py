@@ -1,18 +1,19 @@
 from twilio.base.exceptions import TwilioRestException
-from flask import current_app
-from flask import current_app, Blueprint, request, jsonify
+from flask import current_app, Blueprint, request, jsonify, Response
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
-from sqlalchemy import func, case, cast, Date
+from sqlalchemy import func, case, cast, Date, or_   # <-- ADD or_ here
 from flask_mail import Message, Mail
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time  # <-- ADD time here
 import jwt
 import os
 import re
-import time
+import csv
+import time as time_module  # rename stdlib time to avoid clash with datetime.time
 from decimal import Decimal
 from uuid import uuid4
+from io import StringIO
 
 
 # if you use a custom SMS fallback elsewhere
@@ -1216,53 +1217,90 @@ def create_rental_unit_status():
     }), 201
 
 
+@routes.route('/rental-unit-statuses', methods=['GET'])
+@jwt_required()
+def get_rental_unit_statuses():
+
+    statuses = RentalUnitStatus.query.order_by(
+        RentalUnitStatus.StatusName
+    ).all()
+
+    return jsonify({
+        "message": f"Found {len(statuses)} rental unit statuses.",
+        "RentalUnitStatuses": [
+            {
+                "StatusID": status.StatusID,
+                "StatusName": status.StatusName,
+                "CreatedAt": status.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            for status in statuses
+        ]
+    }), 200
+
 @routes.route('/rental-units/create', methods=['POST'])
 @jwt_required()
 def create_rental_unit():
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
+    # 1. Identity & Role Check
     if not user or not user.IsAdmin:
         return jsonify({"message": "Unauthorized. Only landlords can create rental units."}), 403
 
     data = request.get_json() or {}
+    
+    # 2. Extract and Sanitize Data
     apartment_id = data.get('ApartmentID')
-    label = data.get('Label')
-    description = data.get('Description')
+    label = str(data.get('Label', '')).strip() # Prevent empty spaces in labels
+    description = data.get('Description', '')
     monthly_rent = data.get('MonthlyRent')
-    status_id = data.get('StatusID')  # Typically Vacant by default
+    status_id = data.get('StatusID')
     category_id = data.get('CategoryID')
 
+    # 3. Comprehensive Validation
     if not all([apartment_id, label, monthly_rent, category_id, status_id]):
-        return jsonify({"message": "Missing required fields (ApartmentID, Label, MonthlyRent, CategoryID, StatusID)."}), 400
+        return jsonify({
+            "message": "Missing required fields.",
+            "required": ["ApartmentID", "Label", "MonthlyRent", "CategoryID", "StatusID"]
+        }), 400
 
+    # 4. Ownership Validation
+    # We fetch the apartment to ensure the landlord actually owns the building they are adding units to
     apartment = Apartment.query.get(apartment_id)
-    if not apartment or apartment.UserID != user.UserID:
-        return jsonify({"message": "You can only add units to your own apartments."}), 403
+    if not apartment:
+        return jsonify({"message": "The specified apartment does not exist."}), 404
+        
+    if apartment.UserID != user.UserID:
+        return jsonify({"message": "Access Denied. You can only add units to your own properties."}), 403
 
-    rental_unit = RentalUnit(
-        ApartmentID=apartment_id,
-        Label=label,
-        Description=description,
-        MonthlyRent=monthly_rent,
-        StatusID=status_id,
-        CategoryID=category_id
-    )
-    db.session.add(rental_unit)
-    db.session.commit()
+    # 5. Create the Rental Unit
+    try:
+        new_unit = RentalUnit(
+            ApartmentID=apartment_id,
+            Label=label,
+            Description=description,
+            MonthlyRent=float(monthly_rent), # Ensure numeric type
+            StatusID=int(status_id),
+            CategoryID=int(category_id)
+        )
+        db.session.add(new_unit)
+        db.session.commit()
 
-    return jsonify({
-        "message": "✅ Rental unit created successfully.",
-        "RentalUnit": {
-            "UnitID": rental_unit.UnitID,
-            "Label": rental_unit.Label,
-            "MonthlyRent": rental_unit.MonthlyRent,
-            "CategoryID": rental_unit.CategoryID,
-            "StatusID": rental_unit.StatusID,
-            "ApartmentID": rental_unit.ApartmentID,
-            "CreatedAt": rental_unit.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
-        }
-    }), 201
+        return jsonify({
+            "message": f"✅ Unit '{label}' created successfully in {apartment.ApartmentName}.",
+            "RentalUnit": {
+                "UnitID": new_unit.UnitID,
+                "Label": new_unit.Label,
+                "MonthlyRent": new_unit.MonthlyRent,
+                "StatusID": new_unit.StatusID,
+                "CategoryID": new_unit.CategoryID,
+                "CreatedAt": new_unit.CreatedAt.strftime('%Y-%m-%d %H:%M:%S')
+            }
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Failed to create unit.", "error": str(e)}), 500
 
 
 @routes.route('/rental-units/update/<int:unit_id>', methods=['PUT'])
