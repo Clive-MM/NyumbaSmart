@@ -91,7 +91,7 @@ const StatusChip = ({ value }) => {
             label={value}
             size="small"
             sx={{
-                color: "#fff",
+                color: "#18c708",
                 background: bg,
                 border: "1px solid rgba(255,255,255,0.14)",
                 fontWeight: 700,
@@ -438,7 +438,7 @@ const Tenants = () => {
         if (!editFor) return;
         setEditing(true);
         try {
-            await api.put(`/tenants/${editFor.TenantID}`, {
+            await api.patch(`/tenants/${editFor.TenantID}`, {
                 FullName: editForm.FullName,
                 Phone: editForm.Phone || null,
                 Email: editForm.Email || null,
@@ -841,27 +841,27 @@ const Tenants = () => {
                                 <TableCell>{t.MoveOutDate || "—"}</TableCell>
                                 <TableCell sx={{ whiteSpace: "nowrap" }}>
                                     <Tooltip title="View Profile">
-                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => setViewFor(t)}>
+                                        <IconButton size="small" sx={{ color: "#2f0369" }} onClick={() => setViewFor(t)}>
                                             <PersonSearchRounded fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Edit Tenant">
-                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => openEdit(t)}>
+                                        <IconButton size="small" sx={{ color: "#c20784" }} onClick={() => openEdit(t)}>
                                             <EditRounded fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Transfer Tenant">
-                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => { setShowConfirmTransfer(false); setTransferFor(t); }}>
+                                        <IconButton size="small" sx={{ color: "#7e5303" }} onClick={() => { setShowConfirmTransfer(false); setTransferFor(t); }}>
                                             <SwapHorizRounded fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Vacate Tenant">
-                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => { setShowConfirmVacate(false); setVacateFor(t); }}>
+                                        <IconButton size="small" sx={{ color: "#eb2907" }} onClick={() => { setShowConfirmVacate(false); setVacateFor(t); }}>
                                             <LogoutRounded fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
                                     <Tooltip title="Issue Vacate Notice">
-                                        <IconButton size="small" sx={{ color: "#fff" }} onClick={() => { setShowConfirmNotice(false); setNoticeFor(t); }}>
+                                        <IconButton size="small" sx={{ color: "#570331" }} onClick={() => { setShowConfirmNotice(false); setNoticeFor(t); }}>
                                             <CampaignRounded fontSize="small" />
                                         </IconButton>
                                     </Tooltip>

@@ -1576,11 +1576,18 @@ export default function Properties() {
                 rows = results.filter((r) => r.status === "fulfilled").flatMap((r) => r.value);
             }
 
-            const tIndex = new Map((tenantsSrc || []).map((t) => [`${t.Apartment || ""}||${t.RentalUnit || ""}`.toLowerCase(), t]));
+            const tIndex = new Map(
+    (tenantsSrc || []).map((t) => [
+        `${(t.Apartment || "").trim()}||${(t.Unit || "").trim()}`.toLowerCase(),
+        t
+    ])
+);
             const statusMap = Object.fromEntries((statusListSrc || []).map((s) => [s.StatusID, s.StatusName]));
 
             const joined = rows.map((r) => {
-                const key = `${r.ApartmentName || ""}||${r.Label || ""}`.toLowerCase();
+                const key =
+`${(r.ApartmentName || "").trim()}||${(r.Label || "").trim()}`
+    .toLowerCase();
                 const ten = tIndex.get(key);
                 return {
                     ...r,
@@ -1794,13 +1801,49 @@ export default function Properties() {
     };
 
     const statusChip = (name) => {
-        const n = (name || "").toLowerCase();
-        let bg = "rgba(255,255,255,.1)";
-        if (n === "occupied") bg = "rgba(110,231,183,.2)";
-        else if (n === "vacant") bg = "rgba(251,113,133,.2)";
-        else if (n === "reserved") bg = "rgba(253,230,138,.2)";
-        return <Chip size="small" label={name || "—"} sx={{ bgcolor: bg, color: "#fff", border: "1px solid rgba(255,255,255,.18)" }} />;
-    };
+    const n = (name || "").toLowerCase();
+
+    let bg = "#CBD5E1";
+    let color = "#0F172A";
+    let border = "#CBD5E1";
+
+    if (n === "occupied") {
+        bg = "#09ec5c";      // Rich Green
+        color = "#FFFFFF";
+        border = "#15803D";
+    }
+
+    else if (n === "vacant") {
+        bg = "#DC2626";      // Rich Red
+        color = "#FFFFFF";
+        border = "#B91C1C";
+    }
+
+    else if (n === "reserved") {
+        bg = "#D97706";      // Amber
+        color = "#FFFFFF";
+        border = "#B45309";
+    }
+
+    return (
+        <Chip
+            size="small"
+            label={name || "—"}
+            sx={{
+                bgcolor: bg,
+                color: color,
+                fontWeight: 800,
+                fontFamily: "'Orbitron', sans-serif",
+                border: `1px solid ${border}`,
+                minWidth: 90,
+                borderRadius: "20px",
+                "& .MuiChip-label": {
+                    px: 1.5
+                }
+            }}
+        />
+    );
+};
 
     const clearFilter = async () => { setFilterAptId(null); setSelectedIds([]); await loadUnits(null); };
 
@@ -2511,13 +2554,13 @@ export default function Properties() {
                                         <TableCell align="right">{fmtKES(u.Arrears || 0)}</TableCell>
                                         <TableCell align="center">
                                             <Tooltip title="Edit Unit">
-                                                <IconButton onClick={() => openEditUnit(u)} size="small" sx={{ color: "#fff" }}>
+                                                <IconButton onClick={() => openEditUnit(u)} size="small" sx={{ color: "#f00d0d" }}>
                                                     <EditIcon fontSize="small" />
                                                 </IconButton>
                                             </Tooltip>
                                             {isVacant && (
                                                 <Tooltip title="Assign Tenant">
-                                                    <IconButton onClick={() => openAssignTenant(u)} size="small" sx={{ color: "#6EE7B7" }}>
+                                                    <IconButton onClick={() => openAssignTenant(u)} size="small" sx={{ color: "#61e609" }}>
                                                         <PeopleIcon fontSize="small" />
                                                     </IconButton>
                                                 </Tooltip>
@@ -2525,7 +2568,7 @@ export default function Properties() {
                                             {hasTenant && (
                                                 <Tooltip title="Schedule Vacate Notice">
                                                     <span>
-                                                        <IconButton onClick={() => openVacate(u)} size="small" sx={{ color: "#FDE68A", ml: 0.5 }}>
+                                                        <IconButton onClick={() => openVacate(u)} size="small" sx={{ color: "#f0c20c", ml: 0.5 }}>
                                                             <EventBusyIcon fontSize="small" />
                                                         </IconButton>
                                                     </span>
