@@ -7,6 +7,7 @@ import {
     Checkbox, Dialog, DialogTitle, DialogContent, DialogActions, TableSortLabel,
     TablePagination
 } from "@mui/material";
+import MonthlyBillingPreviewDialog from "../../components/billing/MonthlyBillingPreviewDialog";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AddIcon from "@mui/icons-material/Add";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
@@ -22,6 +23,10 @@ import {
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import axios from "axios";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import NotificationsActiveOutlinedIcon from "@mui/icons-material/NotificationsActiveOutlined";
+import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 
 dayjs.extend(utc);
 
@@ -72,6 +77,35 @@ const softCard = {
             "inset 8px 8px 16px #c2cedd, inset -8px -8px 16px #ffffff",
     }
 };
+
+const menuItemSx = {
+    py: 1.3,
+    px: 2,
+    gap: 1.5,
+
+    fontFamily: "'Orbitron', sans-serif",
+    fontWeight: 700,
+    fontSize: "0.72rem",
+    letterSpacing: 0.4,
+
+    color: "#0F172A",
+
+    transition: "all .25s ease",
+
+    "& .MuiSvgIcon-root": {
+        color: BRAND.start,
+        fontSize: "1.1rem"
+    },
+
+    "&:hover": {
+        bgcolor: "#F8FAFC",
+
+        boxShadow:
+            "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
+
+        color: BRAND.start
+    }
+};
 const tableHeaderSx = {
     fontFamily: "'Orbitron', sans-serif",
     fontWeight: 900,
@@ -99,41 +133,41 @@ function Kpi({ label, value, hint, onClick, icon }) {
             <Stack direction="row" alignItems="center" spacing={1}>
                 {icon}
                 <Typography
-    variant="body2"
-    sx={{
-        color: "#0F172A",
-        fontWeight: 700,
-        fontFamily: "'Orbitron', sans-serif",
-        fontSize: "0.70rem",
-        letterSpacing: 0.5
-    }}
->
-    {label}
-</Typography>
+                    variant="body2"
+                    sx={{
+                        color: "#0F172A",
+                        fontWeight: 700,
+                        fontFamily: "'Orbitron', sans-serif",
+                        fontSize: "0.70rem",
+                        letterSpacing: 0.5
+                    }}
+                >
+                    {label}
+                </Typography>
             </Stack>
             <Typography
-    variant="h5"
-    sx={{
-        mt: 0.5,
-        color: "#0F172A",
-        fontWeight: 900,
-        fontFamily: "'Orbitron', sans-serif",
-        letterSpacing: 0.5
-    }}
->
-    {value}
-</Typography>
+                variant="h5"
+                sx={{
+                    mt: 0.5,
+                    color: "#0F172A",
+                    fontWeight: 900,
+                    fontFamily: "'Orbitron', sans-serif",
+                    letterSpacing: 0.5
+                }}
+            >
+                {value}
+            </Typography>
             {hint && <Typography
-    variant="caption"
-    sx={{
-        color: "#64748B",
-        fontWeight: 600,
-        fontFamily: "'Orbitron', sans-serif",
-        fontSize: "0.65rem"
-    }}
->
-    {hint}
-</Typography>}
+                variant="caption"
+                sx={{
+                    color: "#64748B",
+                    fontWeight: 600,
+                    fontFamily: "'Orbitron', sans-serif",
+                    fontSize: "0.65rem"
+                }}
+            >
+                {hint}
+            </Typography>}
         </Paper>
     );
 }
@@ -141,26 +175,26 @@ function Kpi({ label, value, hint, onClick, icon }) {
 function Insight({ text }) {
     return (
         <Paper
-    elevation={0}
-    sx={{
-        ...softCard,
-        borderRadius:"24px",
-        height:72,
-        px:2
-    }}
->
+            elevation={0}
+            sx={{
+                ...softCard,
+                borderRadius: "24px",
+                height: 72,
+                px: 2
+            }}
+        >
             <Typography
-    variant="body2"
-    sx={{
-        color: "#0F172A",
-        fontWeight: 700,
-        fontFamily: "'Orbitron', sans-serif",
-        fontSize: "0.75rem",
-        lineHeight: 1.5
-    }}
->
-    {text}
-</Typography>
+                variant="body2"
+                sx={{
+                    color: "#0F172A",
+                    fontWeight: 700,
+                    fontFamily: "'Orbitron', sans-serif",
+                    fontSize: "0.75rem",
+                    lineHeight: 1.5
+                }}
+            >
+                {text}
+            </Typography>
         </Paper>
     );
 }
@@ -240,6 +274,7 @@ export default function Billing() {
         AmountPaid: "", PaidViaMobile: "MPesa", TxRef: "", PaymentNote: "",
         TenantID: "", RentalUnitID: "", BillingMonth: NOW_MONTH
     });
+    const [generateOpen, setGenerateOpen] = useState(false);
 
     // Cashflow series (from backend)
     const [cashflowSeries, setCashflowSeries] = useState([]);
@@ -500,57 +535,57 @@ export default function Billing() {
 
     /* ---------- Toolbar styles helper ---------- */
     const inputSx = {
-    "& .MuiInputLabel-root": {
-        color: "#64748B",
-        fontFamily: "'Orbitron', sans-serif",
-        fontWeight: 700,
-        fontSize: "0.75rem"
-    },
+        "& .MuiInputLabel-root": {
+            color: "#64748B",
+            fontFamily: "'Orbitron', sans-serif",
+            fontWeight: 700,
+            fontSize: "0.75rem"
+        },
 
-    "& .MuiInputBase-root": {
-        background: "#F8FAFC",
-        borderRadius: "14px",
+        "& .MuiInputBase-root": {
+            background: "#F8FAFC",
+            borderRadius: "14px",
 
-        boxShadow:
-            "inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff",
+            boxShadow:
+                "inset 4px 4px 8px #d1d9e6, inset -4px -4px 8px #ffffff",
 
-        color: "#0F172A",
-        fontWeight: 600,
+            color: "#0F172A",
+            fontWeight: 600,
 
-        transition: "all .25s ease"
-    },
+            transition: "all .25s ease"
+        },
 
-    "& .MuiOutlinedInput-notchedOutline": {
-        border: "none"
-    },
+        "& .MuiOutlinedInput-notchedOutline": {
+            border: "none"
+        },
 
-    "& .MuiInputBase-input": {
-        fontFamily: "'Nunito', sans-serif",
-        fontWeight: 700
-    },
+        "& .MuiInputBase-input": {
+            fontFamily: "'Nunito', sans-serif",
+            fontWeight: 700
+        },
 
-    "& .MuiSvgIcon-root": {
-        color: BRAND.start
-    },
+        "& .MuiSvgIcon-root": {
+            color: BRAND.start
+        },
 
-    "&:hover .MuiInputBase-root": {
-        boxShadow:
-            "inset 5px 5px 10px #c8d1df, inset -5px -5px 10px #ffffff"
-    },
+        "&:hover .MuiInputBase-root": {
+            boxShadow:
+                "inset 5px 5px 10px #c8d1df, inset -5px -5px 10px #ffffff"
+        },
 
-    "&.Mui-focused .MuiInputBase-root": {
-        border: "1px solid #FF0080"
-    }
-};
+        "&.Mui-focused .MuiInputBase-root": {
+            border: "1px solid #FF0080"
+        }
+    };
 
     return (
-         <Box
-        sx={{
-            p: 3,
-            bgcolor: "#F8FAFC",
-            minHeight: "100vh"
-        }}
-    >
+        <Box
+            sx={{
+                p: 3,
+                bgcolor: "#F8FAFC",
+                minHeight: "100vh"
+            }}
+        >
             {/* Header */}
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
                 <Typography
@@ -569,59 +604,59 @@ export default function Billing() {
                 <Box sx={{ flexGrow: 1 }} />
                 <Tooltip title="Refresh">
                     <IconButton onClick={() => { load(); loadKpis(); loadCashflow(); }} sx={{
-    width: 44,
-    height: 44,
+                        width: 44,
+                        height: 44,
 
-    color: BRAND.start,
+                        color: BRAND.start,
 
-    background: "#F8FAFC",
+                        background: "#F8FAFC",
 
-    borderRadius: "14px",
+                        borderRadius: "14px",
 
-    boxShadow:
-        "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
+                        boxShadow:
+                            "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
 
-    transition: "all .25s ease",
+                        transition: "all .25s ease",
 
-    "&:hover": {
-        color: BRAND.end,
-        background: "#FFF1F7",
-        transform: "rotate(90deg)"
-    }
-}}>
+                        "&:hover": {
+                            color: BRAND.end,
+                            background: "#FFF1F7",
+                            transform: "rotate(90deg)"
+                        }
+                    }}>
                         <RefreshIcon />
                     </IconButton>
                 </Tooltip>
                 <Button
                     startIcon={<AddIcon />}
-                    onClick={handleGenerate}
+                    onClick={() => setGenerateOpen(true)}
                     variant="contained"
                     sx={{
-    ml: 1,
-    px: 3,
-    py: 1,
+                        ml: 1,
+                        px: 3,
+                        py: 1,
 
-    textTransform: "none",
+                        textTransform: "none",
 
-    borderRadius: "14px",
+                        borderRadius: "14px",
 
-    background: BRAND.gradient,
+                        background: BRAND.gradient,
 
-    color: "#fff",
+                        color: "#fff",
 
-    fontWeight: 800,
+                        fontWeight: 800,
 
-    fontFamily: "'Orbitron', sans-serif",
+                        fontFamily: "'Orbitron', sans-serif",
 
-    boxShadow: "0 8px 20px rgba(255,0,128,.18)",
+                        boxShadow: "0 8px 20px rgba(255,0,128,.18)",
 
-    transition: "all .3s ease",
+                        transition: "all .3s ease",
 
-    "&:hover": {
-        transform: "translateY(-2px)",
-        boxShadow: BRAND.glow
-    }
-}}
+                        "&:hover": {
+                            transform: "translateY(-2px)",
+                            boxShadow: BRAND.glow
+                        }
+                    }}
                 >
                     Generate Monthly Bills
                 </Button>
@@ -706,24 +741,23 @@ export default function Billing() {
                                     label={`${d.name} ${d.value}`}
                                     onClick={() => setStatusFilter(d.name)}
                                     sx={{
-    bgcolor: STATUS_STYLE[d.name]?.bg || "#CBD5E1",
+                                        bgcolor: STATUS_STYLE[d.name]?.bg || "#CBD5E1",
 
-    color: "#FFFFFF",
+                                        color: "#FFFFFF",
 
-    fontWeight: 800,
+                                        fontWeight: 800,
 
-    fontFamily: "'Orbitron', sans-serif",
+                                        fontFamily: "'Orbitron', sans-serif",
 
-    border: `1px solid ${
-        STATUS_STYLE[d.name]?.border || "#CBD5E1"
-    }`,
+                                        border: `1px solid ${STATUS_STYLE[d.name]?.border || "#CBD5E1"
+                                            }`,
 
-    cursor: "pointer",
+                                        cursor: "pointer",
 
-    "&:hover": {
-        transform: "scale(1.05)"
-    }
-}}
+                                        "&:hover": {
+                                            transform: "scale(1.05)"
+                                        }
+                                    }}
                                 />
                             ))}
                         </Stack>
@@ -748,29 +782,29 @@ export default function Billing() {
                             sx={{ minWidth: 190, ...inputSx }}
                         >
                             {["All", ...monthOptions].map((m) => (
-    <MenuItem
-        key={m}
-        value={m}
-        sx={{
-            fontFamily: "'Nunito', sans-serif",
-            fontWeight: 700,
-            color: "#0F172A",
-            "&:hover": {
-                backgroundColor: "#FFF1F7"
-            },
-            "&.Mui-selected": {
-                backgroundColor: "#FFE4F2",
-                color: BRAND.start,
-                fontWeight: 800
-            },
-            "&.Mui-selected:hover": {
-                backgroundColor: "#FFD6EB"
-            }
-        }}
-    >
-        {m}
-    </MenuItem>
-))}
+                                <MenuItem
+                                    key={m}
+                                    value={m}
+                                    sx={{
+                                        fontFamily: "'Nunito', sans-serif",
+                                        fontWeight: 700,
+                                        color: "#0F172A",
+                                        "&:hover": {
+                                            backgroundColor: "#FFF1F7"
+                                        },
+                                        "&.Mui-selected": {
+                                            backgroundColor: "#FFE4F2",
+                                            color: BRAND.start,
+                                            fontWeight: 800
+                                        },
+                                        "&.Mui-selected:hover": {
+                                            backgroundColor: "#FFD6EB"
+                                        }
+                                    }}
+                                >
+                                    {m}
+                                </MenuItem>
+                            ))}
                         </TextField>
 
                         <TextField
@@ -779,29 +813,29 @@ export default function Billing() {
                             sx={{ minWidth: 170, ...inputSx }}
                         >
                             {STATUS_OPTIONS.map((s) => (
-    <MenuItem
-        key={s}
-        value={s}
-        sx={{
-            fontFamily: "'Nunito', sans-serif",
-            fontWeight: 700,
-            color: "#0F172A",
-            "&:hover": {
-                backgroundColor: "#FFF1F7"
-            },
-            "&.Mui-selected": {
-                backgroundColor: "#FFE4F2",
-                color: BRAND.start,
-                fontWeight: 800
-            },
-            "&.Mui-selected:hover": {
-                backgroundColor: "#FFD6EB"
-            }
-        }}
-    >
-        {s}
-    </MenuItem>
-))}
+                                <MenuItem
+                                    key={s}
+                                    value={s}
+                                    sx={{
+                                        fontFamily: "'Nunito', sans-serif",
+                                        fontWeight: 700,
+                                        color: "#0F172A",
+                                        "&:hover": {
+                                            backgroundColor: "#FFF1F7"
+                                        },
+                                        "&.Mui-selected": {
+                                            backgroundColor: "#FFE4F2",
+                                            color: BRAND.start,
+                                            fontWeight: 800
+                                        },
+                                        "&.Mui-selected:hover": {
+                                            backgroundColor: "#FFD6EB"
+                                        }
+                                    }}
+                                >
+                                    {s}
+                                </MenuItem>
+                            ))}
                         </TextField>
 
                         <TextField
@@ -810,29 +844,29 @@ export default function Billing() {
                             sx={{ minWidth: 200, ...inputSx }}
                         >
                             {["All", ...Array.from(new Set(rows.map(r => r.apt).filter(Boolean)))].map((a) => (
-    <MenuItem
-        key={a}
-        value={a}
-        sx={{
-            fontFamily: "'Nunito', sans-serif",
-            fontWeight: 700,
-            color: "#0F172A",
-            "&:hover": {
-                backgroundColor: "#FFF1F7"
-            },
-            "&.Mui-selected": {
-                backgroundColor: "#FFE4F2",
-                color: BRAND.start,
-                fontWeight: 800
-            },
-            "&.Mui-selected:hover": {
-                backgroundColor: "#FFD6EB"
-            }
-        }}
-    >
-        {a}
-    </MenuItem>
-))}
+                                <MenuItem
+                                    key={a}
+                                    value={a}
+                                    sx={{
+                                        fontFamily: "'Nunito', sans-serif",
+                                        fontWeight: 700,
+                                        color: "#0F172A",
+                                        "&:hover": {
+                                            backgroundColor: "#FFF1F7"
+                                        },
+                                        "&.Mui-selected": {
+                                            backgroundColor: "#FFE4F2",
+                                            color: BRAND.start,
+                                            fontWeight: 800
+                                        },
+                                        "&.Mui-selected:hover": {
+                                            backgroundColor: "#FFD6EB"
+                                        }
+                                    }}
+                                >
+                                    {a}
+                                </MenuItem>
+                            ))}
                         </TextField>
 
                         <TextField
@@ -845,11 +879,11 @@ export default function Billing() {
                                 startAdornment: (
                                     <InputAdornment position="start">
                                         <SearchIcon
-    fontSize="small"
-    sx={{
-        color: BRAND.start
-    }}
-/>
+                                            fontSize="small"
+                                            sx={{
+                                                color: BRAND.start
+                                            }}
+                                        />
                                     </InputAdornment>
                                 ),
                             }}
@@ -862,68 +896,68 @@ export default function Billing() {
                         <Button
                             size="small"
                             onClick={bulkRemind}
-                           sx={{
-    textTransform: "none",
+                            sx={{
+                                textTransform: "none",
 
-    borderRadius: "12px",
+                                borderRadius: "12px",
 
-    px: 2,
+                                px: 2,
 
-    color: "#0F172A",
+                                color: "#0F172A",
 
-    fontWeight: 700,
+                                fontWeight: 700,
 
-    fontFamily: "'Orbitron', sans-serif",
+                                fontFamily: "'Orbitron', sans-serif",
 
-    background: "#F8FAFC",
+                                background: "#F8FAFC",
 
-    border: "1px solid #CBD5E1",
+                                border: "1px solid #CBD5E1",
 
-    boxShadow:
-        "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
+                                boxShadow:
+                                    "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
 
-    transition: "all .25s ease",
+                                transition: "all .25s ease",
 
-    "&:hover": {
-        color: BRAND.start,
-        borderColor: BRAND.start,
-        background: "#FFF1F7"
-    }
-}}
+                                "&:hover": {
+                                    color: BRAND.start,
+                                    borderColor: BRAND.start,
+                                    background: "#FFF1F7"
+                                }
+                            }}
                         >
                             Bulk Remind
                         </Button>
                         <Button
                             size="small"
                             onClick={exportCSV}
-                           sx={{
-    textTransform: "none",
+                            sx={{
+                                textTransform: "none",
 
-    borderRadius: "12px",
+                                borderRadius: "12px",
 
-    px: 2,
+                                px: 2,
 
-    color: "#0F172A",
+                                color: "#0F172A",
 
-    fontWeight: 700,
+                                fontWeight: 700,
 
-    fontFamily: "'Orbitron', sans-serif",
+                                fontFamily: "'Orbitron', sans-serif",
 
-    background: "#F8FAFC",
+                                background: "#F8FAFC",
 
-    border: "1px solid #CBD5E1",
+                                border: "1px solid #CBD5E1",
 
-    boxShadow:
-        "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
+                                boxShadow:
+                                    "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
 
-    transition: "all .25s ease",
+                                transition: "all .25s ease",
 
-    "&:hover": {
-        color: BRAND.end,
-        borderColor: BRAND.end,
-        background: "#F5F3FF"
-    }
-}}
+                                "&:hover": {
+                                    color: BRAND.end,
+                                    borderColor: BRAND.end,
+                                    background: "#F5F3FF"
+                                }
+                            }}
                         >
                             Export CSV
                         </Button>
@@ -941,154 +975,154 @@ export default function Billing() {
                     <>
                         <Divider sx={{ mb: 1, borderColor: "rgba(255,255,255,0.08)" }} />
                         <Table
-    size="small"
-    sx={{
-        tableLayout: "auto",
+                            size="small"
+                            sx={{
+                                tableLayout: "auto",
 
-        "& th": {
-            color: "#0F172A",
-            fontWeight: 800,
-            fontFamily: "'Orbitron', sans-serif",
-            fontSize: "0.75rem",
-            letterSpacing: 0.6,
-            borderBottom: "2px solid #E2E8F0",
-            backgroundColor: "#F8FAFC"
-        },
+                                "& th": {
+                                    color: "#0F172A",
+                                    fontWeight: 800,
+                                    fontFamily: "'Orbitron', sans-serif",
+                                    fontSize: "0.75rem",
+                                    letterSpacing: 0.6,
+                                    borderBottom: "2px solid #E2E8F0",
+                                    backgroundColor: "#F8FAFC"
+                                },
 
-        "& td": {
-            color: "#334155",
-            fontFamily: "'Nunito', sans-serif",
-            fontWeight: 600,
-            borderBottom: "1px solid #E2E8F0"
-        },
+                                "& td": {
+                                    color: "#334155",
+                                    fontFamily: "'Nunito', sans-serif",
+                                    fontWeight: 600,
+                                    borderBottom: "1px solid #E2E8F0"
+                                },
 
-        "& tbody tr:hover": {
-            backgroundColor: "#F1F5F9"
-        }
-    }}
->
+                                "& tbody tr:hover": {
+                                    backgroundColor: "#F1F5F9"
+                                }
+                            }}
+                        >
                             <TableHead>
-    <TableRow
-        sx={{
-            backgroundColor: "#F8FAFC"
-        }}
-    >
-        <TableCell
-            padding="checkbox"
-            sx={{
-                borderBottom: "2px solid #E2E8F0"
-            }}
-        >
-            <Checkbox
-                indeterminate={!allSelected && selected.some(id => pagedRows.map(r => r.BillID).includes(id))}
-                checked={allSelected}
-                onChange={(e) => toggleSelectAll(e.target.checked)}
-            />
-        </TableCell>
+                                <TableRow
+                                    sx={{
+                                        backgroundColor: "#F8FAFC"
+                                    }}
+                                >
+                                    <TableCell
+                                        padding="checkbox"
+                                        sx={{
+                                            borderBottom: "2px solid #E2E8F0"
+                                        }}
+                                    >
+                                        <Checkbox
+                                            indeterminate={!allSelected && selected.some(id => pagedRows.map(r => r.BillID).includes(id))}
+                                            checked={allSelected}
+                                            onChange={(e) => toggleSelectAll(e.target.checked)}
+                                        />
+                                    </TableCell>
 
-        <TableCell
-            sortDirection={orderBy === "tenant" ? orderDir : false}
-            sx={tableHeaderSx}
-        >
-            <TableSortLabel
-                active={orderBy === "tenant"}
-                direction={orderDir}
-                onClick={() => handleSort("tenant")}
-                sx={tableSortSx}
-            >
-                Tenant
-            </TableSortLabel>
-        </TableCell>
+                                    <TableCell
+                                        sortDirection={orderBy === "tenant" ? orderDir : false}
+                                        sx={tableHeaderSx}
+                                    >
+                                        <TableSortLabel
+                                            active={orderBy === "tenant"}
+                                            direction={orderDir}
+                                            onClick={() => handleSort("tenant")}
+                                            sx={tableSortSx}
+                                        >
+                                            Tenant
+                                        </TableSortLabel>
+                                    </TableCell>
 
-        <TableCell
-            sortDirection={orderBy === "apt" ? orderDir : false}
-            sx={tableHeaderSx}
-        >
-            <TableSortLabel
-                active={orderBy === "apt"}
-                direction={orderDir}
-                onClick={() => handleSort("apt")}
-                sx={tableSortSx}
-            >
-                Unit / Apartment
-            </TableSortLabel>
-        </TableCell>
+                                    <TableCell
+                                        sortDirection={orderBy === "apt" ? orderDir : false}
+                                        sx={tableHeaderSx}
+                                    >
+                                        <TableSortLabel
+                                            active={orderBy === "apt"}
+                                            direction={orderDir}
+                                            onClick={() => handleSort("apt")}
+                                            sx={tableSortSx}
+                                        >
+                                            Unit / Apartment
+                                        </TableSortLabel>
+                                    </TableCell>
 
-        <TableCell sx={tableHeaderSx}>
-            Bill
-        </TableCell>
+                                    <TableCell sx={tableHeaderSx}>
+                                        Bill
+                                    </TableCell>
 
-        <TableCell
-            align="right"
-            sortDirection={orderBy === "amount" ? orderDir : false}
-            sx={tableHeaderSx}
-        >
-            <TableSortLabel
-                active={orderBy === "amount"}
-                direction={orderDir}
-                onClick={() => handleSort("amount")}
-                sx={tableSortSx}
-            >
-                Amount Due
-            </TableSortLabel>
-        </TableCell>
+                                    <TableCell
+                                        align="right"
+                                        sortDirection={orderBy === "amount" ? orderDir : false}
+                                        sx={tableHeaderSx}
+                                    >
+                                        <TableSortLabel
+                                            active={orderBy === "amount"}
+                                            direction={orderDir}
+                                            onClick={() => handleSort("amount")}
+                                            sx={tableSortSx}
+                                        >
+                                            Amount Due
+                                        </TableSortLabel>
+                                    </TableCell>
 
-        <TableCell
-            align="right"
-            sortDirection={orderBy === "paid" ? orderDir : false}
-            sx={tableHeaderSx}
-        >
-            <TableSortLabel
-                active={orderBy === "paid"}
-                direction={orderDir}
-                onClick={() => handleSort("paid")}
-                sx={tableSortSx}
-            >
-                Paid
-            </TableSortLabel>
-        </TableCell>
+                                    <TableCell
+                                        align="right"
+                                        sortDirection={orderBy === "paid" ? orderDir : false}
+                                        sx={tableHeaderSx}
+                                    >
+                                        <TableSortLabel
+                                            active={orderBy === "paid"}
+                                            direction={orderDir}
+                                            onClick={() => handleSort("paid")}
+                                            sx={tableSortSx}
+                                        >
+                                            Paid
+                                        </TableSortLabel>
+                                    </TableCell>
 
-        <TableCell
-            align="right"
-            sortDirection={orderBy === "balance" ? orderDir : false}
-            sx={tableHeaderSx}
-        >
-            <TableSortLabel
-                active={orderBy === "balance"}
-                direction={orderDir}
-                onClick={() => handleSort("balance")}
-                sx={tableSortSx}
-            >
-                Balance
-            </TableSortLabel>
-        </TableCell>
+                                    <TableCell
+                                        align="right"
+                                        sortDirection={orderBy === "balance" ? orderDir : false}
+                                        sx={tableHeaderSx}
+                                    >
+                                        <TableSortLabel
+                                            active={orderBy === "balance"}
+                                            direction={orderDir}
+                                            onClick={() => handleSort("balance")}
+                                            sx={tableSortSx}
+                                        >
+                                            Balance
+                                        </TableSortLabel>
+                                    </TableCell>
 
-        <TableCell
-            sortDirection={orderBy === "dueISO" ? orderDir : false}
-            sx={tableHeaderSx}
-        >
-            <TableSortLabel
-                active={orderBy === "dueISO"}
-                direction={orderDir}
-                onClick={() => handleSort("dueISO")}
-                sx={tableSortSx}
-            >
-                Due Date
-            </TableSortLabel>
-        </TableCell>
+                                    <TableCell
+                                        sortDirection={orderBy === "dueISO" ? orderDir : false}
+                                        sx={tableHeaderSx}
+                                    >
+                                        <TableSortLabel
+                                            active={orderBy === "dueISO"}
+                                            direction={orderDir}
+                                            onClick={() => handleSort("dueISO")}
+                                            sx={tableSortSx}
+                                        >
+                                            Due Date
+                                        </TableSortLabel>
+                                    </TableCell>
 
-        <TableCell sx={tableHeaderSx}>
-            Status
-        </TableCell>
+                                    <TableCell sx={tableHeaderSx}>
+                                        Status
+                                    </TableCell>
 
-        <TableCell
-            align="right"
-            sx={tableHeaderSx}
-        >
-            Action
-        </TableCell>
-    </TableRow>
-</TableHead>
+                                    <TableCell
+                                        align="right"
+                                        sx={tableHeaderSx}
+                                    >
+                                        Action
+                                    </TableCell>
+                                </TableRow>
+                            </TableHead>
                             <TableBody>
                                 {pagedRows
                                     .filter(r => apartmentFilter === "All" ? true : r.apt === apartmentFilter)
@@ -1108,63 +1142,62 @@ export default function Billing() {
                                             <TableCell align="right">{fmtKES(r.balance)}</TableCell>
                                             <TableCell>{r.due}</TableCell>
                                             <TableCell>
-                                               <Chip
-    size="small"
-    label={r.status}
-    sx={{
-        bgcolor: STATUS_STYLE[r.status]?.bg || "#CBD5E1",
+                                                <Chip
+                                                    size="small"
+                                                    label={r.status}
+                                                    sx={{
+                                                        bgcolor: STATUS_STYLE[r.status]?.bg || "#CBD5E1",
 
-        color: STATUS_STYLE[r.status]?.color || "#FFFFFF",
+                                                        color: STATUS_STYLE[r.status]?.color || "#FFFFFF",
 
-        border: `1px solid ${
-            STATUS_STYLE[r.status]?.border || "#CBD5E1"
-        }`,
+                                                        border: `1px solid ${STATUS_STYLE[r.status]?.border || "#CBD5E1"
+                                                            }`,
 
-        fontWeight: 800,
+                                                        fontWeight: 800,
 
-        fontFamily: "'Orbitron', sans-serif",
+                                                        fontFamily: "'Orbitron', sans-serif",
 
-        borderRadius: "18px",
+                                                        borderRadius: "18px",
 
-        minWidth: 115,
+                                                        minWidth: 115,
 
-        justifyContent: "center",
+                                                        justifyContent: "center",
 
-        "& .MuiChip-label": {
-            px: 1.5
-        }
-    }}
-/>
+                                                        "& .MuiChip-label": {
+                                                            px: 1.5
+                                                        }
+                                                    }}
+                                                />
                                             </TableCell>
                                             <TableCell align="right">
                                                 <Button
                                                     size="small"
                                                     endIcon={<KeyboardArrowDownIcon />}
                                                     sx={{
-    textTransform: "none",
-    borderRadius: "12px",
-    px: 1.5,
+                                                        textTransform: "none",
+                                                        borderRadius: "12px",
+                                                        px: 1.5,
 
-    color: "#0F172A",
-    fontWeight: 700,
-    fontFamily: "'Orbitron', sans-serif",
+                                                        color: "#0F172A",
+                                                        fontWeight: 700,
+                                                        fontFamily: "'Orbitron', sans-serif",
 
-    background: "#F8FAFC",
+                                                        background: "#F8FAFC",
 
-    border: "1px solid #CBD5E1",
+                                                        border: "1px solid #CBD5E1",
 
-    boxShadow:
-        "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
+                                                        boxShadow:
+                                                            "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
 
-    transition: "all .25s ease",
+                                                        transition: "all .25s ease",
 
-    "&:hover": {
-        color: "#FF0080",
-        borderColor: "#FF0080",
-        background: "#FFF1F7",
-        transform: "translateY(-1px)"
-    }
-}}
+                                                        "&:hover": {
+                                                            color: "#FF0080",
+                                                            borderColor: "#FF0080",
+                                                            background: "#FFF1F7",
+                                                            transform: "translateY(-1px)"
+                                                        }
+                                                    }}
                                                     onClick={(e) => { setMenuRow(r); openMenu(e, r); }}
                                                 >
                                                     Action
@@ -1182,8 +1215,121 @@ export default function Billing() {
                             onPageChange={(_, p) => setPage(p)}
                             rowsPerPage={rowsPerPage}
                             onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-                            rowsPerPageOptions={[5, 10, 25, 50]}
-                            sx={{ color: "#fff" }}
+                            rowsPerPageOptions={[10, 25, 50, 100]}
+                            SelectProps={{
+    MenuProps: {
+        PaperProps: {
+            elevation: 0,
+            sx: {
+                borderRadius: "18px",
+                bgcolor: "#F8FAFC",
+                boxShadow:
+                    "12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff",
+
+                "& .MuiMenuItem-root": {
+                    fontFamily: "'Orbitron', sans-serif",
+                    fontWeight: 700,
+                    color: "#0F172A",
+
+                    "&:hover": {
+                        background: "#FFF1F7",
+                        color: BRAND.start,
+                    },
+
+                    "&.Mui-selected": {
+                        background: "#FFE4F2",
+                        color: BRAND.start,
+                    }
+                }
+            }
+        }
+    }
+}}
+                            sx={{
+                                mt: 2,
+                                px: 2,
+                                py: 1,
+
+                                color: "#0F172A",
+
+                                borderTop: "1px solid #E2E8F0",
+
+                                "& .MuiTablePagination-toolbar": {
+                                    minHeight: 64,
+                                },
+
+                                "& .MuiTablePagination-selectLabel": {
+                                    fontFamily: "'Orbitron', sans-serif",
+                                    fontWeight: 700,
+                                    fontSize: "0.72rem",
+                                    color: "#0F172A",
+                                },
+
+                                "& .MuiTablePagination-displayedRows": {
+                                    fontFamily: "'Orbitron', sans-serif",
+                                    fontWeight: 700,
+                                    fontSize: "0.72rem",
+                                    color: "#0F172A",
+                                },
+
+                                "& .MuiTablePagination-select": {
+                                    fontFamily: "'Orbitron', sans-serif",
+                                    fontWeight: 700,
+                                    color: "#0F172A",
+                                },
+
+                                "& .MuiSelect-icon": {
+                                    color: BRAND.start,
+                                },
+
+                                "& .MuiIconButton-root": {
+                                    width: 38,
+                                    height: 38,
+                                    mx: 0.3,
+
+                                    background: "#F8FAFC",
+
+                                    color: BRAND.start,
+
+                                    borderRadius: "12px",
+
+                                    boxShadow:
+                                        "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
+
+                                    transition: "all .25s ease",
+
+                                    "&:hover": {
+                                        color: BRAND.end,
+                                        background: "#FFF1F7",
+
+                                        transform: "translateY(-1px)"
+                                    },
+                                    "& .MuiTablePagination-select": {
+    borderRadius: "10px",
+
+    background: "#F8FAFC",
+
+    boxShadow:
+        "inset 3px 3px 6px #d1d9e6, inset -3px -3px 6px #ffffff",
+
+    paddingLeft: "10px",
+
+    paddingRight: "30px",
+
+    fontFamily: "'Orbitron', sans-serif",
+
+    fontWeight: 700,
+
+    color: "#0F172A",
+},
+
+                                    "&.Mui-disabled": {
+                                        color: "#CBD5E1",
+                                        boxShadow: "none",
+                                        background: "#F8FAFC"
+                                    }
+                                }
+                            }}
                         />
 
                         {/* Row action dropdown */}
@@ -1191,23 +1337,63 @@ export default function Billing() {
                             anchorEl={menuAnchor}
                             open={Boolean(menuAnchor)}
                             onClose={closeMenu}
+                            anchorOrigin={{
+                                vertical: "bottom",
+                                horizontal: "right",
+                            }}
+                            transformOrigin={{
+                                vertical: "top",
+                                horizontal: "right",
+                            }}
                             PaperProps={{
-                                sx: { bgcolor: "#0e0a17", color: "#fff", border: "1px solid rgba(255,255,255,0.12)" }
+                                elevation: 0,
+                                sx: {
+                                    mt: 1,
+                                    minWidth: 220,
+                                    borderRadius: "20px",
+                                    bgcolor: "#F8FAFC",
+                                    overflow: "hidden",
+                                    border: "none",
+
+                                    // Floating Neumorphic Shadow
+                                    boxShadow:
+                                        "12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff",
+                                },
                             }}
                         >
-                            <MenuItem onClick={onView}>View</MenuItem>
-                            <MenuItem onClick={onEdit}>Edit</MenuItem>
-                            <MenuItem onClick={onReminder}>Reminder</MenuItem>
-                            <MenuItem onClick={() => {
-                                setPayForm(f => ({
-                                    ...f,
-                                    TenantID: menuRow?.TenantID || "",
-                                    RentalUnitID: menuRow?.RentalUnitID || "",
-                                    BillingMonth: menuRow?.month || NOW_MONTH
-                                }));
-                                setPayOpen(true);
-                                closeMenu();
-                            }}>Record Payment</MenuItem>
+                            <MenuItem onClick={onView} sx={menuItemSx}>
+                                <VisibilityOutlinedIcon />
+                                View Bill
+                            </MenuItem>
+
+                            <MenuItem onClick={onEdit} sx={menuItemSx}>
+                                <EditOutlinedIcon />
+                                Edit Utilities
+                            </MenuItem>
+
+                            <MenuItem onClick={onReminder} sx={menuItemSx}>
+                                <NotificationsActiveOutlinedIcon />
+                                Send Reminder
+                            </MenuItem>
+                            <Divider />
+
+                            <MenuItem
+                                sx={menuItemSx}
+                                onClick={() => {
+                                    setPayForm((f) => ({
+                                        ...f,
+                                        TenantID: menuRow?.TenantID || "",
+                                        RentalUnitID: menuRow?.RentalUnitID || "",
+                                        BillingMonth: menuRow?.month || NOW_MONTH,
+                                    }));
+
+                                    setPayOpen(true);
+                                    closeMenu();
+                                }}
+                            >
+                                <PaymentsOutlinedIcon />
+                                Record Payment
+                            </MenuItem>
                         </Menu>
                     </>
                 )}
@@ -1340,7 +1526,14 @@ export default function Billing() {
                     </Button>
                 </DialogActions>
             </Dialog>
-
+<MonthlyBillingPreviewDialog
+    open={generateOpen}
+    onClose={() => setGenerateOpen(false)}
+    onGenerate={async () => {
+        await handleGenerate();
+        setGenerateOpen(false);
+    }}
+/>
             {/* Snackbar */}
             <Snackbar
                 open={snack.open}

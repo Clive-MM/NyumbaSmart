@@ -32,7 +32,7 @@ const linkFont = `"Nunito", ui-sans-serif, system-ui, -apple-system, Segoe UI, R
 const displayFont = `"Cinzel", ui-serif, Georgia, serif`;
 const GRADIENT = "linear-gradient(90deg,#FF0080,#7E00A6)";
 const logoUrl =
-    "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
+    "https://res.cloudinary.com/djydkcx01/image/upload/v1783541940/ChatGPT_Image_Jul_8_2026_11_17_59_PM_ovslty.png";
 
 /* -------- Shell (glass + dark-neumorphism, no rounded outer corners) -------- */
 const SidebarWrap = styled(Box, {

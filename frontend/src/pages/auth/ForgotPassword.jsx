@@ -20,7 +20,7 @@ import { Link, useNavigate } from "react-router-dom";
 const API_URL = process.env.REACT_APP_API_URL;
 
 const logoUrl =
-  "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
+  "https://res.cloudinary.com/djydkcx01/image/upload/v1783541940/ChatGPT_Image_Jul_8_2026_11_17_59_PM_ovslty.png";
 
 /* Same BRAND palette the Login page uses */
 const BRAND = {

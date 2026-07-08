@@ -41,7 +41,7 @@ const darkGradient = `
   linear-gradient(180deg, ${BRAND.bgViolet} 0%, ${BRAND.bgNavy} 45%, ${BRAND.bgDeep} 100%)
 `;
 
-const logoUrl = "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
+const logoUrl = "https://res.cloudinary.com/djydkcx01/image/upload/v1783541940/ChatGPT_Image_Jul_8_2026_11_17_59_PM_ovslty.png";
 
 /* ---------- Styled Components ---------- */
 const SocialIconButton = styled(IconButton)(({ hovercolor }) => ({

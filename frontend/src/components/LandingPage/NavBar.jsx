@@ -14,7 +14,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
 import AccountCircleRoundedIcon from "@mui/icons-material/AccountCircleRounded";
 
-const logoUrl = "https://res.cloudinary.com/djydkcx01/image/upload/v1753818069/ChatGPT_Image_Jul_29_2025_10_40_50_PM_ttgxoo.png";
+const logoUrl = "https://res.cloudinary.com/djydkcx01/image/upload/v1783541940/ChatGPT_Image_Jul_8_2026_11_17_59_PM_ovslty.png";
 
 const BRAND = {
   magenta: "#D4124E",
