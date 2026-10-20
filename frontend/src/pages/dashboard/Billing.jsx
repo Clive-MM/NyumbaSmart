@@ -411,17 +411,43 @@ export default function Billing() {
     useEffect(() => { loadCashflow().catch(console.error); /* eslint-disable-next-line */ }, [monthFilter]);
 
     /* ---------- Generate Bills ---------- */
-    const handleGenerate = async () => {
-        try {
-            const { data } = await api.post("/bills/generate-or-update", { BillingMonth: monthFilter || NOW_MONTH });
-            setSnack({ open: true, severity: "success", msg: data?.alert || `Bills generated for ${monthFilter}.` });
-            load();
-            loadKpis();
-        } catch (e) {
-            console.error(e);
-            setSnack({ open: true, severity: "error", msg: "Failed to generate/update bills." });
-        }
-    };
+    const handleGenerate = async (billingData) => {
+    try {
+
+        const { data } = await api.post(
+            "/api/billing/generate",
+            billingData
+        );
+
+        setSnack({
+            open: true,
+            severity: "success",
+            msg: data.message || "Bills generated successfully."
+        });
+
+        // Refresh Billing Table
+        await load();
+
+        // Refresh Dashboard KPIs
+        await loadKpis();
+
+        return data;
+
+    } catch (error) {
+
+        console.error(error);
+
+        setSnack({
+            open: true,
+            severity: "error",
+            msg:
+                error.response?.data?.message ||
+                "Failed to generate monthly bills."
+        });
+
+        throw error;
+    }
+};
 
     /* ---------- Client filters ---------- */
     const filteredRows = rows.filter(r => {
@@ -1529,8 +1555,8 @@ export default function Billing() {
 <MonthlyBillingPreviewDialog
     open={generateOpen}
     onClose={() => setGenerateOpen(false)}
-    onGenerate={async () => {
-        await handleGenerate();
+    onGenerate={async (billingData) => {
+        await handleGenerate(billingData);
         setGenerateOpen(false);
     }}
 />

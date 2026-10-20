@@ -23,11 +23,43 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+
 const BRAND = {
     start: "#FF0080",
     end: "#7E00A6",
     gradient: "linear-gradient(90deg,#FF0080 0%, #7E00A6 100%)",
     glow: "0 14px 30px rgba(255,0,128,.22), 0 8px 20px rgba(126,0,166,.18)"
+};
+const formatBillingMonth = (value) => {
+    const [year, month] = value.split("-");
+
+    const months = [
+        "January", "February", "March", "April",
+        "May", "June", "July", "August",
+        "September", "October", "November", "December",
+    ];
+
+    return `${months[Number(month) - 1]} ${year}`;
+};
+
+const handleGenerateBills = () => {
+    const billingData = {
+        ApartmentID:
+            config.apartment === "all"
+                ? null
+                : Number(config.apartment),
+
+        BillingMonth: formatBillingMonth(config.billingMonth),
+
+        DueDate: config.dueDate,
+
+        IncludeWater: config.includeWater,
+        IncludeElectricity: config.includeElectricity,
+        IncludeGarbage: config.includeGarbage,
+        IncludeInternet: config.includeInternet,
+    };
+
+    onGenerate(billingData);
 };
 
 const MonthlyBillingPreviewDialog = ({
@@ -650,44 +682,26 @@ const MonthlyBillingPreviewDialog = ({
                 }}
             >
                 <Button
-                    onClick={onClose}
-                    sx={{
-                        px: 3,
-                        py: 1,
-                        borderRadius: "14px",
-                        textTransform: "none",
-                        fontWeight: 700,
-                        color: "#64748B",
+    variant="contained"
+    onClick={handleGenerateBills}
+    sx={{
+        px: 4,
+        py: 1.3,
+        borderRadius: "16px",
+        textTransform: "none",
+        fontWeight: 700,
+        background: BRAND.gradient,
+        boxShadow: BRAND.glow,
 
-                        "&:hover": {
-                            bgcolor: "#F8FAFC",
-                        },
-                    }}
-                >
-                    Cancel
-                </Button>
-
-                <Button
-                    variant="contained"
-                    onClick={onGenerate}
-                    sx={{
-                        px: 4,
-                        py: 1.3,
-                        borderRadius: "16px",
-                        textTransform: "none",
-                        fontWeight: 700,
-                        background: BRAND.gradient,
-                        boxShadow: BRAND.glow,
-
-                        "&:hover": {
-                            background: BRAND.gradient,
-                            transform: "translateY(-2px)",
-                            boxShadow: "0 18px 36px rgba(255,0,128,.28)",
-                        },
-                    }}
-                >
-                    Generate Bills
-                </Button>
+        "&:hover": {
+            background: BRAND.gradient,
+            transform: "translateY(-2px)",
+            boxShadow: "0 18px 36px rgba(255,0,128,.28)",
+        },
+    }}
+>
+    Generate Bills
+</Button>
             </DialogActions>
 
         </Dialog>
