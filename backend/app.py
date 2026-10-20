@@ -21,7 +21,7 @@ from models import (
 # --- Routes / Blueprint ---
 # <- use same bcrypt instance as routes
 from routes.routes import routes, register_mail_instance, bcrypt
-
+from routes.billing_routes import billing_bp
 # Load env
 load_dotenv()
 
@@ -82,16 +82,21 @@ app.extensions["twilio_client"] = (
 # -------------------------
 # Init extensions
 # -------------------------
+
 db.init_app(app)
 mail = Mail(app)
 jwt = JWTManager(app)
-bcrypt.init_app(app)  # <-- initialize the SAME bcrypt imported from routes
+bcrypt.init_app(app)
 
-# Let routes send emails
 register_mail_instance(mail)
 
-# Register blueprint
+# Register blueprints
 app.register_blueprint(routes)
+
+app.register_blueprint(
+    billing_bp,
+    url_prefix="/api/billing"
+)
 
 # -------------------------
 # Health checks

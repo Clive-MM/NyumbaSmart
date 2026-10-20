@@ -59,7 +59,7 @@ class BillingValidator:
 
         if apartment is None:
             raise BillingValidationError(
-                "Apartment not found or you are not authorized to access it."
+                "Selected apartment could not be found or does not belong to your account."
             )
 
         return apartment
@@ -162,7 +162,7 @@ class BillingValidator:
 
         if status != "active":
             raise BillingValidationError(
-                f"Tenant '{tenant.FullName}' is inactive."
+                f"{tenant.FullName} is marked as an inactive tenant."
             )
 
         # Tenant moved out before the billing month started
@@ -171,8 +171,8 @@ class BillingValidator:
             and tenant.MoveOutDate < billing_period
         ):
             raise BillingValidationError(
-                f"Tenant '{tenant.FullName}' moved out on "
-                f"{tenant.MoveOutDate:%d-%b-%Y}."
+                f"{tenant.FullName} moved out on "
+                f"{tenant.MoveOutDate:%d %b %Y} and cannot be billed."
             )
 
         return tenant
@@ -196,7 +196,7 @@ class BillingValidator:
 
         if unit.CurrentTenantID is None:
             raise BillingValidationError(
-                f"Rental Unit '{unit.Label}' has no assigned tenant."
+                f"Rental Unit {unit.Label} is currently vacant."
             )
 
         if unit.MonthlyRent <= 0:
@@ -227,9 +227,17 @@ class BillingValidator:
         ).first()
 
         if existing_bill:
+
+            tenant = Tenant.query.get(tenant_id)
+
+            tenant_name = (
+                tenant.FullName
+                if tenant
+                else f"Tenant ID {tenant_id}"
+            )
+
             raise BillingValidationError(
-                f"A bill has already been generated for Tenant ID {tenant_id} "
-                f"for this billing period."
+                f"Bill for {tenant_name} ({billing_period.strftime('%B %Y')}) already exists."
             )
 
         return True

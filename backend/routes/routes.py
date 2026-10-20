@@ -2483,261 +2483,390 @@ def view_vacate_logs():
         "vacate_logs": result
     }), 200
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Billing: generate/update, list, KPIs, payments
-# ──────────────────────────────────────────────────────────────────────────────
+# # ──────────────────────────────────────────────────────────────────────────────
+# # Billing: generate/update, list, KPIs, payments
+# # ──────────────────────────────────────────────────────────────────────────────
 
 
-@routes.route('/bills/generate-or-update', methods=['POST'])
-@jwt_required()
-def generate_or_update_bills():
-    user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+# @routes.route('/bills/generate-or-update', methods=['POST'])
+# @jwt_required()
+# def generate_or_update_bills():
+#     user_id = get_jwt_identity()
+#     user = User.query.get(user_id)
 
-    if not user or not user.IsAdmin:
-        return jsonify({
-            "status": "error",
-            "message": "Unauthorized. Only landlords can manage bills."
-        }), 403
+#     if not user or not user.IsAdmin:
+#         return jsonify({
+#             "status": "error",
+#             "message": "Unauthorized. Only landlords can manage bills."
+#         }), 403
 
-    data = request.get_json() or {}
+#     data = request.get_json() or {}
 
-    tenant_id = data.get("TenantID")
-    billing_month = data.get("BillingMonth")  # e.g., "July 2025"
-    utilities_data = data.get("utilities", {}) or {}
+#     tenant_id = data.get("TenantID")
+#     billing_month = data.get("BillingMonth")  # e.g., "July 2025"
+#     utilities_data = data.get("utilities", {}) or {}
 
-    if not billing_month:
-        today = datetime.today()
-        billing_month = today.strftime("%B %Y")
+#     if not billing_month:
+#         today = datetime.today()
+#         billing_month = today.strftime("%B %Y")
 
-    def _parse_period(label: str):
-        try:
-            dt = datetime.strptime(label, "%B %Y")
-            return datetime(dt.year, dt.month, 1).date()
-        except Exception:
-            return None
-    billing_period = _parse_period(billing_month)
+#     def _parse_period(label: str):
+#         try:
+#             dt = datetime.strptime(label, "%B %Y")
+#             return datetime(dt.year, dt.month, 1).date()
+#         except Exception:
+#             return None
+#     billing_period = _parse_period(billing_month)
 
-    try:
-        # keep your existing due date logic (5th of current month)
-        due_date = datetime(datetime.today().year,
-                            datetime.today().month, 5).date()
+#     try:
+#         # keep your existing due date logic (5th of current month)
+#         due_date = datetime(datetime.today().year,
+#                             datetime.today().month, 5).date()
 
-        query = Tenant.query.filter_by(Status="Active")
-        if tenant_id:
-            query = query.filter_by(TenantID=tenant_id)
+#         query = Tenant.query.filter_by(Status="Active")
+#         if tenant_id:
+#             query = query.filter_by(TenantID=tenant_id)
 
-        active_tenants = query.all()
-        if not active_tenants:
-            return jsonify({"status": "error", "message": "No active tenants found."}), 404
+#         active_tenants = query.all()
+#         if not active_tenants:
+#             return jsonify({"status": "error", "message": "No active tenants found."}), 404
 
-        bills_created_or_updated = 0
+#         bills_created_or_updated = 0
 
-        for tenant in active_tenants:
-            unit = RentalUnit.query.get(tenant.RentalUnitID)
-            if not unit:
-                continue
+#         for tenant in active_tenants:
+#             unit = RentalUnit.query.get(tenant.RentalUnitID)
+#             if not unit:
+#                 continue
 
-            apartment = Apartment.query.get(unit.ApartmentID) if unit else None
-            resolved_landlord_id = apartment.UserID if apartment else None
+#             apartment = Apartment.query.get(unit.ApartmentID) if unit else None
+#             resolved_landlord_id = apartment.UserID if apartment else None
 
-            bill = TenantBill.query.filter_by(
-                TenantID=tenant.TenantID,
-                BillingMonth=billing_month
-            ).first()
+#             bill = TenantBill.query.filter_by(
+#                 TenantID=tenant.TenantID,
+#                 BillingMonth=billing_month
+#             ).first()
 
-            if not bill:
-                water = float(utilities_data.get("WaterBill", 0.0) or 0.0)
-                elec = float(utilities_data.get("ElectricityBill", 0.0) or 0.0)
-                garb = float(utilities_data.get("Garbage", 0.0) or 0.0)
-                net = float(utilities_data.get("Internet", 0.0) or 0.0)
+#             if not bill:
+#                 water = float(utilities_data.get("WaterBill", 0.0) or 0.0)
+#                 elec = float(utilities_data.get("ElectricityBill", 0.0) or 0.0)
+#                 garb = float(utilities_data.get("Garbage", 0.0) or 0.0)
+#                 net = float(utilities_data.get("Internet", 0.0) or 0.0)
 
-                bill = TenantBill(
-                    TenantID=tenant.TenantID,
-                    RentalUnitID=tenant.RentalUnitID,
-                    BillingMonth=billing_month,
-                    LandlordID=resolved_landlord_id,
-                    BillingPeriod=billing_period,
+#                 bill = TenantBill(
+#                     TenantID=tenant.TenantID,
+#                     RentalUnitID=tenant.RentalUnitID,
+#                     BillingMonth=billing_month,
+#                     LandlordID=resolved_landlord_id,
+#                     BillingPeriod=billing_period,
 
-                    RentAmount=float(unit.MonthlyRent),
-                    WaterBill=water,
-                    ElectricityBill=elec,
-                    Garbage=garb,
-                    Internet=net,
+#                     RentAmount=float(unit.MonthlyRent),
+#                     WaterBill=water,
+#                     ElectricityBill=elec,
+#                     Garbage=garb,
+#                     Internet=net,
 
-                    DueDate=due_date,
-                    IssuedDate=datetime.now(),
-                    BillStatus="Unpaid"
-                )
+#                     DueDate=due_date,
+#                     IssuedDate=datetime.now(),
+#                     BillStatus="Unpaid"
+#                 )
 
-                total_due, carried_balance = calculate_bill_amount(
-                    tenant.TenantID,
-                    unit.MonthlyRent,
-                    bill.WaterBill,
-                    bill.ElectricityBill,
-                    bill.Garbage,
-                    bill.Internet
-                )
+#                 total_due, carried_balance = calculate_bill_amount(
+#                     tenant.TenantID,
+#                     unit.MonthlyRent,
+#                     bill.WaterBill,
+#                     bill.ElectricityBill,
+#                     bill.Garbage,
+#                     bill.Internet
+#                 )
 
-                bill.CarriedForwardBalance = float(carried_balance or 0.0)
-                bill.TotalAmountDue = float(total_due or 0.0)
-                db.session.add(bill)
+#                 bill.CarriedForwardBalance = float(carried_balance or 0.0)
+#                 bill.TotalAmountDue = float(total_due or 0.0)
+#                 db.session.add(bill)
 
-            else:
-                if "WaterBill" in utilities_data:
-                    bill.WaterBill = float(utilities_data.get(
-                        "WaterBill") or bill.WaterBill or 0.0)
-                if "ElectricityBill" in utilities_data:
-                    bill.ElectricityBill = float(utilities_data.get(
-                        "ElectricityBill") or bill.ElectricityBill or 0.0)
-                if "Garbage" in utilities_data:
-                    bill.Garbage = float(utilities_data.get(
-                        "Garbage") or bill.Garbage or 0.0)
-                if "Internet" in utilities_data:
-                    bill.Internet = float(utilities_data.get(
-                        "Internet") or bill.Internet or 0.0)
+#             else:
+#                 if "WaterBill" in utilities_data:
+#                     bill.WaterBill = float(utilities_data.get(
+#                         "WaterBill") or bill.WaterBill or 0.0)
+#                 if "ElectricityBill" in utilities_data:
+#                     bill.ElectricityBill = float(utilities_data.get(
+#                         "ElectricityBill") or bill.ElectricityBill or 0.0)
+#                 if "Garbage" in utilities_data:
+#                     bill.Garbage = float(utilities_data.get(
+#                         "Garbage") or bill.Garbage or 0.0)
+#                 if "Internet" in utilities_data:
+#                     bill.Internet = float(utilities_data.get(
+#                         "Internet") or bill.Internet or 0.0)
 
-                if getattr(bill, "LandlordID", None) is None and resolved_landlord_id:
-                    bill.LandlordID = resolved_landlord_id
-                if getattr(bill, "BillingPeriod", None) is None and billing_period:
-                    bill.BillingPeriod = billing_period
+#                 if getattr(bill, "LandlordID", None) is None and resolved_landlord_id:
+#                     bill.LandlordID = resolved_landlord_id
+#                 if getattr(bill, "BillingPeriod", None) is None and billing_period:
+#                     bill.BillingPeriod = billing_period
 
-                total_due, carried_balance = calculate_bill_amount(
-                    tenant.TenantID,
-                    unit.MonthlyRent,
-                    bill.WaterBill,
-                    bill.ElectricityBill,
-                    bill.Garbage,
-                    bill.Internet
-                )
+#                 total_due, carried_balance = calculate_bill_amount(
+#                     tenant.TenantID,
+#                     unit.MonthlyRent,
+#                     bill.WaterBill,
+#                     bill.ElectricityBill,
+#                     bill.Garbage,
+#                     bill.Internet
+#                 )
 
-                bill.CarriedForwardBalance = float(carried_balance or 0.0)
-                bill.TotalAmountDue = float(total_due or 0.0)
+#                 bill.CarriedForwardBalance = float(carried_balance or 0.0)
+#                 bill.TotalAmountDue = float(total_due or 0.0)
 
-            bills_created_or_updated += 1
+#             bills_created_or_updated += 1
 
-        db.session.commit()
+#         db.session.commit()
 
-        return jsonify({
-            "status": "success",
-            "alert": f"✅ {bills_created_or_updated} bill(s) created/updated for {billing_month}.",
-            "details": {
-                "bills_created_or_updated": bills_created_or_updated,
-                "billing_month": billing_month
-            }
-        }), 200
+#         return jsonify({
+#             "status": "success",
+#             "alert": f"✅ {bills_created_or_updated} bill(s) created/updated for {billing_month}.",
+#             "details": {
+#                 "bills_created_or_updated": bills_created_or_updated,
+#                 "billing_month": billing_month
+#             }
+#         }), 200
 
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            "status": "error",
-            "alert": "❌ Failed to generate/update bills.",
-            "error": str(e)
-        }), 500
+#     except Exception as e:
+#         db.session.rollback()
+#         return jsonify({
+#             "status": "error",
+#             "alert": "❌ Failed to generate/update bills.",
+#             "error": str(e)
+#         }), 500
+
 
 
 @routes.route("/bills", methods=["GET"])
 @jwt_required()
 def get_filtered_bills():
+    from decimal import Decimal
+    from services.billing.balance_service import BalanceService
+
     user_id = get_jwt_identity()
+
     user = User.query.get(user_id)
-
     if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+        return jsonify({
+            "success": False,
+            "message": "Unauthorized access."
+        }), 403
 
+    # ----------------------------------------------------------
+    # Read filters
+    # ----------------------------------------------------------
     apartment_id = request.args.get("apartment_id", type=int)
-    month_filter = request.args.get("month")
-    status_filter = request.args.get("status")
+    month_filter = request.args.get("month", type=str)
+    status_filter = request.args.get("status", type=str)
 
-    valid_statuses = ["Unpaid", "Paid", "Partially Paid", "Overpaid"]
-    if status_filter and status_filter not in valid_statuses:
-        return jsonify({
-            "status": "error",
-            "message": f"Invalid status. Choose from {valid_statuses}"
-        }), 400
+    valid_statuses = {
+        "Unpaid",
+        "Paid",
+        "Partially Paid",
+    }
 
-    apartments = Apartment.query.filter_by(UserID=user_id).all()
-    apartment_ids = [a.ApartmentID for a in apartments]
-
-    if apartment_id and apartment_id not in apartment_ids:
-        return jsonify({"status": "error", "message": "You do not own this apartment."}), 403
-
-    units_query = RentalUnit.query.filter(
-        RentalUnit.ApartmentID.in_(apartment_ids))
-    if apartment_id:
-        units_query = units_query.filter_by(ApartmentID=apartment_id)
-    units = units_query.all()
-    unit_ids = [u.UnitID for u in units]
-
-    query = TenantBill.query.filter(TenantBill.RentalUnitID.in_(unit_ids))
-    if month_filter:
-        query = query.filter(TenantBill.BillingMonth.ilike(month_filter))
     if status_filter:
-        query = query.filter(TenantBill.BillStatus == status_filter)
+        status_filter = status_filter.strip()
 
-    bills = query.order_by(TenantBill.BillID.asc()).all()
+        if status_filter not in valid_statuses:
+            return jsonify({
+                "success": False,
+                "message": (
+                    "Invalid status. Use Unpaid, Paid, "
+                    "or Partially Paid."
+                )
+            }), 400
 
-    if not bills:
+    # ----------------------------------------------------------
+    # Restrict invoices to this landlord's apartments
+    # ----------------------------------------------------------
+    apartments = Apartment.query.filter_by(
+        UserID=user_id
+    ).all()
+
+    apartment_ids = [
+        apartment.ApartmentID
+        for apartment in apartments
+    ]
+
+    if not apartment_ids:
         return jsonify({
-            "status": "success",
-            "message": "No bills found for the given filters.",
+            "success": True,
+            "filters": {
+                "apartment_id": apartment_id,
+                "month": month_filter,
+                "status": status_filter,
+            },
             "total_bills": 0,
-            "bills": []
+            "bills": [],
         }), 200
 
-    result = []
+    if (
+        apartment_id is not None
+        and apartment_id not in apartment_ids
+    ):
+        return jsonify({
+            "success": False,
+            "message": "You do not have access to this apartment."
+        }), 403
+
+    # ----------------------------------------------------------
+    # Get rental units belonging to the landlord
+    # ----------------------------------------------------------
+    units_query = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids)
+    )
+
+    if apartment_id is not None:
+        units_query = units_query.filter(
+            RentalUnit.ApartmentID == apartment_id
+        )
+
+    units = units_query.all()
+
+    unit_ids = [unit.UnitID for unit in units]
+
+    if not unit_ids:
+        return jsonify({
+            "success": True,
+            "filters": {
+                "apartment_id": apartment_id,
+                "month": month_filter,
+                "status": status_filter,
+            },
+            "total_bills": 0,
+            "bills": [],
+        }), 200
+
+    # ----------------------------------------------------------
+    # Retrieve invoices
+    # ----------------------------------------------------------
+    query = TenantBill.query.filter(
+        TenantBill.RentalUnitID.in_(unit_ids)
+    )
+
+    if month_filter:
+        query = query.filter(
+            TenantBill.BillingMonth.ilike(
+                f"%{month_filter.strip()}%"
+            )
+        )
+
+    if status_filter:
+        query = query.filter(
+            TenantBill.BillStatus == status_filter
+        )
+
+    bills = query.order_by(
+        TenantBill.BillingPeriod.desc(),
+        TenantBill.BillID.desc(),
+    ).all()
+
+    # ----------------------------------------------------------
+    # Build response using BalanceService
+    # ----------------------------------------------------------
+    results = []
+
     for bill in bills:
         tenant = Tenant.query.get(bill.TenantID)
         unit = RentalUnit.query.get(bill.RentalUnitID)
-        apartment = Apartment.query.get(unit.ApartmentID) if unit else None
 
-        paid_to_date = compute_paid_to_date_for_bill(bill.BillID)
-        balance, _recomp_status = compute_balance_and_status(
-            Decimal(bill.TotalAmountDue or 0), paid_to_date
+        apartment = (
+            Apartment.query.get(unit.ApartmentID)
+            if unit
+            else None
         )
 
-        result.append({
+        total_due = BalanceService._money(
+            bill.TotalAmountDue
+        )
+
+        outstanding = BalanceService._money(
+            BalanceService.get_bill_outstanding(bill)
+        )
+
+        # Amount applied to this invoice, capped at the invoice
+        # total. Any excess payment remains tenant credit.
+        paid_to_date = max(
+            total_due - outstanding,
+            Decimal("0.00")
+        )
+
+        results.append({
             "BillID": bill.BillID,
-            "TenantName": tenant.FullName if tenant else "Unknown",
-            "ApartmentName": apartment.ApartmentName if apartment else "Unknown",
-            "UnitLabel": unit.Label if unit else "Unknown",
+            "TenantName": (
+                tenant.FullName if tenant else "Unknown"
+            ),
+            "ApartmentName": (
+                apartment.ApartmentName
+                if apartment else "Unknown"
+            ),
+            "UnitLabel": (
+                unit.Label if unit else "Unknown"
+            ),
             "BillingMonth": bill.BillingMonth,
-            "TotalAmountDue": bill.TotalAmountDue,
+            "TotalAmountDue": float(total_due),
             "BillStatus": bill.BillStatus,
-            "DueDate": bill.DueDate.strftime("%Y-%m-%d") if bill.DueDate else None,
-            "IssuedDate": bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S") if bill.IssuedDate else None,
+            "DueDate": (
+                bill.DueDate.strftime("%Y-%m-%d")
+                if bill.DueDate else None
+            ),
+            "IssuedDate": (
+                bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S")
+                if bill.IssuedDate else None
+            ),
             "PaidToDate": float(paid_to_date),
-            "Balance": float(balance)
+            "Balance": float(outstanding),
         })
 
     return jsonify({
-        "status": "success",
+        "success": True,
         "filters": {
-            "apartment": apartment_id if apartment_id else "All",
-            "month": month_filter if month_filter else "All",
-            "status": status_filter if status_filter else "All"
+            "apartment_id": apartment_id,
+            "month": month_filter,
+            "status": status_filter,
         },
-        "total_bills": len(result),
-        "bills": result
+        "total_bills": len(results),
+        "bills": results,
     }), 200
+
+
 
 
 @routes.route("/bills/apartment/<int:apartment_id>", methods=["GET"])
 @jwt_required()
 def get_bills_by_apartment(apartment_id):
+    from decimal import Decimal
+    from services.billing.balance_service import BalanceService
+
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
+
     if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+        return jsonify({
+            "status": "error",
+            "message": "Unauthorized access."
+        }), 403
 
     apartment = Apartment.query.get(apartment_id)
-    if not apartment:
-        return jsonify({"status": "error", "message": "Apartment not found."}), 404
-    if apartment.UserID != user_id:
-        return jsonify({"status": "error", "message": "You do not own this apartment."}), 403
 
-    units = RentalUnit.query.filter_by(ApartmentID=apartment_id).all()
-    unit_ids = [u.UnitID for u in units]
+    if not apartment:
+        return jsonify({
+            "status": "error",
+            "message": "Apartment not found."
+        }), 404
+
+    if apartment.UserID != user_id:
+        return jsonify({
+            "status": "error",
+            "message": "You do not own this apartment."
+        }), 403
+
+    units = RentalUnit.query.filter_by(
+        ApartmentID=apartment_id
+    ).all()
+
+    unit_ids = [unit.UnitID for unit in units]
 
     if not unit_ids:
         return jsonify({
@@ -2748,25 +2877,40 @@ def get_bills_by_apartment(apartment_id):
             "total_bills": 0
         }), 200
 
-    bills = (TenantBill.query
-             .filter(TenantBill.RentalUnitID.in_(unit_ids))
-             .order_by(TenantBill.BillID.asc())
-             .all())
+    bills = (
+        TenantBill.query
+        .filter(TenantBill.RentalUnitID.in_(unit_ids))
+        .order_by(TenantBill.BillID.asc())
+        .all()
+    )
 
-    result = []
+    results = []
+
     for bill in bills:
         tenant = Tenant.query.get(bill.TenantID)
         unit = RentalUnit.query.get(bill.RentalUnitID)
 
-        paid_to_date = compute_paid_to_date_for_bill(bill.BillID)
-        balance, _ = compute_balance_and_status(
-            Decimal(bill.TotalAmountDue or 0), paid_to_date
+        total_due = BalanceService._money(
+            bill.TotalAmountDue
         )
 
-        result.append({
+        outstanding = BalanceService._money(
+            BalanceService.get_bill_outstanding(bill)
+        )
+
+        paid_to_date = max(
+            total_due - outstanding,
+            Decimal("0.00")
+        )
+
+        results.append({
             "BillID": bill.BillID,
-            "TenantName": tenant.FullName if tenant else "Unknown",
-            "UnitLabel": unit.Label if unit else "Unknown",
+            "TenantName": (
+                tenant.FullName if tenant else "Unknown"
+            ),
+            "UnitLabel": (
+                unit.Label if unit else "Unknown"
+            ),
             "BillingMonth": bill.BillingMonth,
             "RentAmount": bill.RentAmount,
             "WaterBill": bill.WaterBill,
@@ -2774,43 +2918,67 @@ def get_bills_by_apartment(apartment_id):
             "Garbage": bill.Garbage,
             "Internet": bill.Internet,
             "CarriedForwardBalance": bill.CarriedForwardBalance,
-            "TotalAmountDue": bill.TotalAmountDue,
+            "TotalAmountDue": float(total_due),
             "BillStatus": bill.BillStatus,
-            "DueDate": bill.DueDate.strftime("%Y-%m-%d") if bill.DueDate else None,
-            "IssuedDate": bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S") if bill.IssuedDate else None,
+            "DueDate": (
+                bill.DueDate.strftime("%Y-%m-%d")
+                if bill.DueDate else None
+            ),
+            "IssuedDate": (
+                bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S")
+                if bill.IssuedDate else None
+            ),
             "PaidToDate": float(paid_to_date),
-            "Balance": float(balance)
+            "Balance": float(outstanding)
         })
 
     return jsonify({
         "status": "success",
         "apartment_id": apartment_id,
-        "total_bills": len(result),
-        "bills": result
+        "total_bills": len(results),
+        "bills": results
     }), 200
+
+
 
 
 @routes.route("/bills/unit/<int:unit_id>", methods=["GET"])
 @jwt_required()
 def get_bills_for_unit(unit_id):
+    from decimal import Decimal
+    from services.billing.balance_service import BalanceService
+
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
     if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+        return jsonify({
+            "status": "error",
+            "message": "Unauthorized access."
+        }), 403
 
     unit = RentalUnit.query.get(unit_id)
+
     if not unit:
-        return jsonify({"status": "error", "message": "Rental unit not found."}), 404
+        return jsonify({
+            "status": "error",
+            "message": "Rental unit not found."
+        }), 404
 
     apartment = Apartment.query.get(unit.ApartmentID)
-    if not apartment or apartment.UserID != user_id:
-        return jsonify({"status": "error", "message": "You can only view bills for your own units."}), 403
 
-    bills = (TenantBill.query
-             .filter_by(RentalUnitID=unit_id)
-             .order_by(TenantBill.IssuedDate.desc())
-             .all())
+    if not apartment or apartment.UserID != user_id:
+        return jsonify({
+            "status": "error",
+            "message": "You can only view bills for your own units."
+        }), 403
+
+    bills = (
+        TenantBill.query
+        .filter_by(RentalUnitID=unit_id)
+        .order_by(TenantBill.IssuedDate.desc())
+        .all()
+    )
 
     if not bills:
         return jsonify({
@@ -2820,17 +2988,29 @@ def get_bills_for_unit(unit_id):
         }), 200
 
     result = []
+
     for bill in bills:
         tenant = Tenant.query.get(bill.TenantID)
 
-        paid_to_date = compute_paid_to_date_for_bill(bill.BillID)
-        balance, _ = compute_balance_and_status(
-            Decimal(bill.TotalAmountDue or 0), paid_to_date
+        total_due = BalanceService._money(
+            bill.TotalAmountDue
+        )
+
+        outstanding = BalanceService._money(
+            BalanceService.get_bill_outstanding(bill)
+        )
+
+        # Do not count excess payments as invoice payments.
+        paid_to_date = max(
+            total_due - outstanding,
+            Decimal("0.00")
         )
 
         result.append({
             "BillID": bill.BillID,
-            "TenantName": tenant.FullName if tenant else "Unknown",
+            "TenantName": (
+                tenant.FullName if tenant else "Unknown"
+            ),
             "UnitLabel": unit.Label,
             "BillingMonth": bill.BillingMonth,
             "RentAmount": bill.RentAmount,
@@ -2839,12 +3019,18 @@ def get_bills_for_unit(unit_id):
             "Garbage": bill.Garbage,
             "Internet": bill.Internet,
             "CarriedForwardBalance": bill.CarriedForwardBalance,
-            "TotalAmountDue": bill.TotalAmountDue,
+            "TotalAmountDue": float(total_due),
             "BillStatus": bill.BillStatus,
-            "DueDate": bill.DueDate.strftime("%Y-%m-%d") if bill.DueDate else None,
-            "IssuedDate": bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S") if bill.IssuedDate else None,
+            "DueDate": (
+                bill.DueDate.strftime("%Y-%m-%d")
+                if bill.DueDate else None
+            ),
+            "IssuedDate": (
+                bill.IssuedDate.strftime("%Y-%m-%d %H:%M:%S")
+                if bill.IssuedDate else None
+            ),
             "PaidToDate": float(paid_to_date),
-            "Balance": float(balance)
+            "Balance": float(outstanding)
         })
 
     return jsonify({
@@ -2856,49 +3042,110 @@ def get_bills_for_unit(unit_id):
     }), 200
 
 
+
+
 @routes.route("/bills/month/<string:month>", methods=["GET"])
 @jwt_required()
 def get_bills_by_month(month):
+    from decimal import Decimal
+    from services.billing.balance_service import BalanceService
+
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
+
     if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+        return jsonify({
+            "status": "error",
+            "message": "Unauthorized access."
+        }), 403
 
-    apartments = Apartment.query.filter_by(UserID=user_id).all()
-    apartment_ids = [a.ApartmentID for a in apartments]
+    # Get apartments owned by the authenticated landlord.
+    apartments = Apartment.query.filter_by(
+        UserID=user_id
+    ).all()
 
+    apartment_ids = [
+        apartment.ApartmentID
+        for apartment in apartments
+    ]
+
+    if not apartment_ids:
+        return jsonify({
+            "status": "success",
+            "month": month,
+            "total_bills": 0,
+            "bills": []
+        }), 200
+
+    # Get rental units belonging to those apartments.
     units = RentalUnit.query.filter(
-        RentalUnit.ApartmentID.in_(apartment_ids)).all()
-    unit_ids = [u.UnitID for u in units]
+        RentalUnit.ApartmentID.in_(apartment_ids)
+    ).all()
 
-    bills = (TenantBill.query
-             .filter(TenantBill.RentalUnitID.in_(unit_ids),
-                     TenantBill.BillingMonth.ilike(month))
-             .order_by(TenantBill.BillID.asc())
-             .all())
+    unit_ids = [unit.UnitID for unit in units]
+
+    if not unit_ids:
+        return jsonify({
+            "status": "success",
+            "month": month,
+            "total_bills": 0,
+            "bills": []
+        }), 200
+
+    # Retrieve invoices for the requested month.
+    bills = (
+        TenantBill.query
+        .filter(
+            TenantBill.RentalUnitID.in_(unit_ids),
+            TenantBill.BillingMonth.ilike(month)
+        )
+        .order_by(TenantBill.BillID.asc())
+        .all()
+    )
 
     if not bills:
-        return jsonify({"status": "success", "message": f"No bills found for {month}."}), 200
+        return jsonify({
+            "status": "success",
+            "message": f"No bills found for {month}.",
+            "month": month,
+            "total_bills": 0,
+            "bills": []
+        }), 200
 
     result = []
+
     for bill in bills:
         tenant = Tenant.query.get(bill.TenantID)
         unit = RentalUnit.query.get(bill.RentalUnitID)
 
-        paid_to_date = compute_paid_to_date_for_bill(bill.BillID)
-        balance, _ = compute_balance_and_status(
-            Decimal(bill.TotalAmountDue or 0), paid_to_date
+        total_due = BalanceService._money(
+            bill.TotalAmountDue
+        )
+
+        outstanding = BalanceService._money(
+            BalanceService.get_bill_outstanding(bill)
+        )
+
+        # Only the amount applied to this invoice is counted.
+        # Any excess payment remains tenant credit.
+        paid_to_date = max(
+            total_due - outstanding,
+            Decimal("0.00")
         )
 
         result.append({
             "BillID": bill.BillID,
-            "TenantName": tenant.FullName if tenant else "Unknown",
-            "UnitLabel": unit.Label if unit else "Unknown",
+            "TenantName": (
+                tenant.FullName if tenant else "Unknown"
+            ),
+            "UnitLabel": (
+                unit.Label if unit else "Unknown"
+            ),
             "BillingMonth": bill.BillingMonth,
-            "TotalAmountDue": bill.TotalAmountDue,
+            "TotalAmountDue": float(total_due),
             "BillStatus": bill.BillStatus,
             "PaidToDate": float(paid_to_date),
-            "Balance": float(balance)
+            "Balance": float(outstanding)
         })
 
     return jsonify({
@@ -2909,59 +3156,125 @@ def get_bills_by_month(month):
     }), 200
 
 
+
 @routes.route("/bills/status/<string:status>", methods=["GET"])
 @jwt_required()
 def get_bills_by_status(status):
+    from decimal import Decimal
+    from services.billing.balance_service import BalanceService
+
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
 
-    valid_statuses = ["Unpaid", "Paid", "Partially Paid", "Overpaid"]
+    if not user or not user.IsAdmin:
+        return jsonify({
+            "status": "error",
+            "message": "Unauthorized access."
+        }), 403
+
+    # Normalize and validate the requested status.
+    status = status.strip()
+    valid_statuses = [
+        "Unpaid",
+        "Paid",
+        "Partially Paid",
+    ]
+
     if status not in valid_statuses:
         return jsonify({
             "status": "error",
-            "message": f"Invalid status. Choose from {valid_statuses}"
+            "message": (
+                f"Invalid status. Choose from {valid_statuses}"
+            )
         }), 400
 
-    apartments = Apartment.query.filter_by(UserID=user_id).all()
-    apartment_ids = [a.ApartmentID for a in apartments]
+    # Restrict results to apartments owned by this landlord.
+    apartments = Apartment.query.filter_by(
+        UserID=user_id
+    ).all()
 
-    units = RentalUnit.query.filter(
-        RentalUnit.ApartmentID.in_(apartment_ids)).all()
-    unit_ids = [u.UnitID for u in units]
+    apartment_ids = [
+        apartment.ApartmentID
+        for apartment in apartments
+    ]
 
-    bills = (TenantBill.query
-             .filter(TenantBill.RentalUnitID.in_(unit_ids),
-                     TenantBill.BillStatus == status)
-             .order_by(TenantBill.BillID.asc())
-             .all())
-
-    if not bills:
+    if not apartment_ids:
         return jsonify({
             "status": "success",
-            "message": f"No bills found with status '{status}'."
+            "filter_status": status,
+            "total_bills": 0,
+            "bills": []
         }), 200
 
+    units = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids)
+    ).all()
+
+    unit_ids = [unit.UnitID for unit in units]
+
+    if not unit_ids:
+        return jsonify({
+            "status": "success",
+            "filter_status": status,
+            "total_bills": 0,
+            "bills": []
+        }), 200
+
+    # Fetch the landlord's invoices.
+    bills = (
+        TenantBill.query
+        .filter(
+            TenantBill.RentalUnitID.in_(unit_ids)
+        )
+        .order_by(TenantBill.BillID.asc())
+        .all()
+    )
+
     result = []
+
     for bill in bills:
+        total_due = BalanceService._money(
+            bill.TotalAmountDue
+        )
+
+        outstanding = BalanceService._money(
+            BalanceService.get_bill_outstanding(bill)
+        )
+
+        paid_to_date = max(
+            total_due - outstanding,
+            Decimal("0.00")
+        )
+
+        # Derive status from the calculated invoice balance,
+        # rather than relying on potentially outdated stored status.
+        if outstanding == Decimal("0.00"):
+            derived_status = "Paid"
+        elif paid_to_date == Decimal("0.00"):
+            derived_status = "Unpaid"
+        else:
+            derived_status = "Partially Paid"
+
+        # Filter using the calculated status.
+        if derived_status != status:
+            continue
+
         tenant = Tenant.query.get(bill.TenantID)
         unit = RentalUnit.query.get(bill.RentalUnitID)
 
-        paid_to_date = compute_paid_to_date_for_bill(bill.BillID)
-        balance, _ = compute_balance_and_status(
-            Decimal(bill.TotalAmountDue or 0), paid_to_date
-        )
-
         result.append({
             "BillID": bill.BillID,
-            "TenantName": tenant.FullName if tenant else "Unknown",
-            "UnitLabel": unit.Label if unit else "Unknown",
+            "TenantName": (
+                tenant.FullName if tenant else "Unknown"
+            ),
+            "UnitLabel": (
+                unit.Label if unit else "Unknown"
+            ),
             "BillingMonth": bill.BillingMonth,
-            "TotalAmountDue": bill.TotalAmountDue,
-            "BillStatus": bill.BillStatus,
+            "TotalAmountDue": float(total_due),
+            "BillStatus": derived_status,
             "PaidToDate": float(paid_to_date),
-            "Balance": float(balance)
+            "Balance": float(outstanding)
         })
 
     return jsonify({
@@ -2975,61 +3288,87 @@ def get_bills_by_status(status):
 # View Bills for a Specific Month for All Units in a Landlord’s Apartments
 
 
+
 @routes.route("/bills/apartment/<string:month>", methods=["GET"])
 @jwt_required()
 def get_bills_by_apartment_month(month):
-    """
-    Original behavior preserved:
-      - Auth: landlord/admin only
-      - For each apartment owned by landlord, list bills for the given month
-      - Response keys unchanged at the top level and per-apartment
-      - Bills keep original fields; we add PaidToDate and Balance (non-breaking)
-    """
     from decimal import Decimal
+    from services.billing.balance_service import BalanceService
 
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
 
     if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+        return jsonify({
+            "status": "error",
+            "message": "Unauthorized access."
+        }), 403
 
-    apartments = Apartment.query.filter_by(UserID=user_id).all()
+    apartments = Apartment.query.filter_by(
+        UserID=user_id
+    ).all()
 
     response = []
+
     for apartment in apartments:
         units = RentalUnit.query.filter_by(
-            ApartmentID=apartment.ApartmentID).all()
-        unit_ids = [u.UnitID for u in units]
+            ApartmentID=apartment.ApartmentID
+        ).all()
 
-        bills = (TenantBill.query
-                 .filter(TenantBill.RentalUnitID.in_(unit_ids),
-                         TenantBill.BillingMonth.ilike(month))
-                 .order_by(TenantBill.BillID.asc())
-                 .all())
+        unit_ids = [unit.UnitID for unit in units]
 
         bills_list = []
-        for bill in bills:
-            tenant = Tenant.query.get(bill.TenantID)
-            unit = RentalUnit.query.get(bill.RentalUnitID)
 
-            # 🆕 Non-breaking computed fields
-            paid_to_date = compute_paid_to_date_for_bill(bill.BillID)
-            balance, _ = compute_balance_and_status(
-                Decimal(bill.TotalAmountDue or 0), paid_to_date
+        if unit_ids:
+            bills = (
+                TenantBill.query
+                .filter(
+                    TenantBill.RentalUnitID.in_(unit_ids),
+                    TenantBill.BillingMonth.ilike(month)
+                )
+                .order_by(TenantBill.BillID.asc())
+                .all()
             )
 
-            bills_list.append({
-                # 🔁 original fields (unchanged)
-                "BillID": bill.BillID,
-                "TenantName": tenant.FullName if tenant else "Unknown",
-                "UnitLabel": unit.Label if unit else "Unknown",
-                "BillingMonth": bill.BillingMonth,
-                "TotalAmountDue": bill.TotalAmountDue,
-                "BillStatus": bill.BillStatus,
-                # 🆕 extras (safe to ignore on old clients)
-                "PaidToDate": float(paid_to_date),
-                "Balance": float(balance)
-            })
+            for bill in bills:
+                tenant = Tenant.query.get(bill.TenantID)
+                unit = RentalUnit.query.get(bill.RentalUnitID)
+
+                total_due = BalanceService._money(
+                    bill.TotalAmountDue
+                )
+
+                outstanding = BalanceService._money(
+                    BalanceService.get_bill_outstanding(bill)
+                )
+
+                paid_to_date = max(
+                    total_due - outstanding,
+                    Decimal("0.00")
+                )
+
+                # Derive the displayed status from the actual balance.
+                if outstanding == Decimal("0.00"):
+                    derived_status = "Paid"
+                elif paid_to_date == Decimal("0.00"):
+                    derived_status = "Unpaid"
+                else:
+                    derived_status = "Partially Paid"
+
+                bills_list.append({
+                    "BillID": bill.BillID,
+                    "TenantName": (
+                        tenant.FullName if tenant else "Unknown"
+                    ),
+                    "UnitLabel": (
+                        unit.Label if unit else "Unknown"
+                    ),
+                    "BillingMonth": bill.BillingMonth,
+                    "TotalAmountDue": float(total_due),
+                    "BillStatus": derived_status,
+                    "PaidToDate": float(paid_to_date),
+                    "Balance": float(outstanding)
+                })
 
         response.append({
             "ApartmentID": apartment.ApartmentID,
@@ -3046,109 +3385,210 @@ def get_bills_by_apartment_month(month):
 
 
 # KPI routes
+
 @routes.route("/billing/kpis", methods=["GET"])
 @jwt_required()
 def billing_kpis():
-    """
-    KPI summary for landlord bills.
-    - Non-breaking: NEW endpoint.
-    - Filters:
-        ?month=July 2025                (matches BillingMonth label)
-        &apartment_id=123               (optional, must belong to landlord)
-        &include_apartments=true|false  (optional; default false)
-    - Output:
-        {
-          status: "success",
-          filters: {...},
-          kpis: {
-            counts_by_status: {Paid, Partially Paid, Unpaid, Overpaid},
-            totals: {sum_due, sum_paid, sum_balance},
-            by_apartment: [ ... ]   # only when include_apartments=true
-          }
-        }
-    """
     from decimal import Decimal
+    from services.billing.balance_service import BalanceService
 
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
+
     if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
-
-    month = request.args.get("month")  # e.g., "July 2025"
-    apartment_id = request.args.get("apartment_id", type=int)
-    include_apts = (request.args.get(
-        "include_apartments", "false").lower() == "true")
-
-    # landlord scope
-    apartments = Apartment.query.filter_by(UserID=user_id).all()
-    apartment_ids = [a.ApartmentID for a in apartments]
-    if apartment_id:
-        if apartment_id not in apartment_ids:
-            return jsonify({"status": "error", "message": "You do not own this apartment."}), 403
-        apartment_ids = [apartment_id]  # narrow scope
-
-    # units in-scope
-    units = RentalUnit.query.filter(
-        RentalUnit.ApartmentID.in_(apartment_ids)).all()
-    unit_ids = [u.UnitID for u in units]
-    if not unit_ids:
         return jsonify({
+            "status": "error",
+            "message": "Unauthorized access."
+        }), 403
+
+    # ----------------------------------------------------------
+    # Read filters
+    # ----------------------------------------------------------
+    month = request.args.get("month", type=str)
+    apartment_id = request.args.get("apartment_id", type=int)
+
+    include_apts = (
+        request.args.get("include_apartments", "false").lower()
+        == "true"
+    )
+
+    # ----------------------------------------------------------
+    # Restrict data to apartments owned by this landlord
+    # ----------------------------------------------------------
+    apartments = Apartment.query.filter_by(
+        UserID=user_id
+    ).all()
+
+    apartment_by_id = {
+        apartment.ApartmentID: apartment
+        for apartment in apartments
+    }
+
+    apartment_ids = list(apartment_by_id.keys())
+
+    if apartment_id is not None:
+        if apartment_id not in apartment_by_id:
+            return jsonify({
+                "status": "error",
+                "message": "You do not own this apartment."
+            }), 403
+
+        apartment_ids = [apartment_id]
+
+    # Standard invoice statuses. Overpayments are tenant credit.
+    def empty_status_counts():
+        return {
+            "Paid": 0,
+            "Partially Paid": 0,
+            "Unpaid": 0
+        }
+
+    def empty_response():
+        return {
             "status": "success",
-            "filters": {"month": month or "All", "apartment_id": apartment_id or "All"},
+            "filters": {
+                "month": month or "All",
+                "apartment_id": (
+                    apartment_id
+                    if apartment_id is not None
+                    else "All"
+                ),
+                "include_apartments": include_apts
+            },
             "kpis": {
-                "counts_by_status": {"Paid": 0, "Partially Paid": 0, "Unpaid": 0, "Overpaid": 0},
-                "totals": {"sum_due": 0.0, "sum_paid": 0.0, "sum_balance": 0.0},
+                "counts_by_status": empty_status_counts(),
+                "totals": {
+                    "sum_due": 0.0,
+                    "sum_paid": 0.0,
+                    "sum_balance": 0.0
+                },
                 "by_apartment": [] if include_apts else None
             }
-        }), 200
+        }
 
-    # base bills query
-    q = TenantBill.query.filter(TenantBill.RentalUnitID.in_(unit_ids))
+    if not apartment_ids:
+        return jsonify(empty_response()), 200
+
+    # ----------------------------------------------------------
+    # Get rental units in scope
+    # ----------------------------------------------------------
+    units = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids)
+    ).all()
+
+    if not units:
+        return jsonify(empty_response()), 200
+
+    unit_by_id = {
+        unit.UnitID: unit
+        for unit in units
+    }
+
+    unit_ids = list(unit_by_id.keys())
+
+    # ----------------------------------------------------------
+    # Retrieve invoices
+    # ----------------------------------------------------------
+    query = TenantBill.query.filter(
+        TenantBill.RentalUnitID.in_(unit_ids)
+    )
+
     if month:
-        q = q.filter(TenantBill.BillingMonth.ilike(month))
-    bills = q.all()
+        query = query.filter(
+            TenantBill.BillingMonth.ilike(month)
+        )
 
-    counts = {"Paid": 0, "Partially Paid": 0, "Unpaid": 0, "Overpaid": 0}
-    sum_due = Decimal('0.00')
-    sum_paid = Decimal('0.00')
+    bills = query.order_by(
+        TenantBill.BillID.asc()
+    ).all()
 
-    # For optional apartment grouping
-    by_apartment = {}  # apt_id -> accumulator
-    unit_by_id = {u.UnitID: u for u in units}
-    apt_by_id = {a.ApartmentID: a for a in apartments}
+    # ----------------------------------------------------------
+    # Initialize KPI accumulators
+    # ----------------------------------------------------------
+    counts = empty_status_counts()
 
-    for b in bills:
-        # derive paid_to_date using allocations if present; else fallback to summed payments
-        paid = compute_paid_to_date_for_bill(b.BillID)
-        balance, derived_status = compute_balance_and_status(
-            Decimal(b.TotalAmountDue or 0), paid)
+    sum_due = Decimal("0.00")
+    sum_paid = Decimal("0.00")
+    sum_balance = Decimal("0.00")
 
-        # overall aggregates
-        counts[derived_status] = counts.get(derived_status, 0) + 1
-        sum_due += Decimal(b.TotalAmountDue or 0)
+    by_apartment = {}
+
+    # ----------------------------------------------------------
+    # Calculate invoice KPIs using BalanceService
+    # ----------------------------------------------------------
+    for bill in bills:
+        total_due = BalanceService._money(
+            bill.TotalAmountDue
+        )
+
+        outstanding = BalanceService._money(
+            BalanceService.get_bill_outstanding(bill)
+        )
+
+        # Outstanding is clamped by BalanceService, so applied
+        # payments cannot exceed the invoice total in these KPIs.
+        paid = max(
+            total_due - outstanding,
+            Decimal("0.00")
+        )
+
+        if outstanding == Decimal("0.00"):
+            derived_status = "Paid"
+        elif paid == Decimal("0.00"):
+            derived_status = "Unpaid"
+        else:
+            derived_status = "Partially Paid"
+
+        counts[derived_status] += 1
+
+        sum_due += total_due
         sum_paid += paid
+        sum_balance += outstanding
 
-        # per-apartment aggregates (optional)
+        # ------------------------------------------------------
+        # Optional apartment breakdown
+        # ------------------------------------------------------
         if include_apts:
-            unit = unit_by_id.get(b.RentalUnitID)
-            apt_id = unit.ApartmentID if unit else None
-            if apt_id:
-                acc = by_apartment.setdefault(apt_id, {
-                    "ApartmentID": apt_id,
-                    "ApartmentName": apt_by_id.get(apt_id).ApartmentName if apt_by_id.get(apt_id) else "Unknown",
-                    "counts_by_status": {"Paid": 0, "Partially Paid": 0, "Unpaid": 0, "Overpaid": 0},
-                    "sum_due": Decimal('0.00'),
-                    "sum_paid": Decimal('0.00'),
-                })
-                acc["counts_by_status"][derived_status] += 1
-                acc["sum_due"] += Decimal(b.TotalAmountDue or 0)
-                acc["sum_paid"] += paid
+            unit = unit_by_id.get(bill.RentalUnitID)
 
+            if not unit:
+                continue
+
+            apt_id = unit.ApartmentID
+            apartment = apartment_by_id.get(apt_id)
+
+            if not apartment:
+                continue
+
+            if apt_id not in by_apartment:
+                by_apartment[apt_id] = {
+                    "ApartmentID": apt_id,
+                    "ApartmentName": apartment.ApartmentName,
+                    "counts_by_status": empty_status_counts(),
+                    "sum_due": Decimal("0.00"),
+                    "sum_paid": Decimal("0.00"),
+                    "sum_balance": Decimal("0.00")
+                }
+
+            apartment_kpi = by_apartment[apt_id]
+
+            apartment_kpi["counts_by_status"][derived_status] += 1
+            apartment_kpi["sum_due"] += total_due
+            apartment_kpi["sum_paid"] += paid
+            apartment_kpi["sum_balance"] += outstanding
+
+    # ----------------------------------------------------------
+    # Build response
+    # ----------------------------------------------------------
     payload = {
         "status": "success",
         "filters": {
             "month": month or "All",
-            "apartment_id": apartment_id or "All",
+            "apartment_id": (
+                apartment_id
+                if apartment_id is not None
+                else "All"
+            ),
             "include_apartments": include_apts
         },
         "kpis": {
@@ -3156,159 +3596,481 @@ def billing_kpis():
             "totals": {
                 "sum_due": float(sum_due),
                 "sum_paid": float(sum_paid),
-                "sum_balance": float((sum_due - sum_paid))
-            }
+                "sum_balance": float(sum_balance)
+            },
+            "by_apartment": None
         }
     }
 
     if include_apts:
         payload["kpis"]["by_apartment"] = [
             {
-                "ApartmentID": v["ApartmentID"],
-                "ApartmentName": v["ApartmentName"],
-                "counts_by_status": v["counts_by_status"],
-                "sum_due": float(v["sum_due"]),
-                "sum_paid": float(v["sum_paid"]),
-                "sum_balance": float(v["sum_due"] - v["sum_paid"])
+                "ApartmentID": values["ApartmentID"],
+                "ApartmentName": values["ApartmentName"],
+                "counts_by_status": values["counts_by_status"],
+                "sum_due": float(values["sum_due"]),
+                "sum_paid": float(values["sum_paid"]),
+                "sum_balance": float(values["sum_balance"])
             }
-            for v in by_apartment.values()
+            for values in by_apartment.values()
         ]
 
     return jsonify(payload), 200
 
 
-def compute_paid_to_date_for_bill(bill_id: int) -> Decimal:
-    bill = TenantBill.query.get(bill_id)
-    if not bill:
-        return Decimal('0.00')
 
-    # Prefer allocations if any exist
-    if getattr(bill, 'allocations', None):
-        total = sum((a.AllocatedAmount or 0) for a in bill.allocations)
-        return Decimal(total).quantize(Decimal('0.01'))
+# def compute_paid_to_date_for_bill(bill_id: int) -> Decimal:
+#     bill = TenantBill.query.get(bill_id)
+#     if not bill:
+#         return Decimal('0.00')
 
-    # Fallback: sum direct payments for that (tenant, unit, month)
-    total = (db.session.query(func.coalesce(func.sum(RentPayment.AmountPaid), 0))
-             .filter(RentPayment.TenantID == bill.TenantID,
-                     RentPayment.RentalUnitID == bill.RentalUnitID,
-                     RentPayment.BillingMonth == bill.BillingMonth)
-             .scalar())
-    return Decimal(total).quantize(Decimal('0.01'))
+#     # Prefer allocations if any exist
+#     if getattr(bill, 'allocations', None):
+#         total = sum((a.AllocatedAmount or 0) for a in bill.allocations)
+#         return Decimal(total).quantize(Decimal('0.01'))
+
+#     # Fallback: sum direct payments for that (tenant, unit, month)
+#     total = (db.session.query(func.coalesce(func.sum(RentPayment.AmountPaid), 0))
+#              .filter(RentPayment.TenantID == bill.TenantID,
+#                      RentPayment.RentalUnitID == bill.RentalUnitID,
+#                      RentPayment.BillingMonth == bill.BillingMonth)
+#              .scalar())
+#     return Decimal(total).quantize(Decimal('0.01'))
 
 
-def compute_balance_and_status(total_due: Decimal, paid_to_date: Decimal):
-    balance = (Decimal(total_due or 0) - Decimal(paid_to_date or 0)
-               ).quantize(Decimal('0.01'))
-    if balance < 0:
-        return balance, "Overpaid"
-    if balance == 0 and paid_to_date > 0:
-        return Decimal('0.00'), "Paid"
-    if paid_to_date == 0:
-        return balance, "Unpaid"
-    return balance, "Partially Paid"
+# def compute_balance_and_status(total_due: Decimal, paid_to_date: Decimal):
+#     balance = (Decimal(total_due or 0) - Decimal(paid_to_date or 0)
+#                ).quantize(Decimal('0.01'))
+#     if balance < 0:
+#         return balance, "Overpaid"
+#     if balance == 0 and paid_to_date > 0:
+#         return Decimal('0.00'), "Paid"
+#     if paid_to_date == 0:
+#         return balance, "Unpaid"
+#     return balance, "Partially Paid"
 # Route for posting the rent payment and updating its status as paid
+
+
+
+
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from sqlalchemy import func, or_
 
 
 @routes.route("/tenant-payments", methods=["POST"])
 @jwt_required()
 def record_rent_payment():
+    """Record a payment against one monthly invoice safely."""
+
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
-    if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized."}), 403
-
-    data = request.get_json() or {}
-    tenant_id = data.get("TenantID")
-    rental_unit_id = data.get("RentalUnitID")
-    billing_month = data.get("BillingMonth")
-    paid_via_mobile = data.get("PaidViaMobile")
-    txref = data.get("TxRef")
-    note = data.get("PaymentNote")
-
-    # Validate required fields
-    missing = [k for k in ["TenantID", "RentalUnitID",
-                           "BillingMonth", "PaidViaMobile"] if not data.get(k)]
-    if missing:
-        return jsonify({"status": "error", "message": f"Missing required field(s): {', '.join(missing)}"}), 400
-    if "AmountPaid" not in data:
-        return jsonify({"status": "error", "message": "AmountPaid is required."}), 400
 
     try:
-        amount_paid = float(data.get("AmountPaid"))
-    except (TypeError, ValueError):
-        return jsonify({"status": "error", "message": "AmountPaid must be a number."}), 400
-    if amount_paid <= 0:
-        return jsonify({"status": "error", "message": "AmountPaid must be greater than zero."}), 400
+        user = User.query.get(user_id)
 
-    # Find the bill
-    tenant_bill = (TenantBill.query
-                   .filter_by(TenantID=tenant_id, RentalUnitID=rental_unit_id, BillingMonth=billing_month)
-                   .first())
-    if not tenant_bill:
-        return jsonify({"status": "error", "message": "Tenant bill not found for this month."}), 404
+        if not user or not user.IsAdmin:
+            return jsonify({
+                "status": "error",
+                "message": "Unauthorized."
+            }), 403
 
-    # Snapshot billed amount from bill
-    billed_amount = float(tenant_bill.TotalAmountDue or 0)
+        data = request.get_json(silent=True) or {}
 
-    # Create the payment (now with LandlordID + optional IntendedBillingPeriod/TxRef/Note)
-    payment = RentPayment(
-        TenantID=tenant_id,
-        RentalUnitID=rental_unit_id,
-        # use bill landlord if present
-        LandlordID=getattr(tenant_bill, "LandlordID", None) or
-        Apartment.query.get(RentalUnit.query.get(
-            rental_unit_id).ApartmentID).UserID,
-        BillingMonth=billing_month,
-        IntendedBillingPeriod=None,  # you can parse from label later if desired
-        BilledAmount=billed_amount,
-        AmountPaid=amount_paid,
-        Balance=billed_amount - amount_paid,   # will be recomputed below for response
-        PaidViaMobile=paid_via_mobile,
-        TxRef=txref,
-        PaymentNote=note
-    )
-    db.session.add(payment)
-    db.session.flush()  # ensure PaymentID is available
+        required_fields = [
+            "TenantID",
+            "RentalUnitID",
+            "BillingMonth",
+            "PaidViaMobile",
+            "AmountPaid",
+        ]
 
-    # Optional: write allocation row (1:1 with this bill in your current flow)
-    try:
-        db.session.add(PaymentAllocation(
-            PaymentID=payment.PaymentID,
-            BillID=tenant_bill.BillID,
-            AllocatedAmount=amount_paid,
-            LandlordID=payment.LandlordID
-        ))
+        missing = [
+            field for field in required_fields
+            if field not in data
+            or data[field] is None
+            or (
+                isinstance(data[field], str)
+                and not data[field].strip()
+            )
+        ]
+
+        if missing:
+            return jsonify({
+                "status": "error",
+                "message": (
+                    f"Missing required field(s): "
+                    f"{', '.join(missing)}"
+                )
+            }), 400
+
+        try:
+            tenant_id = int(data["TenantID"])
+            rental_unit_id = int(data["RentalUnitID"])
+
+            if tenant_id <= 0 or rental_unit_id <= 0:
+                raise ValueError
+
+        except (TypeError, ValueError, OverflowError):
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "TenantID and RentalUnitID must be "
+                    "positive integer IDs."
+                )
+            }), 400
+
+        billing_month = str(data["BillingMonth"]).strip()
+        paid_via_mobile = str(data["PaidViaMobile"]).strip()
+        txref = data.get("TxRef")
+        note = data.get("PaymentNote")
+
+        if not billing_month or len(billing_month) > 20:
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "BillingMonth must be between 1 and "
+                    "20 characters."
+                )
+            }), 400
+
+        if not paid_via_mobile or len(paid_via_mobile) > 20:
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "PaidViaMobile must be between 1 and "
+                    "20 characters."
+                )
+            }), 400
+
+        if txref is not None:
+            txref = str(txref).strip() or None
+            if txref and len(txref) > 100:
+                return jsonify({
+                    "status": "error",
+                    "message": "TxRef cannot exceed 100 characters."
+                }), 400
+
+        if note is not None:
+            note = str(note).strip() or None
+            if note and len(note) > 255:
+                return jsonify({
+                    "status": "error",
+                    "message": (
+                        "PaymentNote cannot exceed 255 characters."
+                    )
+                }), 400
+
+        try:
+            amount_paid = Decimal(str(data["AmountPaid"]))
+
+            if not amount_paid.is_finite():
+                raise InvalidOperation
+
+            amount_paid = amount_paid.quantize(
+                Decimal("0.01"),
+                rounding=ROUND_HALF_UP
+            )
+
+        except (InvalidOperation, ValueError, TypeError):
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "AmountPaid must be a valid monetary amount."
+                )
+            }), 400
+
+        if amount_paid <= Decimal("0.00"):
+            return jsonify({
+                "status": "error",
+                "message": "AmountPaid must be greater than zero."
+            }), 400
+
+        # --------------------------------------------------
+        # 1. Find exactly one invoice owned by this landlord.
+        # Lock the invoice row where supported by the database.
+        # --------------------------------------------------
+
+        matching_bills = (
+            TenantBill.query
+            .join(
+                RentalUnit,
+                TenantBill.RentalUnitID == RentalUnit.UnitID
+            )
+            .join(
+                Apartment,
+                RentalUnit.ApartmentID == Apartment.ApartmentID
+            )
+            .filter(
+                TenantBill.TenantID == tenant_id,
+                TenantBill.RentalUnitID == rental_unit_id,
+                TenantBill.BillingMonth == billing_month,
+                Apartment.UserID == user_id,
+            )
+            .with_for_update()
+            .limit(2)
+            .all()
+        )
+
+        if not matching_bills:
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "Invoice not found, or you are not authorized "
+                    "to record a payment for it."
+                )
+            }), 404
+
+        if len(matching_bills) > 1:
+            return jsonify({
+                "status": "error",
+                "message": (
+                    "Multiple invoices match this tenant, unit, "
+                    "and billing month. Resolve the duplicate "
+                    "invoices before recording a payment."
+                )
+            }), 409
+
+        tenant_bill = matching_bills[0]
+
+        if (
+            tenant_bill.LandlordID is not None
+            and str(tenant_bill.LandlordID) != str(user_id)
+        ):
+            return jsonify({
+                "status": "error",
+                "message": "Invoice ownership validation failed."
+            }), 403
+
+        # --------------------------------------------------
+        # 2. Check for an existing transaction reference.
+        # --------------------------------------------------
+
+        if txref:
+            duplicate_payment = RentPayment.query.filter(
+                RentPayment.LandlordID == user_id,
+                RentPayment.TxRef == txref,
+            ).first()
+
+            if duplicate_payment:
+                return jsonify({
+                    "status": "error",
+                    "message": (
+                        "A payment with this transaction reference "
+                        "has already been recorded."
+                    )
+                }), 409
+
+        # --------------------------------------------------
+        # 3. Reconcile eligible legacy payments.
+        # Only payments with no allocation rows are considered.
+        # Payments belonging to another landlord are excluded.
+        # --------------------------------------------------
+
+        billed_amount = Decimal(
+            str(tenant_bill.TotalAmountDue or 0)
+        ).quantize(Decimal("0.01"))
+
+        if billed_amount < Decimal("0.00"):
+            db.session.rollback()
+            return jsonify({
+                "status": "error",
+                "message": "The invoice amount is invalid."
+            }), 409
+
+        legacy_payments = (
+            RentPayment.query
+            .filter(
+                RentPayment.TenantID == tenant_id,
+                RentPayment.RentalUnitID == rental_unit_id,
+                RentPayment.BillingMonth == billing_month,
+                or_(
+                    RentPayment.LandlordID == user_id,
+                    RentPayment.LandlordID.is_(None),
+                ),
+            )
+            .order_by(
+                RentPayment.PaymentDate.asc(),
+                RentPayment.PaymentID.asc(),
+            )
+            .with_for_update()
+            .all()
+        )
+
+        for old_payment in legacy_payments:
+            already_allocated = (
+                db.session.query(PaymentAllocation.AllocationID)
+                .filter(
+                    PaymentAllocation.PaymentID
+                    == old_payment.PaymentID
+                )
+                .first()
+            )
+
+            if already_allocated:
+                continue
+
+            allocated_total = (
+                db.session.query(
+                    func.coalesce(
+                        func.sum(PaymentAllocation.AllocatedAmount),
+                        0
+                    )
+                )
+                .filter(
+                    PaymentAllocation.BillID == tenant_bill.BillID
+                )
+                .scalar()
+            )
+
+            remaining = max(
+                billed_amount - Decimal(str(allocated_total or 0)),
+                Decimal("0.00"),
+            )
+
+            old_amount = max(
+                Decimal(str(old_payment.AmountPaid or 0)).quantize(
+                    Decimal("0.01")
+                ),
+                Decimal("0.00"),
+            )
+
+            amount_to_allocate = min(old_amount, remaining)
+
+            if amount_to_allocate > 0:
+                db.session.add(
+                    PaymentAllocation(
+                        PaymentID=old_payment.PaymentID,
+                        BillID=tenant_bill.BillID,
+                        AllocatedAmount=amount_to_allocate,
+                        LandlordID=user_id,
+                    )
+                )
+
+        db.session.flush()
+
+        # --------------------------------------------------
+        # 4. Calculate the invoice's current outstanding amount.
+        # --------------------------------------------------
+
+        allocated_before_raw = (
+            db.session.query(
+                func.coalesce(
+                    func.sum(PaymentAllocation.AllocatedAmount),
+                    0
+                )
+            )
+            .filter(
+                PaymentAllocation.BillID == tenant_bill.BillID
+            )
+            .scalar()
+        )
+
+        allocated_before = Decimal(
+            str(allocated_before_raw or 0)
+        ).quantize(Decimal("0.01"))
+
+        outstanding_before = max(
+            billed_amount - allocated_before,
+            Decimal("0.00"),
+        )
+
+        # Allocate only the amount the invoice still owes.
+        allocated_amount = min(
+            amount_paid,
+            outstanding_before,
+        )
+
+        # Excess is reported as credit; it is not added to the bill.
+        credit_amount = amount_paid - allocated_amount
+
+        outstanding_after = max(
+            outstanding_before - allocated_amount,
+            Decimal("0.00"),
+        )
+
+        # --------------------------------------------------
+        # 5. Create the payment record.
+        # --------------------------------------------------
+
+        payment = RentPayment(
+            TenantID=tenant_id,
+            RentalUnitID=rental_unit_id,
+            LandlordID=user_id,
+            BillingMonth=billing_month,
+            IntendedBillingPeriod=tenant_bill.BillingPeriod,
+            BilledAmount=float(billed_amount),
+            AmountPaid=float(amount_paid),
+            Balance=float(outstanding_after),
+            PaidViaMobile=paid_via_mobile,
+            TxRef=txref,
+            PaymentNote=note,
+        )
+
+        db.session.add(payment)
+        db.session.flush()
+
+        # --------------------------------------------------
+        # 6. Allocate the payment to this invoice.
+        # --------------------------------------------------
+
+        if allocated_amount > 0:
+            db.session.add(
+                PaymentAllocation(
+                    PaymentID=payment.PaymentID,
+                    BillID=tenant_bill.BillID,
+                    AllocatedAmount=allocated_amount,
+                    LandlordID=user_id,
+                )
+            )
+
+        db.session.flush()
+
+        # --------------------------------------------------
+        # 7. Update invoice status and commit atomically.
+        # --------------------------------------------------
+
+        if outstanding_after == Decimal("0.00"):
+            status = "Paid"
+        elif allocated_before > 0 or allocated_amount > 0:
+            status = "Partially Paid"
+        else:
+            status = "Unpaid"
+
+        tenant_bill.BillStatus = status
+        payment.Balance = float(outstanding_after)
+
+        db.session.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": f"Payment recorded successfully. Bill is now '{status}'.",
+            "payment_details": {
+                "PaymentID": payment.PaymentID,
+                "TenantID": tenant_id,
+                "RentalUnitID": rental_unit_id,
+                "BillingMonth": billing_month,
+                "BilledAmount": float(billed_amount),
+                "AmountPaid": float(amount_paid),
+                "PreviouslyAllocated": float(allocated_before),
+                "AllocatedAmount": float(allocated_amount),
+                "CreditAmount": float(credit_amount),
+                "Balance": float(outstanding_after),
+                "BillStatus": status,
+                "TxRef": txref,
+            },
+        }), 201
+
     except Exception:
-        # If table not present or any issue, skip silently to keep backward-compat
-        pass
+        db.session.rollback()
 
-    # Recompute paid-to-date and status based on allocations (or fallback)
-    paid_to_date = compute_paid_to_date_for_bill(tenant_bill.BillID)
-    balance, status = compute_balance_and_status(
-        Decimal(tenant_bill.TotalAmountDue or 0), paid_to_date)
-
-    # Persist updated status on the bill
-    tenant_bill.BillStatus = status
-
-    # Keep Balance in response consistent
-    payment.Balance = float(balance)
-
-    db.session.commit()
-
-    return jsonify({
-        "status": "success",
-        "message": f"Payment recorded successfully. Bill is now '{status}'.",
-        "payment_details": {
-            "TenantID": tenant_id,
-            "RentalUnitID": rental_unit_id,
-            "BillingMonth": billing_month,
-            "BilledAmount": billed_amount,
-            "AmountPaid": amount_paid,
-            "Balance": float(balance),
-            "BillStatus": status,
-            "TxRef": txref
-        }
-    }), 201
+        # Log the exception server-side if your application logger
+        # is configured. Do not expose database details to clients.
+        return jsonify({
+            "status": "error",
+            "message": (
+                "The payment could not be recorded. "
+                "No payment changes were committed."
+            )
+        }), 500
 
 
 # Add new expense
@@ -4459,51 +5221,114 @@ def billing_cashflow():
 # ---- /billing/arrears -------------------------------------------------------
 
 
+
 @routes.route("/billing/arrears", methods=["GET"])
 @jwt_required()
 def billing_arrears():
     """
-    Returns list of open balances (balance > 0).
-    Shape:
-      { status: "success", items: [{ BillID, TenantName, ApartmentName, UnitLabel,
-                                     BillingMonth, TotalAmountDue, PaidToDate, Balance }] }
+    Return invoices with outstanding balances for the
+    authenticated landlord.
+
+    Previous unpaid invoices remain separate invoices.
+    Excess payments are treated as tenant credit.
     """
     from decimal import Decimal
+    from services.billing.balance_service import BalanceService
 
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
+
     if not user or not user.IsAdmin:
-        return jsonify({"status": "error", "message": "Unauthorized access."}), 403
+        return jsonify({
+            "status": "error",
+            "message": "Unauthorized access."
+        }), 403
 
-    # landlord scope
-    apartments = Apartment.query.filter_by(UserID=user_id).all()
-    apt_ids = [a.ApartmentID for a in apartments]
-    units = RentalUnit.query.filter(RentalUnit.ApartmentID.in_(apt_ids)).all()
-    unit_ids = [u.UnitID for u in units]
+    # Restrict invoices to apartments owned by this landlord.
+    apartments = Apartment.query.filter_by(
+        UserID=user_id
+    ).all()
 
-    bills = (TenantBill.query
-             .filter(TenantBill.RentalUnitID.in_(unit_ids))
-             .order_by(TenantBill.BillID.asc())
-             .all())
+    apartment_ids = [
+        apartment.ApartmentID
+        for apartment in apartments
+    ]
+
+    if not apartment_ids:
+        return jsonify({
+            "status": "success",
+            "items": []
+        }), 200
+
+    units = RentalUnit.query.filter(
+        RentalUnit.ApartmentID.in_(apartment_ids)
+    ).all()
+
+    unit_ids = [unit.UnitID for unit in units]
+
+    if not unit_ids:
+        return jsonify({
+            "status": "success",
+            "items": []
+        }), 200
+
+    bills = (
+        TenantBill.query
+        .filter(TenantBill.RentalUnitID.in_(unit_ids))
+        .order_by(
+            TenantBill.BillingPeriod.asc(),
+            TenantBill.BillID.asc()
+        )
+        .all()
+    )
 
     items = []
-    for b in bills:
-        paid = compute_paid_to_date_for_bill(b.BillID)
-        balance, _ = compute_balance_and_status(
-            Decimal(b.TotalAmountDue or 0), paid)
-        if balance > 0:
-            tenant = Tenant.query.get(b.TenantID)
-            unit = RentalUnit.query.get(b.RentalUnitID)
-            apt = Apartment.query.get(unit.ApartmentID) if unit else None
-            items.append({
-                "BillID": b.BillID,
-                "TenantName": tenant.FullName if tenant else "Unknown",
-                "ApartmentName": apt.ApartmentName if apt else "Unknown",
-                "UnitLabel": unit.Label if unit else "Unknown",
-                "BillingMonth": b.BillingMonth,
-                "TotalAmountDue": float(b.TotalAmountDue or 0),
-                "PaidToDate": float(paid),
-                "Balance": float(balance)
-            })
 
-    return jsonify({"status": "success", "items": items}), 200
+    for bill in bills:
+        total_due = BalanceService._money(
+            bill.TotalAmountDue
+        )
+
+        balance = BalanceService._money(
+            BalanceService.get_bill_outstanding(bill)
+        )
+
+        # Only include invoices with an outstanding balance.
+        if balance <= Decimal("0.00"):
+            continue
+
+        paid_to_date = max(
+            total_due - balance,
+            Decimal("0.00")
+        )
+
+        tenant = Tenant.query.get(bill.TenantID)
+        unit = RentalUnit.query.get(bill.RentalUnitID)
+
+        apartment = (
+            Apartment.query.get(unit.ApartmentID)
+            if unit else None
+        )
+
+        items.append({
+            "BillID": bill.BillID,
+            "TenantName": (
+                tenant.FullName if tenant else "Unknown"
+            ),
+            "ApartmentName": (
+                apartment.ApartmentName
+                if apartment else "Unknown"
+            ),
+            "UnitLabel": (
+                unit.Label if unit else "Unknown"
+            ),
+            "BillingMonth": bill.BillingMonth,
+            "TotalAmountDue": float(total_due),
+            "PaidToDate": float(paid_to_date),
+            "Balance": float(balance)
+        })
+
+    return jsonify({
+        "status": "success",
+        "items": items
+    }), 200
